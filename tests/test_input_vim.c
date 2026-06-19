@@ -1075,6 +1075,99 @@ static int test_input_vim_operator_gg_still_deletes_to_top(void) {
 	return 0;
 }
 
+/* `{n}G` is an absolute jump to line n (1-based), not a repeat of the bare-`G`
+ * last-line motion which would otherwise ignore the count entirely. */
+static int test_input_vim_count_capital_g_goes_to_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("  three");
+	add_row("four");
+	add_row("five");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('3') == 0);
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(2, E.cx); /* first non-blank of "  three" */
+	return 0;
+}
+
+/* Multi-digit counts accumulate; a count past the last line clamps to it. */
+static int test_input_vim_count_capital_g_clamps_past_end(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('1') == 0);
+	ASSERT_TRUE(vim_test_key('9') == 0);
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	return 0;
+}
+
+/* Bare `G` still goes to the last line. */
+static int test_input_vim_capital_g_goes_to_last_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	return 0;
+}
+
+/* `{n}gg` is also an absolute jump to line n. */
+static int test_input_vim_count_gg_goes_to_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	add_row("four");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 3;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	return 0;
+}
+
+/* `d{n}G` deletes linewise from the current line through line n inclusive. */
+static int test_input_vim_operator_count_g_deletes_to_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	add_row("four");
+	add_row("five");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 1;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('3') == 0);
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	/* Lines 2..3 (two, three) removed, leaving one/four/five. */
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "one");
+	ASSERT_ROW_TEXT_EQ(1, "four");
+	ASSERT_ROW_TEXT_EQ(2, "five");
+	return 0;
+}
+
 static int test_input_vim_delete_inner_paren(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("foo(bar)baz");
@@ -2019,6 +2112,15 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_gd_does_not_start_operator", test_input_vim_gd_does_not_start_operator},
         {"input_vim_operator_gg_still_deletes_to_top",
          test_input_vim_operator_gg_still_deletes_to_top},
+        {"input_vim_count_capital_g_goes_to_line",
+         test_input_vim_count_capital_g_goes_to_line},
+        {"input_vim_count_capital_g_clamps_past_end",
+         test_input_vim_count_capital_g_clamps_past_end},
+        {"input_vim_capital_g_goes_to_last_line",
+         test_input_vim_capital_g_goes_to_last_line},
+        {"input_vim_count_gg_goes_to_line", test_input_vim_count_gg_goes_to_line},
+        {"input_vim_operator_count_g_deletes_to_line",
+         test_input_vim_operator_count_g_deletes_to_line},
         {"input_vim_delete_inner_paren", test_input_vim_delete_inner_paren},
         {"input_vim_delete_around_paren", test_input_vim_delete_around_paren},
         {"input_vim_change_inner_brace_enters_insert",

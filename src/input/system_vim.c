@@ -1113,6 +1113,32 @@ static int vimSystemMotionTargetCounted(enum vimSystemMotion motion, int count, 
 	int cx = E.cx;
 	int found = 0;
 
+	/* `G`/`gg` take an absolute 1-based line number from the count rather than
+	 * repeating a single-step (idempotent) motion: bare `G` jumps to the last
+	 * line and bare `gg` to the first, while `{n}G`/`{n}gg` jump to line n. The
+	 * raw count is still live in E.input_vim_count at dispatch time (it is reset
+	 * afterwards), so use it to tell an explicit count from a bare motion. */
+	if (motion == VIM_SYSTEM_MOTION_FIRST_LINE || motion == VIM_SYSTEM_MOTION_LAST_LINE) {
+		int target_cy;
+		if (E.numrows <= 0) {
+			return 0;
+		}
+		if (E.input_vim_count > 0) {
+			target_cy = E.input_vim_count - 1;
+		} else {
+			target_cy = motion == VIM_SYSTEM_MOTION_FIRST_LINE ? 0 : E.numrows - 1;
+		}
+		if (target_cy < 0) {
+			target_cy = 0;
+		}
+		if (target_cy > E.numrows - 1) {
+			target_cy = E.numrows - 1;
+		}
+		*cy_out = target_cy;
+		*cx_out = vimSystemLineFirstNonblank(target_cy);
+		return 1;
+	}
+
 	if (count < 1) {
 		count = 1;
 	}
