@@ -81,8 +81,6 @@ static int test_input_vim_reset_returns_to_normal(void) {
 	return 0;
 }
 
-/* Normal and Visual modes request a block cursor so it sits on the cluster the
- * inclusive selection ends on; Insert defers to the configured style (-1). */
 static int test_input_vim_cursor_style_is_block_outside_insert(void) {
 	const struct editorInputSystem *system = NULL;
 
@@ -341,8 +339,6 @@ static int test_input_vim_visual_motions_preserve_anchor(void) {
 	int dirty_before = E.dirty;
 
 	ASSERT_TRUE(vim_test_activate());
-	/* Charwise Visual selects inclusively, so the rendered range extends one
-	 * cluster past the later of anchor/cursor. */
 	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'h', 0, 0, 2, 0, 2, 0, 4));
 	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'l', 0, 0, 3, 0, 2, 0, 4));
 	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'w', 0, 0, 7, 0, 2, 0, 8));
@@ -359,9 +355,6 @@ static int test_input_vim_visual_motions_preserve_anchor(void) {
 	return 0;
 }
 
-/* Arrow keys must act as motions in Visual mode (like h/j/k/l): move the cursor
- * and extend the selection from the anchor. Previously they were routed through
- * the CUA MOVE actions, which clear selection mode, so the selection collapsed. */
 static int test_input_vim_visual_arrow_keys_grow_selection(void) {
 	add_row("  alpha, beta");
 	add_row("xy");
@@ -377,7 +370,6 @@ static int test_input_vim_visual_arrow_keys_grow_selection(void) {
 	return 0;
 }
 
-/* Arrow keys move the cursor as Normal-mode motions, equivalent to h/j/k/l. */
 static int test_input_vim_normal_arrow_keys_move_as_motions(void) {
 	add_row("alpha");
 	add_row("beta");
@@ -393,14 +385,12 @@ static int test_input_vim_normal_arrow_keys_move_as_motions(void) {
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_TRUE(vim_test_key(ARROW_LEFT) == 0);
 	ASSERT_EQ_INT(0, E.cx);
-	/* h/l do not wrap across line boundaries: left at column 0 stays put. */
 	ASSERT_TRUE(vim_test_key(ARROW_LEFT) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	return 0;
 }
 
-/* `d<Down>` deletes linewise across the arrow motion, like `dj`. */
 static int test_input_vim_operator_arrow_down_deletes_lines(void) {
 	add_row("one");
 	add_row("two");
@@ -1161,8 +1151,6 @@ static int test_input_vim_operator_gg_still_deletes_to_top(void) {
 	return 0;
 }
 
-/* `{n}G` is an absolute jump to line n (1-based), not a repeat of the bare-`G`
- * last-line motion which would otherwise ignore the count entirely. */
 static int test_input_vim_count_capital_g_goes_to_line(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("one");
@@ -1177,11 +1165,10 @@ static int test_input_vim_count_capital_g_goes_to_line(void) {
 	ASSERT_TRUE(vim_test_key('3') == 0);
 	ASSERT_TRUE(vim_test_key('G') == 0);
 	ASSERT_EQ_INT(2, E.cy);
-	ASSERT_EQ_INT(2, E.cx); /* first non-blank of "  three" */
+	ASSERT_EQ_INT(2, E.cx);
 	return 0;
 }
 
-/* Multi-digit counts accumulate; a count past the last line clamps to it. */
 static int test_input_vim_count_capital_g_clamps_past_end(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("one");
@@ -1198,7 +1185,6 @@ static int test_input_vim_count_capital_g_clamps_past_end(void) {
 	return 0;
 }
 
-/* Bare `G` still goes to the last line. */
 static int test_input_vim_capital_g_goes_to_last_line(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("one");
@@ -1213,7 +1199,6 @@ static int test_input_vim_capital_g_goes_to_last_line(void) {
 	return 0;
 }
 
-/* `{n}gg` is also an absolute jump to line n. */
 static int test_input_vim_count_gg_goes_to_line(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("one");
@@ -1231,7 +1216,6 @@ static int test_input_vim_count_gg_goes_to_line(void) {
 	return 0;
 }
 
-/* `d{n}G` deletes linewise from the current line through line n inclusive. */
 static int test_input_vim_operator_count_g_deletes_to_line(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("one");
@@ -1246,7 +1230,6 @@ static int test_input_vim_operator_count_g_deletes_to_line(void) {
 	ASSERT_TRUE(vim_test_key('d') == 0);
 	ASSERT_TRUE(vim_test_key('3') == 0);
 	ASSERT_TRUE(vim_test_key('G') == 0);
-	/* Lines 2..3 (two, three) removed, leaving one/four/five. */
 	ASSERT_EQ_INT(3, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "one");
 	ASSERT_ROW_TEXT_EQ(1, "four");
@@ -1900,6 +1883,21 @@ static int test_input_vim_replace_char_count(void) {
 	return 0;
 }
 
+static int test_input_vim_replace_char_large_count(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdefghijkl");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('9') == 0);
+	ASSERT_TRUE(vim_test_key('r') == 0);
+	(void)vim_test_key('z');
+	ASSERT_ROW_TEXT_EQ(0, "zzzzzzzzzjkl");
+	ASSERT_EQ_INT(8, E.cx);
+	return 0;
+}
+
 static int test_input_vim_toggle_case(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("aBc");
@@ -1951,12 +1949,11 @@ static int test_input_vim_undo_is_not_dot_repeatable(void) {
 	ASSERT_TRUE(vim_test_activate());
 	E.cy = 0;
 	E.cx = 0;
-	ASSERT_TRUE(vim_test_key('x') == 0); /* delete 'a' -> "bcd" */
+	ASSERT_TRUE(vim_test_key('x') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "bcd");
-	ASSERT_TRUE(vim_test_key('u') == 0); /* undo -> "abcd" */
+	ASSERT_TRUE(vim_test_key('u') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "abcd");
 
-	/* `.` must repeat the last change (x), not the undo. */
 	E.cx = 0;
 	ASSERT_TRUE(vim_test_key('.') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "bcd");
@@ -1964,7 +1961,6 @@ static int test_input_vim_undo_is_not_dot_repeatable(void) {
 }
 
 static int test_input_vim_ctrl_keys_do_not_trigger_cua(void) {
-	/* Ctrl-Y is CUA redo; in Vim mode it must not redo (it scrolls instead). */
 	add_row("abc");
 
 	ASSERT_TRUE(vim_test_activate());
@@ -1976,7 +1972,7 @@ static int test_input_vim_ctrl_keys_do_not_trigger_cua(void) {
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('y')) == 0);
-	ASSERT_ROW_TEXT_EQ(0, "abc"); /* not redone by CUA Ctrl-Y */
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	return 0;
 }
 
@@ -1996,7 +1992,7 @@ static int test_input_vim_visual_linewise_selection_spans_full_lines(void) {
 	ASSERT_EQ_INT(0, range.start_cy);
 	ASSERT_EQ_INT(0, range.start_cx);
 	ASSERT_EQ_INT(1, range.end_cy);
-	ASSERT_EQ_INT(4, range.end_cx); /* full second line ("beta") */
+	ASSERT_EQ_INT(4, range.end_cx);
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	return 0;
@@ -2011,7 +2007,6 @@ static int test_input_vim_visual_charwise_single_cell_is_selected(void) {
 	E.cy = 0;
 	E.cx = 1;
 	ASSERT_TRUE(vim_test_key('v') == 0);
-	/* With no motion the cell under the cursor is already selected. */
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(0, range.start_cy);
 	ASSERT_EQ_INT(1, range.start_cx);
@@ -2026,7 +2021,7 @@ static int test_input_vim_insert_ctrl_w_deletes_word(void) {
 
 	ASSERT_TRUE(vim_test_activate());
 	E.cy = 0;
-	E.cx = 7; /* end of "foo bar" */
+	E.cx = (int)strlen("foo bar");
 	ASSERT_TRUE(vim_test_key('i') == 0);
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "foo ");
@@ -2040,13 +2035,11 @@ static int test_input_vim_insert_ctrl_u_deletes_to_line_start(void) {
 
 	ASSERT_TRUE(vim_test_activate());
 	E.cy = 0;
-	E.cx = 13; /* end of line */
+	E.cx = (int)strlen("  hello world");
 	ASSERT_TRUE(vim_test_key('i') == 0);
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('u')) == 0);
-	/* First Ctrl-U deletes back to the first non-blank. */
 	ASSERT_ROW_TEXT_EQ(0, "  ");
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('u')) == 0);
-	/* Second Ctrl-U deletes the remaining indent. */
 	ASSERT_ROW_TEXT_EQ(0, "");
 	return 0;
 }
@@ -2071,7 +2064,6 @@ static int test_input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua(void) {
 	E.cy = 0;
 	E.cx = 0;
 	ASSERT_TRUE(vim_test_key('i') == 0);
-	/* Ctrl-P is CUA find-file; in Insert mode it is swallowed, not inserted. */
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('p')) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "");
 	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
@@ -2130,6 +2122,27 @@ static int test_input_vim_visual_block_yank(void) {
 	return 0;
 }
 
+static int test_input_vim_visual_block_yank_named_register(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_TRUE(vim_test_key('"') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(E.vim_registers[0].text != NULL);
+	ASSERT_EQ_INT(5, (int)E.vim_registers[0].len);
+	ASSERT_TRUE(memcmp(E.vim_registers[0].text, "el\nor", 5) == 0);
+	ASSERT_EQ_INT(0, E.vim_registers[0].linewise);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	return 0;
+}
+
 static int test_input_vim_visual_block_change_enters_insert(void) {
 	add_row("hello");
 	add_row("world");
@@ -2164,6 +2177,8 @@ static int test_input_vim_visual_block_escape_clears(void) {
 const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_visual_block_delete", test_input_vim_visual_block_delete},
         {"input_vim_visual_block_yank", test_input_vim_visual_block_yank},
+        {"input_vim_visual_block_yank_named_register",
+         test_input_vim_visual_block_yank_named_register},
         {"input_vim_visual_block_change_enters_insert",
          test_input_vim_visual_block_change_enters_insert},
         {"input_vim_visual_block_escape_clears", test_input_vim_visual_block_escape_clears},
@@ -2200,12 +2215,10 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_gd_does_not_start_operator", test_input_vim_gd_does_not_start_operator},
         {"input_vim_operator_gg_still_deletes_to_top",
          test_input_vim_operator_gg_still_deletes_to_top},
-        {"input_vim_count_capital_g_goes_to_line",
-         test_input_vim_count_capital_g_goes_to_line},
+        {"input_vim_count_capital_g_goes_to_line", test_input_vim_count_capital_g_goes_to_line},
         {"input_vim_count_capital_g_clamps_past_end",
          test_input_vim_count_capital_g_clamps_past_end},
-        {"input_vim_capital_g_goes_to_last_line",
-         test_input_vim_capital_g_goes_to_last_line},
+        {"input_vim_capital_g_goes_to_last_line", test_input_vim_capital_g_goes_to_last_line},
         {"input_vim_count_gg_goes_to_line", test_input_vim_count_gg_goes_to_line},
         {"input_vim_operator_count_g_deletes_to_line",
          test_input_vim_operator_count_g_deletes_to_line},
@@ -2251,6 +2264,7 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_search_word_under_cursor", test_input_vim_search_word_under_cursor},
         {"input_vim_replace_char", test_input_vim_replace_char},
         {"input_vim_replace_char_count", test_input_vim_replace_char_count},
+        {"input_vim_replace_char_large_count", test_input_vim_replace_char_large_count},
         {"input_vim_toggle_case", test_input_vim_toggle_case},
         {"input_vim_join_lines", test_input_vim_join_lines},
         {"input_vim_normal_text_does_not_insert", test_input_vim_normal_text_does_not_insert},

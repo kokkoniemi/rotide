@@ -370,6 +370,15 @@ static int vimSystemConsumeCountKey(int c) {
 	return 1;
 }
 
+static void vimSystemConsumeRegisterKey(int c) {
+	E.input_vim_pending_register = 0;
+	if (c >= 'a' && c <= 'z') {
+		E.input_vim_active_register = c;
+	} else if (c >= 'A' && c <= 'Z') {
+		E.input_vim_active_register = c - 'A' + 'a';
+	}
+}
+
 static int vimSystemOperatorTotalCount(void) {
 	int operator_count = E.input_vim_operator_count > 0 ? E.input_vim_operator_count : 1;
 	int motion_count = E.input_vim_count > 0 ? E.input_vim_count : 1;
@@ -406,10 +415,6 @@ static int vimSystemStatusColor(void) {
 	}
 }
 
-/* Terminal cursor shape for the current mode: a block in Normal/Visual (so the
- * block sits on the cluster the inclusive selection ends on, instead of a bar
- * drawn at its left edge that looks one cell short) and the configured style in
- * Insert (negative = no override). */
 static int vimSystemCursorStyle(void) {
 	switch (vimSystemMode()) {
 		case VIM_SYSTEM_MODE_INSERT:
@@ -423,9 +428,6 @@ static int vimSystemCursorStyle(void) {
 	}
 }
 
-/* Keep the renderer's inclusive/linewise selection flags in step with the Vim
- * visual state: charwise Visual is cursor-inclusive unless an explicit
- * (half-open) range was set; Visual-Line spans whole lines. */
 static void vimSystemSyncVisualSelectionFlags(void) {
 	switch (vimSystemMode()) {
 		case VIM_SYSTEM_MODE_VISUAL:
@@ -1130,11 +1132,6 @@ static int vimSystemMotionTargetCounted(enum vimSystemMotion motion, int count, 
 	int cx = E.cx;
 	int found = 0;
 
-	/* `G`/`gg` take an absolute 1-based line number from the count rather than
-	 * repeating a single-step (idempotent) motion: bare `G` jumps to the last
-	 * line and bare `gg` to the first, while `{n}G`/`{n}gg` jump to line n. The
-	 * raw count is still live in E.input_vim_count at dispatch time (it is reset
-	 * afterwards), so use it to tell an explicit count from a bare motion. */
 	if (motion == VIM_SYSTEM_MOTION_FIRST_LINE || motion == VIM_SYSTEM_MOTION_LAST_LINE) {
 		int target_cy;
 		if (E.numrows <= 0) {
@@ -2407,10 +2404,13 @@ static int vimSystemPasteDefaultRegister(int after, int *effects_out) {
 static int vimSystemReplaceChar(int replacement, int count, int *effects_out) {
 	struct editorLineView line = {0};
 	struct editorSelectionRange range;
-	char buf[8];
+	char stack_buf[64];
+	char *buf = stack_buf;
 	int end_cx;
 	int dirty_before = E.dirty;
 	int last_cx;
+	int replaced;
+	size_t replace_len;
 
 	if (replacement == '\x1b' || replacement == '\r') {
 		return 0;
@@ -2433,17 +2433,33 @@ static int vimSystemReplaceChar(int replacement, int count, int *effects_out) {
 	last_cx = editorBytesPrevClusterIdx(line.data, line.size, end_cx);
 	editorLineViewRelease(&line);
 
-	for (int i = 0; i < count && i < (int)sizeof(buf); i++) {
-		buf[i] = (char)replacement;
+	replace_len = (size_t)count;
+	if (replace_len > ROTIDE_MAX_TEXT_BYTES) {
+		editorSetOperationTooLargeStatus();
+		return 0;
 	}
+	if (replace_len > sizeof(stack_buf)) {
+		buf = editorMalloc(replace_len);
+		if (buf == NULL) {
+			editorSetAllocFailureStatus();
+			return 0;
+		}
+	}
+	memset(buf, replacement, replace_len);
 	range.start_cy = E.cy;
 	range.start_cx = E.cx;
 	range.end_cy = E.cy;
 	range.end_cx = end_cx;
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-	(void)editorReplaceRange(&range, buf, (size_t)count);
+	replaced = editorReplaceRange(&range, buf, replace_len);
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 	editorHistoryBreakGroup();
+	if (buf != stack_buf) {
+		free(buf);
+	}
+	if (replaced <= 0) {
+		return 0;
+	}
 	vimSystemAddEditEffect(effects_out);
 	(void)vimSystemSetCursor(E.cy, last_cx, effects_out);
 	return 1;
@@ -3219,12 +3235,7 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		return 0;
 	}
 	if (E.input_vim_pending_register) {
-		E.input_vim_pending_register = 0;
-		if (c >= 'a' && c <= 'z') {
-			E.input_vim_active_register = c;
-		} else if (c >= 'A' && c <= 'Z') {
-			E.input_vim_active_register = c - 'A' + 'a';
-		}
+		vimSystemConsumeRegisterKey(c);
 		return 0;
 	}
 	if (E.input_vim_pending_leader) {
@@ -3569,12 +3580,7 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 		return 0;
 	}
 	if (E.input_vim_pending_register) {
-		E.input_vim_pending_register = 0;
-		if (c >= 'a' && c <= 'z') {
-			E.input_vim_active_register = c;
-		} else if (c >= 'A' && c <= 'Z') {
-			E.input_vim_active_register = c - 'A' + 'a';
-		}
+		vimSystemConsumeRegisterKey(c);
 		return 0;
 	}
 	if (E.input_vim_pending_text_object) {
@@ -3767,6 +3773,10 @@ static int vimSystemHandleVisualBlockKey(int c, int *effects_out) {
 			vimSystemBlockSync();
 		}
 		return shared_result;
+	}
+	if (E.input_vim_pending_register) {
+		vimSystemConsumeRegisterKey(c);
+		return 0;
 	}
 	if (vimSystemConsumeCountKey(c)) {
 		return 0;

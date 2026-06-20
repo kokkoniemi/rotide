@@ -1678,8 +1678,6 @@ static int screenAppendFramePreamble(struct writeBuf *wb) {
 		        screenCursorStyleFromVtermShape(focused_terminal->cursor_shape);
 		frame_cursor_blink = focused_terminal->cursor_blink != 0;
 	} else {
-		/* The active input system may impose a mode-specific cursor shape
-		 * (e.g. Vim's block cursor in Normal/Visual). */
 		const struct editorInputSystem *system = editorInputSystemActive();
 		if (system != NULL && system->cursor_style != NULL) {
 			int style_override = system->cursor_style();
@@ -1692,14 +1690,7 @@ static int screenAppendFramePreamble(struct writeBuf *wb) {
 	const char *cursor_style_sequence = screenCursorStyleSequence(
 	        frame_cursor_style, frame_cursor_blink, &cursor_style_len);
 
-	/* A block cursor fills the whole cell, so forcing a cursor color would paint
-	 * over the glyph: the terminal then draws the character in the cell's
-	 * background color, which disappears on light themes. Reset to the terminal
-	 * default instead and let it reverse-video the cell (glyph in the cell's
-	 * background, block in its foreground) — the same mechanism terminal Vim
-	 * relies on to keep the character under the cursor readable. The themed
-	 * cursor color still applies to the thin bar/underline shapes, which sit
-	 * beside the glyph rather than over it. */
+	/* Block cursors need the terminal default color so the cell stays readable. */
 	return wbAppend(wb, VT100_HIDE_CURSOR_6, 6) &&
 	       (frame_cursor_style == EDITOR_CURSOR_STYLE_BLOCK
 	                ? wbAppend(wb, VT100_CURSOR_COLOR_DEFAULT,

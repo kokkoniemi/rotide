@@ -280,15 +280,12 @@ static int test_editor_process_keypress_find_file_filters_in_vim_normal_mode(voi
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorInputSystemActivate("vim"));
 
-	/* <leader>p (space, then p) opens find-file from Vim Normal mode. Vim mode
-	 * captures control keys, so Ctrl-P no longer falls through to the action. */
 	char leader_key[] = {' '};
 	char find_key[] = {'p'};
 	ASSERT_TRUE(editor_process_keypress_with_input(leader_key, sizeof(leader_key)) == 0);
 	ASSERT_TRUE(editor_process_keypress_with_input(find_key, sizeof(find_key)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
 
-	/* 'b' is a Vim motion in Normal mode, but here it must filter the field. */
 	char filter[] = {'b'};
 	ASSERT_TRUE(editor_process_keypress_with_input(filter, sizeof(filter)) == 0);
 	ASSERT_EQ_STR("b", editorFileSearchQuery());
