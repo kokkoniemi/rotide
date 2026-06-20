@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="12">
+<rect width="720" height="320" fill="#ffffff"/>
+<text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">First-party lines by domain</text>
+<line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">13.2k</text>
+<line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">6.6k</text>
+<line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
+<text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">lines</text>
+<line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-06-09</text>
+<line x1="228.0" y1="268" x2="228.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="228.0" y="286" text-anchor="middle" fill="#222">2026-06-09#2</text>
+<line x1="384.0" y1="268" x2="384.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="384.0" y="286" text-anchor="middle" fill="#222">2026-06-11</text>
+<line x1="540.0" y1="268" x2="540.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="540.0" y="286" text-anchor="middle" fill="#222">2026-06-12</text>
+<line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-12#2</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,176.9 540.0,176.8 696.0,176.8"/>
+<circle cx="696.0" cy="176.8" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,252.3 540.0,252.1 696.0,252.1"/>
+<circle cx="696.0" cy="252.1" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,229.3 540.0,229.3 696.0,229.3"/>
+<circle cx="696.0" cy="229.3" r="3" fill="#2ca02c"/>
+<polyline fill="none" stroke="#d62728" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,203.1 540.0,203.1 696.0,203.1"/>
+<circle cx="696.0" cy="203.1" r="3" fill="#d62728"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,80.4 540.0,77.2 696.0,77.2"/>
+<circle cx="696.0" cy="77.2" r="3" fill="#9467bd"/>
+<polyline fill="none" stroke="#8c564b" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,64.4 540.0,64.4 696.0,64.4"/>
+<circle cx="696.0" cy="64.4" r="3" fill="#8c564b"/>
+<polyline fill="none" stroke="#e377c2" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,155.3 540.0,153.0 696.0,152.4"/>
+<circle cx="696.0" cy="152.4" r="3" fill="#e377c2"/>
+<polyline fill="none" stroke="#7f7f7f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,232.4 540.0,232.4 696.0,232.4"/>
+<circle cx="696.0" cy="232.4" r="3" fill="#7f7f7f"/>
+<polyline fill="none" stroke="#bcbd22" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,246.6 540.0,246.6 696.0,246.6"/>
+<circle cx="696.0" cy="246.6" r="3" fill="#bcbd22"/>
+<polyline fill="none" stroke="#17becf" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,232.8 540.0,232.8 696.0,232.8"/>
+<circle cx="696.0" cy="232.8" r="3" fill="#17becf"/>
+<polyline fill="none" stroke="#393b79" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,86.7 540.0,77.5 696.0,77.5"/>
+<circle cx="696.0" cy="77.5" r="3" fill="#393b79"/>
+<line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
+<text x="610" y="50" dominant-baseline="middle" fill="#222">config</text>
+<line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
+<text x="610" y="66" dominant-baseline="middle" fill="#222">core</text>
+<line x1="586" y1="82" x2="604" y2="82" stroke="#2ca02c" stroke-width="2"/>
+<text x="610" y="82" dominant-baseline="middle" fill="#222">debug</text>
+<line x1="586" y1="98" x2="604" y2="98" stroke="#d62728" stroke-width="2"/>
+<text x="610" y="98" dominant-baseline="middle" fill="#222">editing</text>
+<line x1="586" y1="114" x2="604" y2="114" stroke="#9467bd" stroke-width="2"/>
+<text x="610" y="114" dominant-baseline="middle" fill="#222">input</text>
+<line x1="586" y1="130" x2="604" y2="130" stroke="#8c564b" stroke-width="2"/>
+<text x="610" y="130" dominant-baseline="middle" fill="#222">language</text>
+<line x1="586" y1="146" x2="604" y2="146" stroke="#e377c2" stroke-width="2"/>
+<text x="610" y="146" dominant-baseline="middle" fill="#222">render</text>
+<line x1="586" y1="162" x2="604" y2="162" stroke="#7f7f7f" stroke-width="2"/>
+<text x="610" y="162" dominant-baseline="middle" fill="#222">support</text>
+<line x1="586" y1="178" x2="604" y2="178" stroke="#bcbd22" stroke-width="2"/>
+<text x="610" y="178" dominant-baseline="middle" fill="#222">terminal</text>
+<line x1="586" y1="194" x2="604" y2="194" stroke="#17becf" stroke-width="2"/>
+<text x="610" y="194" dominant-baseline="middle" fill="#222">text</text>
+<line x1="586" y1="210" x2="604" y2="210" stroke="#393b79" stroke-width="2"/>
+<text x="610" y="210" dominant-baseline="middle" fill="#222">workspace</text>
+</svg>
