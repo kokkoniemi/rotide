@@ -162,6 +162,8 @@ static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[1 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]12;white\a") == NULL);
 	free(output);
 
 	E.cursor_style = EDITOR_CURSOR_STYLE_UNDERLINE;
@@ -175,6 +177,8 @@ static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[6 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]12;white\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") == NULL);
 	free(output);
 
 	E.cursor_style = EDITOR_CURSOR_STYLE_BLOCK;

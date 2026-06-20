@@ -488,6 +488,8 @@ struct editorHistory {
 	X(size_t, search_saved_offset)                                                             \
 	X(int, selection_mode_active)                                                              \
 	X(size_t, selection_anchor_offset)                                                         \
+	X(int, selection_inclusive)                                                                \
+	X(int, selection_linewise)                                                                 \
 	X(int, column_select_active)                                                               \
 	X(int, column_select_anchor_cy)                                                            \
 	X(int, column_select_anchor_rx)                                                            \
@@ -515,6 +517,7 @@ struct editorHistory {
 	X(int, input_vim_pending_mark)                                                             \
 	X(int, input_vim_pending_bracket)                                                          \
 	X(int, input_vim_visual_selection_half_open)                                               \
+	X(int, input_vim_block_anchor_cx)                                                          \
 	X(char *, input_vim_search_query)                                                          \
 	X(int, input_vim_search_direction)
 

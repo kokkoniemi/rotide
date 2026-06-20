@@ -21,6 +21,8 @@ struct editorInputSystem {
 	 * background, or a negative value for none. Lets a system color-code its
 	 * status block (e.g. Vim's mode indicator). */
 	int (*status_segment_color)(void);
+	/* Optional terminal cursor-shape override, or negative for the configured style. */
+	int (*cursor_style)(void);
 	void (*reset)(void);
 };
 
