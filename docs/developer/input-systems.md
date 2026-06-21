@@ -103,6 +103,14 @@ Leader sub-key names are editor-action names backed by `g_vim_leader_map`; the
 leader trigger sits after count/operator gating so it cannot fire mid-sequence.
 Leader and sub-keys must be plain printable characters.
 
+Normal mode also has a built-in `Ctrl-W` window prefix tracked by
+`E.input_vim_pending_ctrl_w`. The resolver maps `s`/`v` to split actions,
+`c`/`q` to close-pane, `o` to close-other-panes, `w`/`Ctrl-W` and `W` to
+next/previous pane focus, `h`/`j`/`k`/`l` and arrows to directional focus, and
+`H`/`J`/`K`/`L` to move the active tab to a neighbour pane. The prefix is reset
+by the shared pending-state reset and participates in idle checks so counts and
+dot-repeat do not treat a half-entered window command as normal input.
+
 `g`-prefixed keys (`gb gd gi gr gs gS gg`) and `[`/`]` prefixes (`]g`/`[g` for
 next/previous diagnostic) are handled by dedicated pending-state branches in the
 Normal handler. `gb` dispatches `git_blame_details` and opens a Git blame popup.
@@ -116,6 +124,14 @@ prefix sets the pending operator, so `gqq`, `gqap`, and `gq{motion}` flow throug
 the normal operator machinery, while Visual `gq` reflows the selection.
 `vimSystemReflowLines` word-wraps to `E.text_width` (default
 `ROTIDE_TEXT_WIDTH_DEFAULT`), preserving the first line's indent.
+
+The ex prompt (`:`) uses `editorPromptWithCompletion` and
+`vimSystemExCompleteFn` to complete/cycle command names on Tab. Aliases that
+dispatch plain actions live in the shared `g_vim_ex_commands[]` table, so the
+dispatcher and completer read the same spelling list. Bespoke commands such as
+`:w`, `:q`, `:q!`, `:wq`, `:x`, line-number jumps, `%s`, and argument-bearing
+`:e`/`:split`/`:vsplit` forms stay outside that table because they need custom
+control flow. Completion adds those built-in names as a name-only superset.
 
 Counts (`3dd`), registers (`"a`), in-buffer search (`/ ? n N`), text objects
 (`iw aw ip ap`, bracket/quote pairs `i( a( i{ i[ i< i" i' i\``, tags `it`/`at`),

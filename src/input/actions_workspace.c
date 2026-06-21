@@ -854,6 +854,13 @@ static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {
 	}
 }
 
+static void actionsWorkspaceFocusNext(int reverse) {
+	editorHistoryBreakGroup();
+	if (editorLayoutFocusNext(reverse)) {
+		editorPaneAnnounceFocus();
+	}
+}
+
 static void actionsWorkspaceMoveTabDirection(enum editorFocusDirection dir) {
 	editorHistoryBreakGroup();
 	(void)editorActionMoveActiveTabToNeighborPane(dir);
@@ -1003,6 +1010,18 @@ static int actionsWorkspaceHandleGlobalAction(enum editorAction action) {
 			if (editorLayoutCloseFocused() != NULL) {
 				editorPaneAnnounceFocus();
 			}
+			return 1;
+		case EDITOR_ACTION_CLOSE_OTHER_PANES:
+			editorHistoryBreakGroup();
+			if (editorLayoutCloseOthers()) {
+				editorPaneAnnounceFocus();
+			}
+			return 1;
+		case EDITOR_ACTION_FOCUS_NEXT_PANE:
+			actionsWorkspaceFocusNext(0);
+			return 1;
+		case EDITOR_ACTION_FOCUS_PREV_PANE:
+			actionsWorkspaceFocusNext(1);
 			return 1;
 		case EDITOR_ACTION_FOCUS_LEFT_PANE:
 			actionsWorkspaceFocusDirection(EDITOR_FOCUS_LEFT);

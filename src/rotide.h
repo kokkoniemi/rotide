@@ -355,6 +355,9 @@ enum editorAction {
 	EDITOR_ACTION_SPLIT_HORIZONTAL,
 	EDITOR_ACTION_SPLIT_VERTICAL,
 	EDITOR_ACTION_CLOSE_PANE,
+	EDITOR_ACTION_CLOSE_OTHER_PANES,
+	EDITOR_ACTION_FOCUS_NEXT_PANE,
+	EDITOR_ACTION_FOCUS_PREV_PANE,
 	EDITOR_ACTION_FOCUS_LEFT_PANE,
 	EDITOR_ACTION_FOCUS_RIGHT_PANE,
 	EDITOR_ACTION_FOCUS_UP_PANE,
@@ -509,6 +512,7 @@ struct editorHistory {
 	X(int, input_vim_pending_register)                                                         \
 	X(int, input_vim_pending_text_object)                                                      \
 	X(int, input_vim_pending_leader)                                                           \
+	X(int, input_vim_pending_ctrl_w)                                                           \
 	X(int, input_vim_pending_find)                                                             \
 	X(int, input_vim_last_find_cmd)                                                            \
 	X(int, input_vim_last_find_char)                                                           \

@@ -262,6 +262,7 @@ void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int re
 struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orientation,
                                                 double ratio);
 struct editorPaneNode *editorLayoutCloseFocused(void);
+int editorLayoutCloseOthers(void);
 
 /*
  * "Nearest" in the requested direction means smallest major-axis gap among
@@ -290,6 +291,7 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
 #define ROTIDE_PANE_RESIZE_STEP 0.05
 
 int editorLayoutFocusDirection(enum editorFocusDirection direction);
+int editorLayoutFocusNext(int reverse);
 int editorLayoutFocusLeafAt(int x, int y);
 int editorLayoutResizeFocused(int grow);
 int editorLayoutFocusedLeafIndex(int *out_index, int *out_count);

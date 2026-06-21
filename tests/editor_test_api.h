@@ -15,6 +15,7 @@ int editorActiveTextSourceDupTestCount(void);
 const char *editorInputSystemActiveId(void);
 const char *editorVimModeLabel(void);
 void editorVimRegistersClear(void);
+char *vimSystemExCompletionTest(const char *current, int tab_iteration);
 
 char *editorDrawerMovePathCompletionTest(const char *current, const char *anchor,
                                          int tab_iteration);
