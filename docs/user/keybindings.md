@@ -49,6 +49,39 @@ by one key:
 The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
 configurable under `[keymap.vim]`; see `config.toml.example`.
 
+## Vim window commands
+
+In Vim Normal mode, `Ctrl-W` starts a built-in window-command prefix:
+
+- `Ctrl-W s`: horizontal split (top/bottom)
+- `Ctrl-W v`: vertical split (side-by-side)
+- `Ctrl-W c` / `Ctrl-W q`: close the focused pane; on the last pane this is a no-op
+- `Ctrl-W o`: close other panes, keeping the focused pane
+- `Ctrl-W w` / `Ctrl-W Ctrl-W`: focus the next pane
+- `Ctrl-W W`: focus the previous pane
+- `Ctrl-W h` / `j` / `k` / `l`: focus left/down/up/right; arrow keys work too
+- `Ctrl-W H` / `J` / `K` / `L`: move the active tab to the neighbour pane
+
+`Ctrl-W q` closes a pane in RotIDE; it does not quit the app. Use `:q` or
+`Ctrl-Q` for app quit semantics.
+
+## Vim ex-command aliases
+
+The `:` prompt accepts these Vim-style aliases:
+
+- `:split` / `:sp` and `:vsplit` / `:vs` / `:vsp`: split the current pane
+- `:split <file>` / `:vsplit <file>`: split, then open the file in the new pane
+- `:e <file>` / `:edit <file>`: open or switch to a file in the current pane
+- `:close` / `:clo`: close the focused pane
+- `:only` / `:on`: close other panes
+- `:tabclose` / `:tabc`, `:bd` / `:bdelete`: close the active tab
+- `:tabnew`: create an empty tab
+- `:term` / `:terminal`: open a terminal in a horizontal split
+- `:vterm`: open a terminal in a vertical split
+
+Press Tab in the `:` prompt to complete and cycle command names. File-path
+arguments are not completed yet. `:q` keeps RotIDE's quit-app behavior.
+
 ## Vim find-char motions
 
 In Normal and Visual mode, and after an operator:

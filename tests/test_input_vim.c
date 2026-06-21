@@ -8,8 +8,10 @@
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -57,6 +59,22 @@ static int vim_test_clipboard_eq(const char *expected) {
 	ASSERT_TRUE(text != NULL);
 	ASSERT_EQ_INT((int)strlen(expected), (int)len);
 	ASSERT_TRUE(memcmp(text, expected, len) == 0);
+	return 0;
+}
+
+static int vim_test_ex_command(const char *cmd) {
+	size_t len = strlen(cmd);
+	char *input = malloc(len + 3);
+	int result;
+
+	ASSERT_TRUE(input != NULL);
+	input[0] = ':';
+	memcpy(input + 1, cmd, len);
+	input[len + 1] = '\r';
+	input[len + 2] = '\0';
+	result = editor_process_keypress_with_input(input, len + 2);
+	free(input);
+	ASSERT_TRUE(result == 0);
 	return 0;
 }
 
@@ -999,6 +1017,198 @@ static int test_input_vim_ex_quit_dirty_is_refused(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
 	ASSERT_TRUE(strstr(E.statusmsg, "No write since last change") != NULL);
 	ASSERT_EQ_INT(1, E.dirty);
+	return 0;
+}
+
+static int test_input_vim_ex_window_aliases(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(vim_test_ex_command("split") == 0);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root->is_split);
+	ASSERT_EQ_INT(EDITOR_SPLIT_HORIZONTAL, E.layout_root->as.split.orientation);
+
+	ASSERT_TRUE(vim_test_ex_command("close") == 0);
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_TRUE(vim_test_ex_command("vsplit") == 0);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root->is_split);
+	ASSERT_EQ_INT(EDITOR_SPLIT_VERTICAL, E.layout_root->as.split.orientation);
+
+	ASSERT_TRUE(vim_test_ex_command("only") == 0);
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	return 0;
+}
+
+static int test_input_vim_ex_file_argument_commands(void) {
+	char edit_path[256];
+	char split_path[256];
+	char vsplit_path[256];
+
+	ASSERT_TRUE(write_temp_text_file(edit_path, sizeof(edit_path), "edit\n"));
+	ASSERT_TRUE(write_temp_text_file(split_path, sizeof(split_path), "split\n"));
+	ASSERT_TRUE(write_temp_text_file(vsplit_path, sizeof(vsplit_path), "vsplit\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("start");
+	ASSERT_TRUE(vim_test_activate());
+
+	char edit_cmd[320];
+	ASSERT_TRUE(snprintf(edit_cmd, sizeof(edit_cmd), "e %s", edit_path) > 0);
+	ASSERT_TRUE(vim_test_ex_command(edit_cmd) == 0);
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_STR(edit_path, editorTabFilenameAt(editorTabActiveIndex()));
+
+	char split_cmd[320];
+	ASSERT_TRUE(snprintf(split_cmd, sizeof(split_cmd), "sp %s", split_path) > 0);
+	ASSERT_TRUE(vim_test_ex_command(split_cmd) == 0);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_STR(split_path, editorTabFilenameAt(editorTabActiveIndex()));
+
+	char vsplit_cmd[320];
+	ASSERT_TRUE(snprintf(vsplit_cmd, sizeof(vsplit_cmd), "vs %s", vsplit_path) > 0);
+	ASSERT_TRUE(vim_test_ex_command(vsplit_cmd) == 0);
+	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_STR(vsplit_path, editorTabFilenameAt(editorTabActiveIndex()));
+
+	unlink(edit_path);
+	unlink(split_path);
+	unlink(vsplit_path);
+	return 0;
+}
+
+static int test_input_vim_ex_tab_and_terminal_aliases(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(vim_test_ex_command("bd") == 0);
+	ASSERT_EQ_INT(1, editorTabCount());
+
+	ASSERT_TRUE(vim_test_ex_command("tabnew") == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+
+	ASSERT_TRUE(vim_test_ex_command("tabc") == 0);
+	ASSERT_EQ_INT(1, editorTabCount());
+
+	ASSERT_TRUE(vim_test_ex_command("term") == 0);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, editorPaneActiveKind(E.focused_leaf));
+
+	ASSERT_TRUE(vim_test_ex_command("close") == 0);
+	ASSERT_TRUE(vim_test_ex_command("vterm") == 0);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, editorPaneActiveKind(E.focused_leaf));
+	return 0;
+}
+
+static int test_input_vim_ex_completion_cycles_commands(void) {
+	char *first = vimSystemExCompletionTest("sp", 0);
+	char *second = vimSystemExCompletionTest("sp", 1);
+	char *third = vimSystemExCompletionTest("sp", 2);
+	char *tab0 = vimSystemExCompletionTest("tab", 0);
+	char *tab1 = vimSystemExCompletionTest("tab", 1);
+	char *tab2 = vimSystemExCompletionTest("tab", 2);
+	char *wrap = vimSystemExCompletionTest("tab", 3);
+	char *builtin = vimSystemExCompletionTest("x", 0);
+	char *missing = vimSystemExCompletionTest("zz", 0);
+
+	ASSERT_EQ_STR("split", first);
+	ASSERT_EQ_STR("sp", second);
+	ASSERT_EQ_STR("split", third);
+	ASSERT_EQ_STR("tabclose", tab0);
+	ASSERT_EQ_STR("tabc", tab1);
+	ASSERT_EQ_STR("tabnew", tab2);
+	ASSERT_EQ_STR("tabclose", wrap);
+	ASSERT_EQ_STR("x", builtin);
+	ASSERT_TRUE(missing == NULL);
+	free(first);
+	free(second);
+	free(third);
+	free(tab0);
+	free(tab1);
+	free(tab2);
+	free(wrap);
+	free(builtin);
+	return 0;
+}
+
+static int test_input_vim_ctrl_w_split_focus_and_close(void) {
+	struct editorPaneNode *first = NULL;
+	struct editorPaneNode *second = NULL;
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+	first = E.focused_leaf;
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_EQ_INT(1, E.input_vim_pending_ctrl_w);
+	ASSERT_TRUE(vim_test_key('s') == 0);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root->is_split);
+	ASSERT_EQ_INT(EDITOR_SPLIT_HORIZONTAL, E.layout_root->as.split.orientation);
+	second = E.focused_leaf;
+	ASSERT_TRUE(second != first);
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('k') == 0);
+	ASSERT_TRUE(E.focused_leaf == first);
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(E.focused_leaf == second);
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('q') == 0);
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	return 0;
+}
+
+static int test_input_vim_ctrl_w_cycle_only_and_cancel(void) {
+	struct editorPaneNode *a = NULL;
+	struct editorPaneNode *b = NULL;
+	struct editorPaneNode *c = NULL;
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+	a = E.focused_leaf;
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('s') == 0);
+	b = E.focused_leaf;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	c = E.focused_leaf;
+	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(0, E.input_vim_pending_ctrl_w);
+	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_TRUE(E.focused_leaf != c);
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('W') == 0);
+	ASSERT_TRUE(E.focused_leaf == c);
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(E.focused_leaf != c);
+
+	(void)editorLayoutSetFocusedLeaf(b);
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_TRUE(vim_test_key('o') == 0);
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.focused_leaf == b);
+	(void)a;
 	return 0;
 }
 
@@ -2329,6 +2539,12 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_ex_substitute_first_per_line", test_input_vim_ex_substitute_first_per_line},
         {"input_vim_ex_invalid_command_is_messaged", test_input_vim_ex_invalid_command_is_messaged},
         {"input_vim_ex_quit_dirty_is_refused", test_input_vim_ex_quit_dirty_is_refused},
+        {"input_vim_ex_window_aliases", test_input_vim_ex_window_aliases},
+        {"input_vim_ex_file_argument_commands", test_input_vim_ex_file_argument_commands},
+        {"input_vim_ex_tab_and_terminal_aliases", test_input_vim_ex_tab_and_terminal_aliases},
+        {"input_vim_ex_completion_cycles_commands", test_input_vim_ex_completion_cycles_commands},
+        {"input_vim_ctrl_w_split_focus_and_close", test_input_vim_ctrl_w_split_focus_and_close},
+        {"input_vim_ctrl_w_cycle_only_and_cancel", test_input_vim_ctrl_w_cycle_only_and_cancel},
 };
 
 const int g_input_vim_test_count = (int)(sizeof(g_input_vim_tests) / sizeof(g_input_vim_tests[0]));

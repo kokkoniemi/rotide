@@ -442,6 +442,18 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 #   main_menu ("m"), git_blame_details (unbound by default; Normal mode uses
 #   "gb"). Sub-keys relocate like other commands.
 #
+# Built-in Vim window commands are not configurable yet: Ctrl-W s/v splits,
+# Ctrl-W c/q closes the focused pane, Ctrl-W o closes other panes, Ctrl-W w and
+# Ctrl-W W cycle pane focus, Ctrl-W h/j/k/l (or arrows) move focus, and
+# Ctrl-W H/J/K/L move the active tab to a neighbour pane. Ctrl-W q is pane-close;
+# use :q or Ctrl-Q to quit the app.
+#
+# Built-in ex aliases include :split/:sp, :vsplit/:vs/:vsp, :e/:edit <file>,
+# :split <file>, :vsplit <file>, :close/:clo, :only/:on, :tabclose/:tabc,
+# :bd/:bdelete, :tabnew, :term/:terminal, and :vterm. Press Tab in the :
+# prompt to complete/cycle command names. These spellings are built in and are
+# not configured under [keymap.vim].
+#
 # [keymap.vim]
 # normal.move_left = "h"
 # normal.delete = "d"

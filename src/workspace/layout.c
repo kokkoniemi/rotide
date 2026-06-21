@@ -974,6 +974,44 @@ struct editorPaneNode *editorLayoutCloseFocused(void) {
 	return new_focus;
 }
 
+static struct editorPaneNode *layoutFirstNonFocusedLeaf(struct editorPaneNode *node) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (!node->is_split) {
+		return node == E.focused_leaf ? NULL : node;
+	}
+	struct editorPaneNode *found = layoutFirstNonFocusedLeaf(node->as.split.first);
+	if (found != NULL) {
+		return found;
+	}
+	return layoutFirstNonFocusedLeaf(node->as.split.second);
+}
+
+int editorLayoutCloseOthers(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL || E.focused_leaf->is_split) {
+		return 0;
+	}
+	if (!editorPaneNodeContainsLeaf(E.layout_root, E.focused_leaf)) {
+		return 0;
+	}
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
+	int closed = 0;
+	while (editorPaneTreeLeafCount(E.layout_root) > 1) {
+		struct editorPaneNode *victim = layoutFirstNonFocusedLeaf(E.layout_root);
+		if (victim == NULL) {
+			break;
+		}
+		if (editorPaneTreeCloseLeaf(&E.layout_root, victim) == NULL) {
+			break;
+		}
+		closed = 1;
+	}
+	(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
+	return closed;
+}
+
 static int layoutRangesOverlap(int a_start, int a_len, int b_start, int b_len) {
 	int a_end = a_start + a_len;
 	int b_end = b_start + b_len;
@@ -1084,6 +1122,36 @@ int editorLayoutFocusDirection(enum editorFocusDirection direction) {
 		return 0;
 	}
 	return editorLayoutSetFocusedLeaf(neighbor);
+}
+
+int editorLayoutFocusNext(int reverse) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!layoutComputeForFocus(&layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	if (layout.count <= 1) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	int idx = -1;
+	for (int i = 0; i < layout.count; i++) {
+		if (layout.rects[i].node == E.focused_leaf) {
+			idx = i;
+			break;
+		}
+	}
+	if (idx < 0) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	int next = reverse ? (idx - 1 + layout.count) % layout.count : (idx + 1) % layout.count;
+	struct editorPaneNode *target = layout.rects[next].node;
+	editorLeafLayoutFree(&layout);
+	return editorLayoutSetFocusedLeaf(target);
 }
 
 int editorLayoutFocusLeafAt(int x, int y) {

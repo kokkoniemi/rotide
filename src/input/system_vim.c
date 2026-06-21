@@ -180,6 +180,31 @@ static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim
 
 static int g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
 
+struct vimExCommand {
+	const char *name;
+	enum editorAction action;
+};
+
+static const struct vimExCommand g_vim_ex_commands[] = {
+        {"split", EDITOR_ACTION_SPLIT_HORIZONTAL}, {"sp", EDITOR_ACTION_SPLIT_HORIZONTAL},
+        {"vsplit", EDITOR_ACTION_SPLIT_VERTICAL},  {"vs", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"vsp", EDITOR_ACTION_SPLIT_VERTICAL},     {"close", EDITOR_ACTION_CLOSE_PANE},
+        {"clo", EDITOR_ACTION_CLOSE_PANE},         {"tabclose", EDITOR_ACTION_CLOSE_TAB},
+        {"tabc", EDITOR_ACTION_CLOSE_TAB},         {"bd", EDITOR_ACTION_CLOSE_TAB},
+        {"bdelete", EDITOR_ACTION_CLOSE_TAB},      {"term", EDITOR_ACTION_TERMINAL_OPEN},
+        {"terminal", EDITOR_ACTION_TERMINAL_OPEN}, {"vterm", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
+        {"only", EDITOR_ACTION_CLOSE_OTHER_PANES}, {"on", EDITOR_ACTION_CLOSE_OTHER_PANES},
+        {"tabnew", EDITOR_ACTION_NEW_TAB},
+};
+
+static const size_t g_vim_ex_command_count =
+        sizeof(g_vim_ex_commands) / sizeof(g_vim_ex_commands[0]);
+
+static const char *const g_vim_ex_builtin_commands[] = {"w", "q", "q!", "wq", "x", "e", "edit"};
+
+static const size_t g_vim_ex_builtin_command_count =
+        sizeof(g_vim_ex_builtin_commands) / sizeof(g_vim_ex_builtin_commands[0]);
+
 void editorVimKeymapResetDefaults(void) {
 	for (size_t i = 0; i < g_vim_command_count; i++) {
 		g_vim_commands[i].bound_key = g_vim_commands[i].canonical_key;
@@ -235,6 +260,67 @@ static int vimSystemGPrefixAction(int c, enum editorAction *action_out) {
 	return 1;
 }
 
+static int vimSystemCtrlWAction(int c, enum editorAction *action_out) {
+	enum editorAction action;
+
+	switch (c) {
+		case 's':
+			action = EDITOR_ACTION_SPLIT_HORIZONTAL;
+			break;
+		case 'v':
+			action = EDITOR_ACTION_SPLIT_VERTICAL;
+			break;
+		case 'c':
+		case 'q':
+			action = EDITOR_ACTION_CLOSE_PANE;
+			break;
+		case 'o':
+			action = EDITOR_ACTION_CLOSE_OTHER_PANES;
+			break;
+		case 'w':
+		case CTRL_KEY('w'):
+			action = EDITOR_ACTION_FOCUS_NEXT_PANE;
+			break;
+		case 'W':
+			action = EDITOR_ACTION_FOCUS_PREV_PANE;
+			break;
+		case 'h':
+		case ARROW_LEFT:
+			action = EDITOR_ACTION_FOCUS_LEFT_PANE;
+			break;
+		case 'j':
+		case ARROW_DOWN:
+			action = EDITOR_ACTION_FOCUS_DOWN_PANE;
+			break;
+		case 'k':
+		case ARROW_UP:
+			action = EDITOR_ACTION_FOCUS_UP_PANE;
+			break;
+		case 'l':
+		case ARROW_RIGHT:
+			action = EDITOR_ACTION_FOCUS_RIGHT_PANE;
+			break;
+		case 'H':
+			action = EDITOR_ACTION_MOVE_TAB_LEFT_PANE;
+			break;
+		case 'J':
+			action = EDITOR_ACTION_MOVE_TAB_DOWN_PANE;
+			break;
+		case 'K':
+			action = EDITOR_ACTION_MOVE_TAB_UP_PANE;
+			break;
+		case 'L':
+			action = EDITOR_ACTION_MOVE_TAB_RIGHT_PANE;
+			break;
+		default:
+			return 0;
+	}
+	if (action_out != NULL) {
+		*action_out = action;
+	}
+	return 1;
+}
+
 static enum vimSystemMode vimSystemRemapLookupMode(enum vimSystemMode mode) {
 	return mode == VIM_SYSTEM_MODE_VISUAL_LINE ? VIM_SYSTEM_MODE_VISUAL : mode;
 }
@@ -275,6 +361,7 @@ static void vimSystemResetPending(void) {
 	E.input_vim_pending_register = 0;
 	E.input_vim_pending_text_object = 0;
 	E.input_vim_pending_leader = 0;
+	E.input_vim_pending_ctrl_w = 0;
 	E.input_vim_pending_find = 0;
 	E.input_vim_pending_replace = 0;
 	E.input_vim_pending_z = 0;
@@ -2954,19 +3041,119 @@ static void vimSystemExSubstitute(char *args, int *effects_out) {
 	}
 }
 
+static void vimSystemExDispatch(enum editorAction action, int *effects_out) {
+	int mapped = EDITOR_INPUT_KEY_EFFECT_NONE;
+	(void)editorDispatchProcessMappedAction(action, &mapped);
+	if (effects_out != NULL) {
+		*effects_out |= mapped;
+	}
+}
+
+static char *vimSystemExTrim(char *s) {
+	while (*s == ' ' || *s == '\t') {
+		s++;
+	}
+	size_t len = strlen(s);
+	while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t')) {
+		s[--len] = '\0';
+	}
+	return s;
+}
+
+static int vimSystemExActionForName(const char *name, enum editorAction *action_out) {
+	for (size_t i = 0; i < g_vim_ex_command_count; i++) {
+		if (strcmp(g_vim_ex_commands[i].name, name) == 0) {
+			if (action_out != NULL) {
+				*action_out = g_vim_ex_commands[i].action;
+			}
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int vimSystemExCommandIs(const char *cmd, const char *a, const char *b, const char *c) {
+	return strcmp(cmd, a) == 0 || (b != NULL && strcmp(cmd, b) == 0) ||
+	       (c != NULL && strcmp(cmd, c) == 0);
+}
+
+static int vimSystemExOpenPath(const char *path, int *effects_out) {
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		editorSetStatusMsg("Could not open %s", path);
+		return 0;
+	}
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+	}
+	return 1;
+}
+
+static void vimSystemExSplitOpen(enum editorAction split_action, const char *path,
+                                 int *effects_out) {
+	struct editorPaneNode *old_focus = E.focused_leaf;
+
+	vimSystemExDispatch(split_action, effects_out);
+	if (E.focused_leaf == old_focus || E.focused_leaf == NULL) {
+		return;
+	}
+	if (!vimSystemExOpenPath(path, effects_out)) {
+		vimSystemExDispatch(EDITOR_ACTION_CLOSE_PANE, effects_out);
+	}
+}
+
+static char *vimSystemExCompleteFn(const char *current, const char *anchor, void *ctx,
+                                   int tab_iteration) {
+	(void)anchor;
+	(void)ctx;
+	if (current == NULL) {
+		return NULL;
+	}
+	const char *matches[64];
+	int match_count = 0;
+	size_t prefix_len = strlen(current);
+	for (size_t i = 0; i < g_vim_ex_command_count && match_count < 64; i++) {
+		if (strncmp(g_vim_ex_commands[i].name, current, prefix_len) == 0) {
+			matches[match_count++] = g_vim_ex_commands[i].name;
+		}
+	}
+	for (size_t i = 0; i < g_vim_ex_builtin_command_count && match_count < 64; i++) {
+		if (strncmp(g_vim_ex_builtin_commands[i], current, prefix_len) == 0) {
+			matches[match_count++] = g_vim_ex_builtin_commands[i];
+		}
+	}
+	if (match_count == 0) {
+		return NULL;
+	}
+	int idx = tab_iteration % match_count;
+	if (idx < 0) {
+		idx = 0;
+	}
+	return strdup(matches[idx]);
+}
+
+char *vimSystemExCompletionTest(const char *current, int tab_iteration) {
+	return vimSystemExCompleteFn(current, current, NULL, tab_iteration);
+}
+
 static void vimSystemRunExCommand(char *line, int *effects_out) {
 	char *cmd = line;
+	char *args = NULL;
+	enum editorAction action = EDITOR_ACTION_COUNT;
 	size_t len = 0;
 
 	while (*cmd == ' ' || *cmd == '\t' || *cmd == ':') {
 		cmd++;
 	}
-	len = strlen(cmd);
-	while (len > 0 && (cmd[len - 1] == ' ' || cmd[len - 1] == '\t')) {
-		cmd[--len] = '\0';
-	}
+	cmd = vimSystemExTrim(cmd);
 	if (*cmd == '\0') {
 		return;
+	}
+
+	len = strcspn(cmd, " \t");
+	if (cmd[len] != '\0') {
+		args = cmd + len + 1;
+		cmd[len] = '\0';
+		args = vimSystemExTrim(args);
 	}
 
 	if (vimSystemStringIsAllDigits(cmd)) {
@@ -2998,11 +3185,37 @@ static void vimSystemRunExCommand(char *line, int *effects_out) {
 		vimSystemExSubstitute(cmd + 2, effects_out);
 		return;
 	}
+	if (args != NULL && args[0] != '\0') {
+		if (vimSystemExCommandIs(cmd, "e", "edit", NULL)) {
+			(void)vimSystemExOpenPath(args, effects_out);
+			return;
+		}
+		if (vimSystemExCommandIs(cmd, "split", "sp", NULL)) {
+			vimSystemExSplitOpen(EDITOR_ACTION_SPLIT_HORIZONTAL, args, effects_out);
+			return;
+		}
+		if (vimSystemExCommandIs(cmd, "vsplit", "vs", "vsp")) {
+			vimSystemExSplitOpen(EDITOR_ACTION_SPLIT_VERTICAL, args, effects_out);
+			return;
+		}
+	} else if (vimSystemExCommandIs(cmd, "e", "edit", NULL)) {
+		if (E.filename != NULL) {
+			(void)editorOpen(E.filename);
+			if (effects_out != NULL) {
+				*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+			}
+		}
+		return;
+	}
+	if (vimSystemExActionForName(cmd, &action)) {
+		vimSystemExDispatch(action, effects_out);
+		return;
+	}
 	editorSetStatusMsg("Not an editor command: %s", cmd);
 }
 
 static int vimSystemExCommandLine(int *effects_out) {
-	char *line = editorPromptWithCallback(":%s", 1, NULL);
+	char *line = editorPromptWithCompletion(":%s", 1, vimSystemExCompleteFn, NULL);
 
 	if (line == NULL) {
 		return 0;
@@ -3143,8 +3356,26 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	int disabled = 0;
 	int shared_result = 0;
 
+	if (E.input_vim_pending_ctrl_w) {
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		int return_now = 0;
+		vimSystemResetPending();
+		if (c != '\x1b' && vimSystemCtrlWAction(c, &action)) {
+			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
+			return_now = editorDispatchProcessMappedAction(action, &mapped_effects);
+			if (effects_out != NULL) {
+				*effects_out |= mapped_effects;
+			}
+		}
+		return return_now;
+	}
+
 	if (vimSystemIsControlKey(c)) {
 		switch (c) {
+			case CTRL_KEY('w'):
+				vimSystemResetPending();
+				E.input_vim_pending_ctrl_w = 1;
+				return 0;
 			case CTRL_KEY('r'): {
 				int mapped = EDITOR_INPUT_KEY_EFFECT_NONE;
 				(void)editorDispatchProcessMappedAction(EDITOR_ACTION_REDO,
@@ -3862,7 +4093,8 @@ static int vimSystemIsIdleNormal(void) {
 	       E.input_vim_pending_replace == 0 && E.input_vim_pending_z == 0 &&
 	       E.input_vim_pending_mark == 0 && E.input_vim_pending_register == 0 &&
 	       E.input_vim_pending_text_object == 0 && E.input_vim_pending_leader == 0 &&
-	       E.input_vim_pending_bracket == 0 && E.input_vim_count == 0;
+	       E.input_vim_pending_ctrl_w == 0 && E.input_vim_pending_bracket == 0 &&
+	       E.input_vim_count == 0;
 }
 
 static int vimSystemDotReplay(int *effects_out) {
