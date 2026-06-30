@@ -684,6 +684,26 @@ static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_main_menu_project_files_opens_tree(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	const char alt_m[] = "\x1bm";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_m, sizeof(alt_m) - 1) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+
+	int project_files_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("Project Files", &project_files_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(project_files_idx, E.window_rows));
+
+	char enter[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter, sizeof(enter)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	return 0;
+}
+
 static int test_editor_process_keypress_context_menu_runs_split_action(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("abcdef");
@@ -2448,6 +2468,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_toggle_drawer_preserves_search_modes},
         {"editor_process_keypress_main_menu_runs_selected_action",
          test_editor_process_keypress_main_menu_runs_selected_action},
+        {"editor_process_keypress_main_menu_project_files_opens_tree",
+         test_editor_process_keypress_main_menu_project_files_opens_tree},
         {"editor_process_keypress_context_menu_runs_split_action",
          test_editor_process_keypress_context_menu_runs_split_action},
         {"editor_tabs_switch_restores_per_tab_state",

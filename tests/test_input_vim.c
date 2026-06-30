@@ -901,7 +901,7 @@ static int test_input_vim_search_prompt_jumps_to_match(void) {
 }
 
 static int test_input_vim_search_prompt_escape_restores_cursor(void) {
-	char search[] = {'/', 'b', 'a', 'z', '\x1b'};
+	char search[] = {'/', 'b', 'a', 'z', '\x1b', '\0'};
 
 	ASSERT_TRUE(editorTabsInit());
 	add_row("foo bar");
@@ -1390,15 +1390,27 @@ static int test_input_vim_leader_project_search(void) {
 	return 0;
 }
 
-static int test_input_vim_leader_toggle_drawer(void) {
+static int test_input_vim_leader_explorer_drawer(void) {
 	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	add_row("hello");
 	ASSERT_TRUE(vim_test_activate());
 
-	ASSERT_EQ_INT(0, E.drawer_collapsed);
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 	ASSERT_TRUE(vim_test_key(' ') == 0);
 	(void)vim_test_key('e');
-	ASSERT_EQ_INT(1, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key('e');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	return 0;
 }
 
@@ -1410,6 +1422,42 @@ static int test_input_vim_leader_main_menu(void) {
 	ASSERT_TRUE(vim_test_key(' ') == 0);
 	(void)vim_test_key('m');
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	return 0;
+}
+
+static int vim_test_leader_drawer_tab(int key, enum editorDrawerMode mode) {
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key(key);
+	ASSERT_EQ_INT(mode, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key(key);
+	ASSERT_EQ_INT(mode, E.drawer_mode);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key(key);
+	ASSERT_EQ_INT(mode, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	return 0;
+}
+
+static int test_input_vim_leader_drawer_tabs(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	ASSERT_TRUE(vim_test_leader_drawer_tab('e', EDITOR_DRAWER_MODE_TREE) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('m', EDITOR_DRAWER_MODE_MAIN_MENU) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('g', EDITOR_DRAWER_MODE_GIT) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('l', EDITOR_DRAWER_MODE_LSP) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('d', EDITOR_DRAWER_MODE_DAP) == 0);
 	return 0;
 }
 
@@ -2568,8 +2616,9 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_cursor_style_is_block_outside_insert},
         {"input_vim_leader_find_file", test_input_vim_leader_find_file},
         {"input_vim_leader_project_search", test_input_vim_leader_project_search},
-        {"input_vim_leader_toggle_drawer", test_input_vim_leader_toggle_drawer},
+        {"input_vim_leader_explorer_drawer", test_input_vim_leader_explorer_drawer},
         {"input_vim_leader_main_menu", test_input_vim_leader_main_menu},
+        {"input_vim_leader_drawer_tabs", test_input_vim_leader_drawer_tabs},
         {"input_vim_leader_unknown_key_is_noop", test_input_vim_leader_unknown_key_is_noop},
         {"input_vim_leader_escape_cancels", test_input_vim_leader_escape_cancels},
         {"input_vim_leader_subkey_inert_without_leader",

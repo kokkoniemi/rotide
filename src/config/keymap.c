@@ -79,6 +79,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"prev_tab", EDITOR_ACTION_PREV_TAB},
         {"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
         {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER},
+        {"explorer_drawer", EDITOR_ACTION_EXPLORER_DRAWER},
         {"main_menu", EDITOR_ACTION_MAIN_MENU},
         {"context_menu", EDITOR_ACTION_CONTEXT_MENU},
         {"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},

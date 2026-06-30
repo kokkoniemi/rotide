@@ -171,8 +171,12 @@ struct vimLeaderBinding {
 static struct vimLeaderBinding g_vim_leader_map[] = {
         {"find_file", EDITOR_ACTION_FIND_FILE, 'p', 'p'},
         {"project_search", EDITOR_ACTION_PROJECT_SEARCH, 'f', 'f'},
-        {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, 'e', 'e'},
+        {"explorer_drawer", EDITOR_ACTION_EXPLORER_DRAWER, 'e', 'e'},
+        {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, -1, -1},
         {"main_menu", EDITOR_ACTION_MAIN_MENU, 'm', 'm'},
+        {"git_drawer", EDITOR_ACTION_GIT_DRAWER, 'g', 'g'},
+        {"lsp_drawer", EDITOR_ACTION_LSP_DRAWER, 'l', 'l'},
+        {"dap_drawer", EDITOR_ACTION_DAP_DRAWER, 'd', 'd'},
         {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
 };
 
