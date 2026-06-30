@@ -270,6 +270,7 @@ enum editorAction {
 	EDITOR_ACTION_PREV_TAB,
 	EDITOR_ACTION_FOCUS_DRAWER,
 	EDITOR_ACTION_TOGGLE_DRAWER,
+	EDITOR_ACTION_EXPLORER_DRAWER,
 	EDITOR_ACTION_MAIN_MENU,
 	EDITOR_ACTION_CONTEXT_MENU,
 	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
@@ -730,6 +731,7 @@ struct editorConfig {
 	char *drawer_search_previewed_path;
 	int drawer_search_active_tab_before;
 	int drawer_search_restore_collapsed;
+	enum editorDrawerMode drawer_search_mode_before;
 	char **recent_file_paths;
 	int recent_file_count;
 	int recent_file_capacity;
@@ -745,6 +747,7 @@ struct editorConfig {
 	int drawer_project_search_previewed_col;
 	int drawer_project_search_active_tab_before;
 	int drawer_project_search_restore_collapsed;
+	enum editorDrawerMode drawer_project_search_mode_before;
 
 	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;

@@ -5,7 +5,30 @@
 - `rotide` is a terminal text editor that began with kilo-style minimalism.
 - Priorities: deterministic behavior, readable control flow, and strong regression coverage.
 - Preserve user-visible behavior unless the task explicitly changes it.
-- Prefer repo-local skills over broad repo walks; use [`task-routing.md`](skills/rotide-maintainer/references/task-routing.md) for first-file guidance.
+- Prefer repo-local skills over broad repo walks. Read the chosen `SKILL.md`
+  first; use [`task-routing.md`](skills/rotide-maintainer/references/task-routing.md)
+  for first-file guidance.
+
+## Working Rule
+
+Be lazy like a senior engineer: efficient, not careless. First read the task and
+trace the real flow; then stop at the first rung that holds:
+
+1. Does this need to be built at all?
+2. Does this already exist in this codebase?
+3. Does the standard library, platform, or an installed dependency cover it?
+4. Can this be one line?
+5. Only then, write the minimum code that works.
+
+Deletion over addition; boring over clever; fewest files possible. No unneeded
+abstractions, dependencies, or boilerplate. Question complex requests when a
+simpler shape covers the need. If two existing approaches are the same size,
+choose the edge-case-correct one.
+
+Bug fixes address root cause: grep callers of touched functions and prefer one
+shared fix. Never shortcut understanding, trust-boundary validation, data-loss
+prevention, security, accessibility, real hardware/platform behavior, or
+explicitly requested work.
 
 ## Non-Negotiables
 
@@ -21,73 +44,46 @@
 
 ## Comment policy
 
-Prefer clear code over comments. Add comments only when they explain something non-obvious and important: invariants, edge cases, correctness/performance constraints, surprising behavior, or temporary compatibility shims.
-
-Keep comments short and local. Explain why, not what.
-
-Do not add comments that:
-- restate the code
-- narrate control flow
-- reference plan phases, checklists, migration steps, tickets, or task history
-- document obvious implementation details
-
-When in doubt, omit the comment.
+Prefer clear code over comments. Add short local comments only for non-obvious
+invariants, edge cases, correctness/performance constraints, surprising behavior,
+temporary compatibility shims, or intentional shortcuts with a known ceiling and
+upgrade path. Explain why, not what; omit comments that restate code, narrate
+control flow, reference task history, or document obvious details.
 
 ## Code Style
 
-- Base style: K&R. Indent with hard tabs (8 columns). Put braces on the same line.
-- Pointer asterisks attach to the name, for example `char *name`.
-- Keep lines ≤100 columns where practical; 120 columns is the hard limit.
-- Naming uses a public/static boundary:
-  - Public (header-declared) functions, structs, enums, typedefs: `editorXxx`.
-  - File-local (`static` / .c-only) functions, structs, enums, typedefs:
-    `<module>Xxx`, where `<module>` is the lowercase camelCase slug listed
-    in [`docs/module-prefixes.md`](docs/module-prefixes.md).
-  - The prefix `editor` is reserved for the public surface; no `.c` file
-    may declare it as its module prefix.
-  - Permitted naming exceptions (do not rename): `main`.
-- File-local globals use `g_<module>_xxx` snake_case.
-- Header guards use `ROTIDE_<SUBSYS>_<FILE>_H`.
-- Macros and constants use `UPPER_SNAKE_CASE`. Project-wide constants use
-  `ROTIDE_*`; subsystem-public feature macros use `EDITOR_*`.
-- Out-parameters use the `_out` suffix.
-- Borrowed views / writable byte spans / owned copies use the `View` / `Bytes`
-  / `Dup` accessor family.
-- `make format` and `make format-check` use the repository `.clang-format`;
-  CI enforces `format-check`.
-- `make lint` runs clang-tidy in CI. Clang-tidy diagnostics remain warnings
-  unless `.clang-tidy` promotes them with `WarningsAsErrors`.
-- `make lint-prefixes` enforces module-prefix table completeness; new `.c`
-  files under `src/` must add an entry. Static-name drift is reported as
-  advisory output and fails the target only when `LINT_PREFIXES_STRICT=1`.
-- Use `goto` only for cleanup-style exits, with labels named `cleanup`, `done`,
-  `err`, or `out`.
+- K&R; hard tabs (8 columns); same-line braces; pointer asterisks attach to the
+  name (`char *name`); ≤100 columns preferred, 120 hard limit.
+- Public header-declared names use `editorXxx`; file-local `.c` names use the
+  module prefix from [`docs/module-prefixes.md`](docs/module-prefixes.md). The
+  `editor` prefix is public-only. Do not rename `main`.
+- File-local globals: `g_<module>_xxx`; guards: `ROTIDE_<SUBSYS>_<FILE>_H`;
+  macros/constants: `UPPER_SNAKE_CASE`, with `ROTIDE_*`/`EDITOR_*` scopes.
+- Out-parameters end in `_out`; borrowed/writable/owned accessors use the
+  `View` / `Bytes` / `Dup` family.
+- Use cleanup-only `goto` labels: `cleanup`, `done`, `err`, or `out`.
+- CI enforces format, clang-tidy, and module-prefix checks; new `.c` files under
+  `src/` must update the module-prefix table.
 
 ## Validation
 
 - Always run `make` and `make test`.
-- Run `ASAN_OPTIONS=detect_leaks=0 make test-sanitize` for document/storage/history/save/recovery/syntax/LSP/build-sensitive work.
+- Run `ASAN_OPTIONS=detect_leaks=0 make test-sanitize` for document/storage/
+  history/save/recovery/syntax/LSP/build-sensitive work.
+- Non-trivial logic leaves one runnable check behind: the smallest test or
+  self-check that fails if the logic breaks. Trivial one-liners need no test.
 - Treat warnings as blockers; `-Werror` is enabled.
 
 ## Test API contract
 
-The test API in [`tests/editor_test_api.h`](tests/editor_test_api.h) and
-similar test-only headers may expose read-only views of internal state
-and counters. It must not provide mutators that production code would
-not itself call. Adding a mutator means the test is asserting an
-arrangement that production cannot reach. Write the test against a real
-code path instead, or add the missing production path.
+[`tests/editor_test_api.h`](tests/editor_test_api.h) and similar test-only
+headers may expose read-only views/counters, but not mutators production code
+would not call. Test real code paths or add the missing production path.
 
 ## Skill Routing
 
-- Default: `rotide-maintainer`
-- Document, edit history, recovery normalization: `rotide-document-maintainer`
-- Search prompt, active match, search highlight flow: `rotide-search-maintainer`
-- Tree-sitter activation, queries, incremental parse, highlighting: `rotide-syntax-maintainer`
-- LSP lifecycle, sync, definition, install/task-log UX: `rotide-lsp-maintainer`
-- Input systems (CUA/Vim interface, registry, modal Vim, `[input]`/`[keymap.vim]`): `rotide-maintainer` (see [`docs/developer/input-systems.md`](docs/developer/input-systems.md); a dedicated input-systems skill is not yet warranted)
-- Terminal panes, DAP lifecycle/control UX, and pane layout: `rotide-maintainer`
-- Module/file ownership refactors: `rotide-domain-refactor`
-- README, AGENTS, skill/reference docs: `rotide-docs-maintainer`
-
-Read the chosen `SKILL.md` first. Open the referenced playbook only if the first inspected files are not enough.
+Default to `rotide-maintainer`; use the narrower document, search, syntax, LSP,
+domain-refactor, or docs maintainer skill when the task matches. Input systems,
+terminal panes, DAP, drawer/tabs, config, and rendering-only work stay with
+`rotide-maintainer`. Open referenced playbooks only when first inspected files are
+not enough.

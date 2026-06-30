@@ -8,6 +8,7 @@
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
+#include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
@@ -900,7 +901,7 @@ static int test_input_vim_search_prompt_jumps_to_match(void) {
 }
 
 static int test_input_vim_search_prompt_escape_restores_cursor(void) {
-	char search[] = {'/', 'b', 'a', 'z', '\x1b'};
+	char search[] = {'/', 'b', 'a', 'z', '\x1b', '\0'};
 
 	ASSERT_TRUE(editorTabsInit());
 	add_row("foo bar");
@@ -1149,7 +1150,7 @@ static int test_input_vim_ctrl_w_split_focus_and_close(void) {
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
 	ASSERT_EQ_INT(1, E.input_vim_pending_ctrl_w);
-	ASSERT_TRUE(vim_test_key('s') == 0);
+	(void)vim_test_key('s');
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 	ASSERT_TRUE(E.layout_root->is_split);
 	ASSERT_EQ_INT(EDITOR_SPLIT_HORIZONTAL, E.layout_root->as.split.orientation);
@@ -1157,15 +1158,15 @@ static int test_input_vim_ctrl_w_split_focus_and_close(void) {
 	ASSERT_TRUE(second != first);
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('k') == 0);
+	(void)vim_test_key('k');
 	ASSERT_TRUE(E.focused_leaf == first);
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('j') == 0);
+	(void)vim_test_key('j');
 	ASSERT_TRUE(E.focused_leaf == second);
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('q') == 0);
+	(void)vim_test_key('q');
 	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
 	return 0;
 }
@@ -1181,10 +1182,10 @@ static int test_input_vim_ctrl_w_cycle_only_and_cancel(void) {
 	a = E.focused_leaf;
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('s') == 0);
+	(void)vim_test_key('s');
 	b = E.focused_leaf;
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('v') == 0);
+	(void)vim_test_key('v');
 	c = E.focused_leaf;
 	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
 
@@ -1194,21 +1195,174 @@ static int test_input_vim_ctrl_w_cycle_only_and_cancel(void) {
 	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
 
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('w') == 0);
+	(void)vim_test_key('w');
 	ASSERT_TRUE(E.focused_leaf != c);
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('W') == 0);
+	(void)vim_test_key('W');
 	ASSERT_TRUE(E.focused_leaf == c);
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	(void)vim_test_key(CTRL_KEY('w'));
 	ASSERT_TRUE(E.focused_leaf != c);
 
 	(void)editorLayoutSetFocusedLeaf(b);
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
-	ASSERT_TRUE(vim_test_key('o') == 0);
+	(void)vim_test_key('o');
 	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
 	ASSERT_TRUE(E.focused_leaf == b);
 	(void)a;
+	return 0;
+}
+
+static int vim_test_ctrl_w_key(int key) {
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	return vim_test_key(key);
+}
+
+static int vim_test_ctrl_w_h(void) {
+	return vim_test_ctrl_w_key('h');
+}
+
+static int test_input_vim_ctrl_w_h_focuses_visible_drawer_from_leftmost_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	(void)vim_test_ctrl_w_h();
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	return 0;
+}
+
+static int test_input_vim_ctrl_w_h_prefers_left_editor_neighbor_over_drawer(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+	left = E.focused_leaf;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	(void)vim_test_key('v');
+	right = E.focused_leaf;
+	ASSERT_TRUE(right != NULL && right != left);
+	ASSERT_EQ_INT(EDITOR_SPLIT_VERTICAL, E.layout_root->as.split.orientation);
+
+	(void)vim_test_ctrl_w_h();
+	ASSERT_TRUE(E.focused_leaf == left);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	return 0;
+}
+
+static int test_input_vim_ctrl_w_h_does_not_focus_collapsed_drawer(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	(void)vim_test_ctrl_w_h();
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	return 0;
+}
+
+static int test_input_vim_ctrl_w_w_cycles_through_visible_drawer(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	(void)vim_test_ctrl_w_key('w');
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	(void)vim_test_ctrl_w_key('w');
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+
+	(void)vim_test_ctrl_w_key('W');
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	(void)vim_test_ctrl_w_key('W');
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	return 0;
+}
+
+static int test_input_vim_drawer_focus_jk_navigates_drawer_not_text(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char child_dir[512];
+	ASSERT_TRUE(path_join(child_dir, sizeof(child_dir), env.project_dir, "child"));
+	ASSERT_TRUE(make_dir(child_dir));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("one");
+	add_row("two");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_activate());
+	(void)vim_test_ctrl_w_h();
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	int initial_cy = E.cy;
+	int initial_cx = E.cx;
+
+	(void)vim_test_key('j');
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	int selected_after_down = E.drawer_selected_index;
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	(void)vim_test_key('k');
+	ASSERT_TRUE(E.drawer_selected_index <= selected_after_down);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	ASSERT_TRUE(rmdir(child_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_input_vim_drawer_focus_jk_covers_lsp_dap_and_menu_modes(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("one");
+	add_row("two");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.cy = 1;
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_activate());
+	int initial_cy = E.cy;
+	int initial_cx = E.cx;
+
+	ASSERT_TRUE(editorDrawerLspToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	(void)vim_test_key('j');
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	ASSERT_TRUE(editorDrawerDapToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_DAP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	(void)vim_test_key('j');
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	(void)vim_test_key('j');
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
 	return 0;
 }
 
@@ -1236,15 +1390,27 @@ static int test_input_vim_leader_project_search(void) {
 	return 0;
 }
 
-static int test_input_vim_leader_toggle_drawer(void) {
+static int test_input_vim_leader_explorer_drawer(void) {
 	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	add_row("hello");
 	ASSERT_TRUE(vim_test_activate());
 
-	ASSERT_EQ_INT(0, E.drawer_collapsed);
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 	ASSERT_TRUE(vim_test_key(' ') == 0);
 	(void)vim_test_key('e');
-	ASSERT_EQ_INT(1, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key('e');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	return 0;
 }
 
@@ -1256,6 +1422,42 @@ static int test_input_vim_leader_main_menu(void) {
 	ASSERT_TRUE(vim_test_key(' ') == 0);
 	(void)vim_test_key('m');
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	return 0;
+}
+
+static int vim_test_leader_drawer_tab(int key, enum editorDrawerMode mode) {
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key(key);
+	ASSERT_EQ_INT(mode, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key(key);
+	ASSERT_EQ_INT(mode, E.drawer_mode);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(vim_test_key(' ') == 0);
+	(void)vim_test_key(key);
+	ASSERT_EQ_INT(mode, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	return 0;
+}
+
+static int test_input_vim_leader_drawer_tabs(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	ASSERT_TRUE(vim_test_leader_drawer_tab('e', EDITOR_DRAWER_MODE_TREE) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('m', EDITOR_DRAWER_MODE_MAIN_MENU) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('g', EDITOR_DRAWER_MODE_GIT) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('l', EDITOR_DRAWER_MODE_LSP) == 0);
+	ASSERT_TRUE(vim_test_leader_drawer_tab('d', EDITOR_DRAWER_MODE_DAP) == 0);
 	return 0;
 }
 
@@ -2414,8 +2616,9 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_cursor_style_is_block_outside_insert},
         {"input_vim_leader_find_file", test_input_vim_leader_find_file},
         {"input_vim_leader_project_search", test_input_vim_leader_project_search},
-        {"input_vim_leader_toggle_drawer", test_input_vim_leader_toggle_drawer},
+        {"input_vim_leader_explorer_drawer", test_input_vim_leader_explorer_drawer},
         {"input_vim_leader_main_menu", test_input_vim_leader_main_menu},
+        {"input_vim_leader_drawer_tabs", test_input_vim_leader_drawer_tabs},
         {"input_vim_leader_unknown_key_is_noop", test_input_vim_leader_unknown_key_is_noop},
         {"input_vim_leader_escape_cancels", test_input_vim_leader_escape_cancels},
         {"input_vim_leader_subkey_inert_without_leader",
@@ -2545,6 +2748,18 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_ex_completion_cycles_commands", test_input_vim_ex_completion_cycles_commands},
         {"input_vim_ctrl_w_split_focus_and_close", test_input_vim_ctrl_w_split_focus_and_close},
         {"input_vim_ctrl_w_cycle_only_and_cancel", test_input_vim_ctrl_w_cycle_only_and_cancel},
+        {"input_vim_ctrl_w_h_focuses_visible_drawer_from_leftmost_pane",
+         test_input_vim_ctrl_w_h_focuses_visible_drawer_from_leftmost_pane},
+        {"input_vim_ctrl_w_h_prefers_left_editor_neighbor_over_drawer",
+         test_input_vim_ctrl_w_h_prefers_left_editor_neighbor_over_drawer},
+        {"input_vim_ctrl_w_h_does_not_focus_collapsed_drawer",
+         test_input_vim_ctrl_w_h_does_not_focus_collapsed_drawer},
+        {"input_vim_ctrl_w_w_cycles_through_visible_drawer",
+         test_input_vim_ctrl_w_w_cycles_through_visible_drawer},
+        {"input_vim_drawer_focus_jk_navigates_drawer_not_text",
+         test_input_vim_drawer_focus_jk_navigates_drawer_not_text},
+        {"input_vim_drawer_focus_jk_covers_lsp_dap_and_menu_modes",
+         test_input_vim_drawer_focus_jk_covers_lsp_dap_and_menu_modes},
 };
 
 const int g_input_vim_test_count = (int)(sizeof(g_input_vim_tests) / sizeof(g_input_vim_tests[0]));

@@ -171,8 +171,12 @@ struct vimLeaderBinding {
 static struct vimLeaderBinding g_vim_leader_map[] = {
         {"find_file", EDITOR_ACTION_FIND_FILE, 'p', 'p'},
         {"project_search", EDITOR_ACTION_PROJECT_SEARCH, 'f', 'f'},
-        {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, 'e', 'e'},
+        {"explorer_drawer", EDITOR_ACTION_EXPLORER_DRAWER, 'e', 'e'},
+        {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, -1, -1},
         {"main_menu", EDITOR_ACTION_MAIN_MENU, 'm', 'm'},
+        {"git_drawer", EDITOR_ACTION_GIT_DRAWER, 'g', 'g'},
+        {"lsp_drawer", EDITOR_ACTION_LSP_DRAWER, 'l', 'l'},
+        {"dap_drawer", EDITOR_ACTION_DAP_DRAWER, 'd', 'd'},
         {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
 };
 
@@ -2679,6 +2683,55 @@ static int vimSystemTryMappedActionKey(int c, int *effects_out, int *return_now_
 	return 0;
 }
 
+static int vimSystemTryDrawerFocusedActionKey(int c, int *effects_out, int *return_now_out) {
+	enum editorAction action = EDITOR_ACTION_COUNT;
+
+	if (return_now_out != NULL) {
+		*return_now_out = 0;
+	}
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return 0;
+	}
+
+	switch (c) {
+		case 'k':
+		case ARROW_UP:
+			action = EDITOR_ACTION_MOVE_UP;
+			break;
+		case 'j':
+		case ARROW_DOWN:
+			action = EDITOR_ACTION_MOVE_DOWN;
+			break;
+		case 'h':
+		case ARROW_LEFT:
+			action = EDITOR_ACTION_MOVE_LEFT;
+			break;
+		case 'l':
+		case ARROW_RIGHT:
+			action = EDITOR_ACTION_MOVE_RIGHT;
+			break;
+		case '\r':
+		case '\n':
+			action = EDITOR_ACTION_NEWLINE;
+			break;
+		case '\x1b':
+			action = EDITOR_ACTION_ESCAPE;
+			break;
+		default:
+			return 0;
+	}
+
+	int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
+	int return_now = editorDispatchProcessMappedAction(action, &mapped_effects);
+	if (effects_out != NULL) {
+		*effects_out |= mapped_effects;
+	}
+	if (return_now_out != NULL) {
+		*return_now_out = return_now;
+	}
+	return 1;
+}
+
 static int vimSystemEnterInsertWithAction(enum editorAction action, int *effects_out) {
 	int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
 	(void)editorDispatchProcessMappedAction(action, &mapped_effects);
@@ -3518,6 +3571,13 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	}
 	if (E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE) {
 		return vimSystemHandlePendingOperatorKey(c, effects_out);
+	}
+	{
+		int return_now = 0;
+		if (vimSystemTryDrawerFocusedActionKey(c, effects_out, &return_now)) {
+			vimSystemResetPending();
+			return return_now;
+		}
 	}
 	if (c == '"') {
 		E.input_vim_pending_register = 1;

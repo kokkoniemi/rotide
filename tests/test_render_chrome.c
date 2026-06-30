@@ -639,6 +639,45 @@ static int test_editor_refresh_screen_drawer_header_mode_buttons(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_drawer_header_background_fills_wide_row(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("body");
+	E.window_rows = 6;
+	E.window_cols = 80;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(30, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	const char *main_menu_cell = strstr(output, TEST_DRAWER_MAIN_MENU_CELL);
+	ASSERT_TRUE(main_menu_cell != NULL);
+
+	const char *drawer_header = strstr(output, TEST_DRAWER_COLLAPSE_SYMBOL);
+	ASSERT_TRUE(drawer_header != NULL);
+	const char *header_end = strstr(drawer_header, "\r\n");
+	ASSERT_TRUE(header_end != NULL);
+
+	const int button_cols = ROTIDE_DRAWER_COLLAPSED_WIDTH + 7 * 3;
+	const int fill_cols = editorDrawerWidthForCols(E.window_cols) - button_cols;
+	ASSERT_TRUE(fill_cols > 0);
+	char expected_end[128];
+	int expected_len = snprintf(expected_end, sizeof(expected_end),
+	                            TEST_HEADER_BG "%*s" TEST_HEADER_RESET, fill_cols, "");
+	ASSERT_TRUE(expected_len > 0 && expected_len < (int)sizeof(expected_end));
+	const char *fill_start = main_menu_cell + strlen(TEST_DRAWER_MAIN_MENU_CELL);
+	ASSERT_TRUE(fill_start < header_end);
+	ASSERT_TRUE((size_t)(header_end - fill_start) >= (size_t)expected_len);
+	ASSERT_TRUE(strncmp(fill_start, expected_end, expected_len) == 0);
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -1270,6 +1309,8 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_refresh_screen_multi_pane_collapsed_reserves_toggle_area},
         {"editor_refresh_screen_drawer_header_mode_buttons",
          test_editor_refresh_screen_drawer_header_mode_buttons},
+        {"editor_refresh_screen_drawer_header_background_fills_wide_row",
+         test_editor_refresh_screen_drawer_header_background_fills_wide_row},
         {"editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled",
          test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled},
         {"editor_refresh_screen_main_menu_drawer_groups_actions",

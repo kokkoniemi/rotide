@@ -71,7 +71,7 @@ static const struct drawerModeMenuItem g_drawer_mode_menu_edit_items[] = {
 };
 
 static const struct drawerModeMenuItem g_drawer_mode_menu_view_items[] = {
-        {"Project Files", EDITOR_ACTION_MAIN_MENU},
+        {"Project Files", EDITOR_ACTION_EXPLORER_DRAWER},
         {"Git Changes", EDITOR_ACTION_GIT_DRAWER},
         {"LSP", EDITOR_ACTION_LSP_DRAWER},
         {"Debugger", EDITOR_ACTION_DAP_DRAWER},

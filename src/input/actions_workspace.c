@@ -53,8 +53,19 @@ static int actionsWorkspaceSearchShouldRestoreCollapsed(void) {
 	return editorDrawerIsCollapsed();
 }
 
+static enum editorDrawerMode actionsWorkspaceSearchPreviousMode(void) {
+	if (editorFileSearchIsActive()) {
+		return E.drawer_search_mode_before;
+	}
+	if (editorProjectSearchIsActive()) {
+		return E.drawer_project_search_mode_before;
+	}
+	return E.drawer_mode;
+}
+
 void editorOpenFileSearchDrawer(void) {
 	int restore_collapsed = actionsWorkspaceSearchShouldRestoreCollapsed();
+	enum editorDrawerMode mode_before = actionsWorkspaceSearchPreviousMode();
 	editorHistoryBreakGroup();
 	if (editorDrawerSetCollapsed(0)) {
 		editorSetDrawerCollapseStatus(0);
@@ -69,12 +80,14 @@ void editorOpenFileSearchDrawer(void) {
 		return;
 	}
 	E.drawer_search_restore_collapsed = restore_collapsed;
+	E.drawer_search_mode_before = mode_before;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	(void)editorFileSearchPreviewSelection();
 }
 
 void editorOpenProjectSearchDrawer(void) {
 	int restore_collapsed = actionsWorkspaceSearchShouldRestoreCollapsed();
+	enum editorDrawerMode mode_before = actionsWorkspaceSearchPreviousMode();
 	editorHistoryBreakGroup();
 	if (editorDrawerSetCollapsed(0)) {
 		editorSetDrawerCollapseStatus(0);
@@ -89,6 +102,7 @@ void editorOpenProjectSearchDrawer(void) {
 		return;
 	}
 	E.drawer_project_search_restore_collapsed = restore_collapsed;
+	E.drawer_project_search_mode_before = mode_before;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
@@ -578,6 +592,8 @@ void editorDrawerPreviewSelectionAfterMove(editorJumpToPathLocationFn jump_fn) {
 	}
 }
 
+static int actionsWorkspaceToggleDrawerHeaderMode(enum editorDrawerMode mode);
+
 /* Handles actions shared between the file-search and project-search drawer modes.
  * Returns 1 if the action was consumed. */
 static int actionsWorkspaceHandleSearchSharedAction(enum editorAction action) {
@@ -593,31 +609,20 @@ static int actionsWorkspaceHandleSearchSharedAction(enum editorAction action) {
 				editorSetDrawerCollapseStatus(1);
 			}
 			return 1;
+		case EDITOR_ACTION_EXPLORER_DRAWER:
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_TREE);
+			return 1;
 		case EDITOR_ACTION_MAIN_MENU:
-			(void)editorDrawerMainMenuToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU
-			                           ? "Main menu opened"
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_MAIN_MENU);
 			return 1;
 		case EDITOR_ACTION_GIT_DRAWER:
-			(void)editorDrawerGitToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT
-			                           ? (E.git_repo_root != NULL
-			                                      ? "Git changes shown"
-			                                      : "Not in a git repository")
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_GIT);
 			return 1;
 		case EDITOR_ACTION_LSP_DRAWER:
-			(void)editorDrawerLspToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP
-			                           ? "LSP drawer shown"
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_LSP);
 			return 1;
 		case EDITOR_ACTION_DAP_DRAWER:
-			(void)editorDrawerDapToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP
-			                           ? "DAP drawer shown"
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_DAP);
 			return 1;
 		default:
 			return 0;
@@ -642,10 +647,17 @@ static void actionsWorkspaceHandleFileSearchAction(enum editorAction action, int
 				*cursor_or_edit = 1;
 			}
 			return;
-		case EDITOR_ACTION_ESCAPE:
+		case EDITOR_ACTION_ESCAPE: {
+			enum editorDrawerMode restore_mode = E.drawer_search_mode_before;
+			int restore_collapsed = E.drawer_search_restore_collapsed;
 			editorFileSearchExit(1);
+			E.drawer_mode = restore_mode;
+			if (restore_collapsed) {
+				(void)editorDrawerSetCollapsed(1);
+			}
 			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			return;
+		}
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_DELETE_CHAR:
 			if (editorFileSearchBackspace()) {
@@ -686,10 +698,17 @@ static void actionsWorkspaceHandleProjectSearchAction(enum editorAction action,
 				*cursor_or_edit = 1;
 			}
 			return;
-		case EDITOR_ACTION_ESCAPE:
+		case EDITOR_ACTION_ESCAPE: {
+			enum editorDrawerMode restore_mode = E.drawer_project_search_mode_before;
+			int restore_collapsed = E.drawer_project_search_restore_collapsed;
 			editorProjectSearchExit(1);
+			E.drawer_mode = restore_mode;
+			if (restore_collapsed) {
+				(void)editorDrawerSetCollapsed(1);
+			}
 			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			return;
+		}
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_DELETE_CHAR:
 			if (editorProjectSearchBackspace()) {
@@ -731,6 +750,7 @@ static enum editorDrawerMode actionsWorkspaceActiveDrawerHeaderMode(void) {
 
 int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 	if (actionsWorkspaceActiveDrawerHeaderMode() == mode) {
+		(void)editorDrawerSetCollapsed(0);
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	}
@@ -801,6 +821,20 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 	}
 }
 
+static int actionsWorkspaceToggleDrawerHeaderMode(enum editorDrawerMode mode) {
+	if (actionsWorkspaceActiveDrawerHeaderMode() == mode) {
+		editorHistoryBreakGroup();
+		if (editorDrawerToggleCollapsed()) {
+			editorSetDrawerCollapseStatus(editorDrawerIsCollapsed());
+			if (!editorDrawerIsCollapsed()) {
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+			}
+		}
+		return 0;
+	}
+	return editorSwitchDrawerHeaderMode(mode);
+}
+
 int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL || E.focused_leaf->is_split ||
 	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
@@ -851,11 +885,49 @@ static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {
 	editorHistoryBreakGroup();
 	if (editorLayoutFocusDirection(dir)) {
 		editorPaneAnnounceFocus();
+		return;
 	}
+	if (dir == EDITOR_FOCUS_LEFT && !editorDrawerIsCollapsed() &&
+	    editorDrawerRootPath() != NULL) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	}
+}
+
+static struct editorPaneNode *actionsWorkspaceLastLeaf(struct editorPaneNode *node) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (!node->is_split) {
+		return node;
+	}
+	struct editorPaneNode *last = actionsWorkspaceLastLeaf(node->as.split.second);
+	if (last != NULL) {
+		return last;
+	}
+	return actionsWorkspaceLastLeaf(node->as.split.first);
 }
 
 static void actionsWorkspaceFocusNext(int reverse) {
 	editorHistoryBreakGroup();
+	int drawer_focusable = !editorDrawerIsCollapsed() && editorDrawerRootPath() != NULL;
+	if (drawer_focusable && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		struct editorPaneNode *target = reverse ? actionsWorkspaceLastLeaf(E.layout_root)
+		                                        : editorPaneNodeFirstLeaf(E.layout_root);
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		if (target != NULL && editorLayoutSetFocusedLeaf(target)) {
+			editorPaneAnnounceFocus();
+		}
+		return;
+	}
+	if (drawer_focusable) {
+		int index = -1;
+		int count = 0;
+		if (editorLayoutFocusedLeafIndex(&index, &count) &&
+		    ((!reverse && index == count - 1) || (reverse && index == 0))) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+			return;
+		}
+	}
 	if (editorLayoutFocusNext(reverse)) {
 		editorPaneAnnounceFocus();
 	}
@@ -969,35 +1041,20 @@ static int actionsWorkspaceHandleGlobalAction(enum editorAction action) {
 				}
 			}
 			return 1;
+		case EDITOR_ACTION_EXPLORER_DRAWER:
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_TREE);
+			return 1;
 		case EDITOR_ACTION_MAIN_MENU:
-			editorHistoryBreakGroup();
-			(void)editorDrawerMainMenuToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU
-			                           ? "Main menu opened"
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_MAIN_MENU);
 			return 1;
 		case EDITOR_ACTION_GIT_DRAWER:
-			editorHistoryBreakGroup();
-			(void)editorDrawerGitToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT
-			                           ? (E.git_repo_root != NULL
-			                                      ? "Git changes shown"
-			                                      : "Not in a git repository")
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_GIT);
 			return 1;
 		case EDITOR_ACTION_LSP_DRAWER:
-			editorHistoryBreakGroup();
-			(void)editorDrawerLspToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP
-			                           ? "LSP drawer shown"
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_LSP);
 			return 1;
 		case EDITOR_ACTION_DAP_DRAWER:
-			editorHistoryBreakGroup();
-			(void)editorDrawerDapToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP
-			                           ? "DAP drawer shown"
-			                           : "Project drawer shown");
+			(void)actionsWorkspaceToggleDrawerHeaderMode(EDITOR_DRAWER_MODE_DAP);
 			return 1;
 		case EDITOR_ACTION_SPLIT_HORIZONTAL:
 			actionsWorkspaceSplit(EDITOR_SPLIT_HORIZONTAL);

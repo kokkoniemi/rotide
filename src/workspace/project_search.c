@@ -81,6 +81,7 @@ void editorProjectSearchFree(void) {
 	E.drawer_project_search_query_len = 0;
 	E.drawer_project_search_active_tab_before = -1;
 	E.drawer_project_search_restore_collapsed = 0;
+	E.drawer_project_search_mode_before = EDITOR_DRAWER_MODE_TREE;
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_PROJECT_SEARCH) {
 		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	}
