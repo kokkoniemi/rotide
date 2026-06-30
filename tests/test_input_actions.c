@@ -1061,6 +1061,50 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 	return 0;
 }
 
+static int test_editor_process_keypress_cua_drawer_modes_arrow_navigation_keeps_text_cursor(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("one");
+	add_row("two");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.cy = 1;
+	E.cx = 2;
+	int initial_cy = E.cy;
+	int initial_cx = E.cx;
+	const char arrow_down[] = "\x1b[B";
+
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	ASSERT_TRUE(editorDrawerLspToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	ASSERT_TRUE(editorDrawerDapToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_DAP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_TRUE(E.drawer_selected_index >= 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_drawer_enter_toggles_directory(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2432,6 +2476,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive},
         {"editor_process_keypress_focus_drawer_and_arrow_navigation",
          test_editor_process_keypress_focus_drawer_and_arrow_navigation},
+        {"editor_process_keypress_cua_drawer_modes_arrow_navigation_keeps_text_cursor",
+         test_editor_process_keypress_cua_drawer_modes_arrow_navigation_keeps_text_cursor},
         {"editor_process_keypress_drawer_enter_toggles_directory",
          test_editor_process_keypress_drawer_enter_toggles_directory},
         {"editor_process_keypress_drawer_enter_opens_file_in_new_tab",

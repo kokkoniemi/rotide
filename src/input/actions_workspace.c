@@ -851,11 +851,49 @@ static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {
 	editorHistoryBreakGroup();
 	if (editorLayoutFocusDirection(dir)) {
 		editorPaneAnnounceFocus();
+		return;
 	}
+	if (dir == EDITOR_FOCUS_LEFT && !editorDrawerIsCollapsed() &&
+	    editorDrawerRootPath() != NULL) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	}
+}
+
+static struct editorPaneNode *actionsWorkspaceLastLeaf(struct editorPaneNode *node) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (!node->is_split) {
+		return node;
+	}
+	struct editorPaneNode *last = actionsWorkspaceLastLeaf(node->as.split.second);
+	if (last != NULL) {
+		return last;
+	}
+	return actionsWorkspaceLastLeaf(node->as.split.first);
 }
 
 static void actionsWorkspaceFocusNext(int reverse) {
 	editorHistoryBreakGroup();
+	int drawer_focusable = !editorDrawerIsCollapsed() && editorDrawerRootPath() != NULL;
+	if (drawer_focusable && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		struct editorPaneNode *target = reverse ? actionsWorkspaceLastLeaf(E.layout_root)
+		                                        : editorPaneNodeFirstLeaf(E.layout_root);
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		if (target != NULL && editorLayoutSetFocusedLeaf(target)) {
+			editorPaneAnnounceFocus();
+		}
+		return;
+	}
+	if (drawer_focusable) {
+		int index = -1;
+		int count = 0;
+		if (editorLayoutFocusedLeafIndex(&index, &count) &&
+		    ((!reverse && index == count - 1) || (reverse && index == 0))) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+			return;
+		}
+	}
 	if (editorLayoutFocusNext(reverse)) {
 		editorPaneAnnounceFocus();
 	}
