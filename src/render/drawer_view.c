@@ -213,11 +213,19 @@ static int drawerViewDrawExpandedHeaderRow(struct writeBuf *wb, int drawer_cols)
 		}
 	}
 
-	while (written_cols < drawer_cols) {
-		if (!wbAppend(wb, " ", 1)) {
+	if (written_cols < drawer_cols) {
+		if (!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DRAWER_HEADER_BG)) {
 			return 0;
 		}
-		written_cols++;
+		while (written_cols < drawer_cols) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+			written_cols++;
+		}
+		if (!editorAppendThemeReset(wb)) {
+			return 0;
+		}
 	}
 
 	return 1;
