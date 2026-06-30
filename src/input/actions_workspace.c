@@ -53,8 +53,19 @@ static int actionsWorkspaceSearchShouldRestoreCollapsed(void) {
 	return editorDrawerIsCollapsed();
 }
 
+static enum editorDrawerMode actionsWorkspaceSearchPreviousMode(void) {
+	if (editorFileSearchIsActive()) {
+		return E.drawer_search_mode_before;
+	}
+	if (editorProjectSearchIsActive()) {
+		return E.drawer_project_search_mode_before;
+	}
+	return E.drawer_mode;
+}
+
 void editorOpenFileSearchDrawer(void) {
 	int restore_collapsed = actionsWorkspaceSearchShouldRestoreCollapsed();
+	enum editorDrawerMode mode_before = actionsWorkspaceSearchPreviousMode();
 	editorHistoryBreakGroup();
 	if (editorDrawerSetCollapsed(0)) {
 		editorSetDrawerCollapseStatus(0);
@@ -69,12 +80,14 @@ void editorOpenFileSearchDrawer(void) {
 		return;
 	}
 	E.drawer_search_restore_collapsed = restore_collapsed;
+	E.drawer_search_mode_before = mode_before;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	(void)editorFileSearchPreviewSelection();
 }
 
 void editorOpenProjectSearchDrawer(void) {
 	int restore_collapsed = actionsWorkspaceSearchShouldRestoreCollapsed();
+	enum editorDrawerMode mode_before = actionsWorkspaceSearchPreviousMode();
 	editorHistoryBreakGroup();
 	if (editorDrawerSetCollapsed(0)) {
 		editorSetDrawerCollapseStatus(0);
@@ -89,6 +102,7 @@ void editorOpenProjectSearchDrawer(void) {
 		return;
 	}
 	E.drawer_project_search_restore_collapsed = restore_collapsed;
+	E.drawer_project_search_mode_before = mode_before;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
@@ -633,10 +647,17 @@ static void actionsWorkspaceHandleFileSearchAction(enum editorAction action, int
 				*cursor_or_edit = 1;
 			}
 			return;
-		case EDITOR_ACTION_ESCAPE:
+		case EDITOR_ACTION_ESCAPE: {
+			enum editorDrawerMode restore_mode = E.drawer_search_mode_before;
+			int restore_collapsed = E.drawer_search_restore_collapsed;
 			editorFileSearchExit(1);
+			E.drawer_mode = restore_mode;
+			if (restore_collapsed) {
+				(void)editorDrawerSetCollapsed(1);
+			}
 			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			return;
+		}
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_DELETE_CHAR:
 			if (editorFileSearchBackspace()) {
@@ -677,10 +698,17 @@ static void actionsWorkspaceHandleProjectSearchAction(enum editorAction action,
 				*cursor_or_edit = 1;
 			}
 			return;
-		case EDITOR_ACTION_ESCAPE:
+		case EDITOR_ACTION_ESCAPE: {
+			enum editorDrawerMode restore_mode = E.drawer_project_search_mode_before;
+			int restore_collapsed = E.drawer_project_search_restore_collapsed;
 			editorProjectSearchExit(1);
+			E.drawer_mode = restore_mode;
+			if (restore_collapsed) {
+				(void)editorDrawerSetCollapsed(1);
+			}
 			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			return;
+		}
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_DELETE_CHAR:
 			if (editorProjectSearchBackspace()) {

@@ -57,6 +57,7 @@ void editorFileSearchFree(void) {
 	E.drawer_search_previewed_path = NULL;
 	E.drawer_search_active_tab_before = -1;
 	E.drawer_search_restore_collapsed = 0;
+	E.drawer_search_mode_before = EDITOR_DRAWER_MODE_TREE;
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_FILE_SEARCH) {
 		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	}

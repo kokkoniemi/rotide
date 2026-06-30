@@ -652,6 +652,103 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	return 0;
 }
 
+static int test_editor_process_keypress_search_escape_restores_previous_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("body");
+
+	/* Open the Main Menu tab, then drop into file search on top of it. */
+	ASSERT_EQ_INT(0, editorSwitchDrawerHeaderMode(EDITOR_DRAWER_MODE_MAIN_MENU));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+
+	editorOpenFileSearchDrawer();
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_TRUE(editorHandleDrawerSearchMappedAction(EDITOR_ACTION_ESCAPE, NULL, NULL));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	/* Project search restores the Main Menu tab the same way. */
+	editorOpenProjectSearchDrawer();
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+	ASSERT_TRUE(editorHandleDrawerSearchMappedAction(EDITOR_ACTION_ESCAPE, NULL, NULL));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_search_escape_recollapses_drawer(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("body");
+
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+
+	/* File search force-expands; ESC re-collapses and falls back to the tree. */
+	editorOpenFileSearchDrawer();
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_TRUE(editorHandleDrawerSearchMappedAction(EDITOR_ACTION_ESCAPE, NULL, NULL));
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+
+	editorOpenProjectSearchDrawer();
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+	ASSERT_TRUE(editorHandleDrawerSearchMappedAction(EDITOR_ACTION_ESCAPE, NULL, NULL));
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_search_escape_carries_mode_across_switch(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("body");
+
+	ASSERT_EQ_INT(0, editorSwitchDrawerHeaderMode(EDITOR_DRAWER_MODE_MAIN_MENU));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+
+	/* Switching file -> project search must not lose the original tab. */
+	editorOpenFileSearchDrawer();
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	editorOpenProjectSearchDrawer();
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+
+	ASSERT_TRUE(editorHandleDrawerSearchMappedAction(EDITOR_ACTION_ESCAPE, NULL, NULL));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_search_escape_keeps_tree_expanded(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("body");
+
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	editorOpenFileSearchDrawer();
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_TRUE(editorHandleDrawerSearchMappedAction(EDITOR_ACTION_ESCAPE, NULL, NULL));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2466,6 +2563,14 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
         {"editor_process_keypress_toggle_drawer_preserves_search_modes",
          test_editor_process_keypress_toggle_drawer_preserves_search_modes},
+        {"editor_process_keypress_search_escape_restores_previous_tab",
+         test_editor_process_keypress_search_escape_restores_previous_tab},
+        {"editor_process_keypress_search_escape_recollapses_drawer",
+         test_editor_process_keypress_search_escape_recollapses_drawer},
+        {"editor_process_keypress_search_escape_carries_mode_across_switch",
+         test_editor_process_keypress_search_escape_carries_mode_across_switch},
+        {"editor_process_keypress_search_escape_keeps_tree_expanded",
+         test_editor_process_keypress_search_escape_keeps_tree_expanded},
         {"editor_process_keypress_main_menu_runs_selected_action",
          test_editor_process_keypress_main_menu_runs_selected_action},
         {"editor_process_keypress_main_menu_project_files_opens_tree",

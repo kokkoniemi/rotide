@@ -102,6 +102,7 @@ void editorInit(void) {
 	E.drawer_search_previewed_path = NULL;
 	E.drawer_search_active_tab_before = -1;
 	E.drawer_search_restore_collapsed = 0;
+	E.drawer_search_mode_before = EDITOR_DRAWER_MODE_TREE;
 	E.recent_file_paths = NULL;
 	E.recent_file_count = 0;
 	E.recent_file_capacity = 0;
@@ -115,6 +116,7 @@ void editorInit(void) {
 	E.drawer_project_search_previewed_col = 0;
 	E.drawer_project_search_active_tab_before = -1;
 	E.drawer_project_search_restore_collapsed = 0;
+	E.drawer_project_search_mode_before = EDITOR_DRAWER_MODE_TREE;
 	E.git_repo_root = NULL;
 	E.git_branch = NULL;
 	E.git_head = NULL;
