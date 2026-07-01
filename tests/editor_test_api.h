@@ -1,6 +1,8 @@
 #ifndef TESTS_EDITOR_TEST_API_H
 #define TESTS_EDITOR_TEST_API_H
 
+#include <stddef.h>
+
 void editorDocumentTestResetStats(void);
 int editorDocumentTestFullRebuildCount(void);
 int editorDocumentTestIncrementalUpdateCount(void);
@@ -12,6 +14,10 @@ void editorActiveTextSourceBuildTestResetCount(void);
 int editorActiveTextSourceBuildTestCount(void);
 void editorActiveTextSourceDupTestResetCount(void);
 int editorActiveTextSourceDupTestCount(void);
+long editorGitBlameTestLoadCount(void);
+int editorGitBlameTestIncrementalLookup(const char *incremental, int one_based_line,
+                                        char *author_out, size_t author_size, char *filename_out,
+                                        size_t filename_size, int *unique_commits_out);
 const char *editorInputSystemActiveId(void);
 const char *editorVimModeLabel(void);
 void editorVimRegistersClear(void);

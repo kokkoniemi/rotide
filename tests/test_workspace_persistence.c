@@ -1,5 +1,6 @@
 #include "config/common.h"
 #include "editing/edit.h"
+#include "editor_test_api.h"
 #include "language/lsp.h"
 #include "rotide.h"
 #include "support/file_io.h"
@@ -351,6 +352,63 @@ static int test_editor_git_parse_blame_porcelain_omits_uncommitted_lines(void) {
 	return 0;
 }
 
+static int test_editor_git_parse_incremental_maps_groups_and_paths(void) {
+	const char *sample = "1111111111111111111111111111111111111111 1 1 2\n"
+	                     "author Alice\n"
+	                     "author-time 1700000000\n"
+	                     "summary First commit\n"
+	                     "filename src/foo.c\n"
+	                     "2222222222222222222222222222222222222222 3 3 1\n"
+	                     "author Bob\n"
+	                     "author-time 1710000000\n"
+	                     "summary Second commit\n"
+	                     "filename src/foo.c\n"
+	                     "1111111111111111111111111111111111111111 5 4 1\n"
+	                     "filename old/foo.c\n";
+	char author[64];
+	char filename[64];
+	int commits = -1;
+
+	ASSERT_EQ_INT(1, editorGitBlameTestIncrementalLookup(sample, 1, author, sizeof(author),
+	                                                     filename, sizeof(filename), &commits));
+	ASSERT_EQ_STR("Alice", author);
+	ASSERT_EQ_STR("src/foo.c", filename);
+	ASSERT_EQ_INT(1, editorGitBlameTestIncrementalLookup(sample, 3, author, sizeof(author),
+	                                                     filename, sizeof(filename), NULL));
+	ASSERT_EQ_STR("Bob", author);
+	ASSERT_EQ_INT(1, editorGitBlameTestIncrementalLookup(sample, 4, author, sizeof(author),
+	                                                     filename, sizeof(filename), &commits));
+	ASSERT_EQ_STR("Alice", author);
+	ASSERT_EQ_STR("old/foo.c", filename);
+	ASSERT_EQ_INT(2, commits);
+	return 0;
+}
+
+static int test_editor_git_parse_incremental_handles_sha256_and_uncommitted(void) {
+	const char *sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	                     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1 1 1\n"
+	                     "author SHA256\n"
+	                     "author-time 1700000000\n"
+	                     "filename tracked.txt\n";
+	const char *uncommitted = "0000000000000000000000000000000000000000 1 1 1\n"
+	                          "author Not Committed Yet\n"
+	                          "author-time 1700000000\n"
+	                          "filename tracked.txt\n";
+	char author[64];
+	char filename[64];
+	int commits = -1;
+
+	ASSERT_EQ_INT(1, editorGitBlameTestIncrementalLookup(sha256, 1, author, sizeof(author),
+	                                                     filename, sizeof(filename), &commits));
+	ASSERT_EQ_STR("SHA256", author);
+	ASSERT_EQ_STR("tracked.txt", filename);
+	ASSERT_EQ_INT(1, commits);
+	ASSERT_EQ_INT(0, editorGitBlameTestIncrementalLookup(uncommitted, 1, author, sizeof(author),
+	                                                     filename, sizeof(filename), &commits));
+	ASSERT_EQ_INT(0, commits);
+	return 0;
+}
+
 static int test_editor_git_format_relative_time_labels(void) {
 	char buf[64];
 	time_t now = 2000000000;
@@ -385,6 +443,71 @@ static int test_editor_git_format_relative_time_labels(void) {
 	ASSERT_EQ_STR("2 years ago", buf);
 
 	ASSERT_TRUE(!editorGitFormatRelativeTime(now - 60, now, buf, 4));
+	return 0;
+}
+
+static int workspace_run_git(const char *root, const char *args) {
+	char cmd[1024];
+	int n = snprintf(cmd, sizeof(cmd), "git -C '%s' %s >/dev/null 2>&1", root, args);
+	return n > 0 && (size_t)n < sizeof(cmd) && system(cmd) == 0;
+}
+
+static int test_editor_git_blame_file_cache_loads_once_and_invalidates(void) {
+	char root_template[] = "/tmp/rotide-test-git-blame-XXXXXX";
+	char *root = mkdtemp(root_template);
+	char file_path[512];
+	ASSERT_TRUE(root != NULL);
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), root, "tracked.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\nbeta\n"));
+	ASSERT_TRUE(workspace_run_git(root, "init -q"));
+	ASSERT_TRUE(workspace_run_git(root, "config user.name Audit"));
+	ASSERT_TRUE(workspace_run_git(root, "config user.email audit@example.com"));
+	ASSERT_TRUE(workspace_run_git(root, "add -- tracked.txt"));
+	ASSERT_TRUE(workspace_run_git(root, "commit -qm base"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorOpen(file_path));
+	E.git_repo_root = strdup(root);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	long loads_before = editorGitBlameTestLoadCount();
+
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(1);
+	ASSERT_TRUE(line != NULL);
+	ASSERT_EQ_STR("Audit", line->author_name);
+	line = editorGitBlameActiveLine(2);
+	ASSERT_TRUE(line != NULL);
+	ASSERT_EQ_STR("Audit", line->author_name);
+	ASSERT_EQ_INT(1, (int)(editorGitBlameTestLoadCount() - loads_before));
+
+	E.git_head = strdup("1111111111111111111111111111111111111111");
+	ASSERT_TRUE(E.git_head != NULL);
+	line = editorGitBlameActiveLine(1);
+	ASSERT_TRUE(line != NULL);
+	ASSERT_EQ_INT(2, (int)(editorGitBlameTestLoadCount() - loads_before));
+
+	editorGitFree();
+	ASSERT_TRUE(unlink(file_path) == 0);
+	remove_files_in_dir(root);
+	ASSERT_TRUE(rmdir(root) == 0);
+	return 0;
+}
+
+static int test_editor_git_blame_file_cache_remembers_unavailable_key(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("alpha");
+	add_row("beta");
+	E.dirty = 0;
+	E.filename = strdup("/tmp/rotide-missing-git-blame/tracked.txt");
+	E.git_repo_root = strdup("/tmp/rotide-missing-git-blame");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	long loads_before = editorGitBlameTestLoadCount();
+
+	ASSERT_TRUE(editorGitBlameActiveLine(1) == NULL);
+	ASSERT_TRUE(editorGitBlameActiveLine(2) == NULL);
+	ASSERT_EQ_INT(3, (int)(editorGitBlameTestLoadCount() - loads_before));
+
+	editorGitFree();
 	return 0;
 }
 
@@ -2100,7 +2223,15 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_git_parse_blame_porcelain_extracts_commit_details},
         {"editor_git_parse_blame_porcelain_omits_uncommitted_lines",
          test_editor_git_parse_blame_porcelain_omits_uncommitted_lines},
+        {"editor_git_parse_incremental_maps_groups_and_paths",
+         test_editor_git_parse_incremental_maps_groups_and_paths},
+        {"editor_git_parse_incremental_handles_sha256_and_uncommitted",
+         test_editor_git_parse_incremental_handles_sha256_and_uncommitted},
         {"editor_git_format_relative_time_labels", test_editor_git_format_relative_time_labels},
+        {"editor_git_blame_file_cache_loads_once_and_invalidates",
+         test_editor_git_blame_file_cache_loads_once_and_invalidates},
+        {"editor_git_blame_file_cache_remembers_unavailable_key",
+         test_editor_git_blame_file_cache_remembers_unavailable_key},
         {"editor_git_blame_cache_key_includes_head_and_disk_state",
          test_editor_git_blame_cache_key_includes_head_and_disk_state},
         {"editor_drawer_git_mode_groups_entries_by_status",
