@@ -135,6 +135,31 @@ static int test_editor_syntax_latex_capture_contract(void) {
 	        (int)(sizeof(incomplete_expected) / sizeof(incomplete_expected[0])));
 	free(source);
 	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/latex/contract.tex", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture contract_expected[] = {
+	        {0, 5, EDITOR_SYNTAX_HL_KEYWORD},      {16, 24, EDITOR_SYNTAX_HL_KEYWORD},
+	        {37, 48, EDITOR_SYNTAX_HL_KEYWORD},    {58, 72, EDITOR_SYNTAX_HL_KEYWORD},
+	        {80, 90, EDITOR_SYNTAX_HL_KEYWORD},    {123, 140, EDITOR_SYNTAX_HL_STRING},
+	        {156, 160, EDITOR_SYNTAX_HL_STRING},   {161, 166, EDITOR_SYNTAX_HL_STRING},
+	        {176, 185, EDITOR_SYNTAX_HL_STRING},   {187, 194, EDITOR_SYNTAX_HL_STRING},
+	        {202, 221, EDITOR_SYNTAX_HL_STRING},   {247, 249, EDITOR_SYNTAX_HL_NUMBER},
+	        {251, 260, EDITOR_SYNTAX_HL_FUNCTION}, {271, 290, EDITOR_SYNTAX_HL_CONSTANT},
+	        {291, 305, EDITOR_SYNTAX_HL_FUNCTION}, {305, 316, EDITOR_SYNTAX_HL_CONSTANT},
+	        {306, 315, EDITOR_SYNTAX_HL_CONSTANT}, {316, 326, EDITOR_SYNTAX_HL_CONSTANT},
+	        {317, 325, EDITOR_SYNTAX_HL_CONSTANT}, {327, 332, EDITOR_SYNTAX_HL_FUNCTION},
+	        {350, 351, EDITOR_SYNTAX_HL_OPERATOR}, {352, 353, EDITOR_SYNTAX_HL_OPERATOR},
+	        {353, 354, EDITOR_SYNTAX_HL_VARIABLE}, {354, 355, EDITOR_SYNTAX_HL_OPERATOR},
+	        {355, 356, EDITOR_SYNTAX_HL_VARIABLE}, {356, 357, EDITOR_SYNTAX_HL_OPERATOR},
+	        {363, 379, EDITOR_SYNTAX_HL_OPERATOR},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_LATEX, source, contract_expected,
+	        (int)(sizeof(contract_expected) / sizeof(contract_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
 	return 0;
 }
 

@@ -37,6 +37,10 @@ Pinned source/tooling used by this repository:
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.
 
+RotIDE applies `overrides/latex/grammar.js` before generating LaTeX. The override preserves the
+highlight-query node contract without carrying the full upstream document grammar. Use
+`scripts/refresh_tree_sitter_vendor.sh --grammar latex` to refresh only that grammar.
+
 ## Size baseline
 
 `SIZES.tsv` records generated parser and scanner source metrics for the pinned grammars. Run

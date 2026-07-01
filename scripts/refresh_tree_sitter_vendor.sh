@@ -133,7 +133,7 @@ regenerate_parser() {
 	echo "Regenerating ${name} parser with official CLI binary" >&2
 	(
 		cd "${src_dir}"
-		"${CLI_BIN}" generate
+		"${CLI_BIN}" generate --js-runtime native
 	)
 }
 
@@ -181,7 +181,30 @@ sync_grammar_vendor() {
 	fi
 }
 
+ONLY_GRAMMAR=""
+if [[ $# -gt 0 ]]; then
+	if [[ $# -ne 2 || "$1" != "--grammar" || "$2" != "latex" ]]; then
+		echo "Usage: $0 [--grammar latex]" >&2
+		exit 2
+	fi
+	ONLY_GRAMMAR="$2"
+fi
+
 download_cli
+
+if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
+	LATEX_GRAMMAR_SRC=""
+	download_repo_tarball "latex-lsp/tree-sitter-latex" \
+		"${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
+		"${LATEX_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
+	rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
+	echo "Tree-sitter LaTeX vendor refresh complete." >&2
+	exit 0
+fi
 
 RUNTIME_SRC=""
 C_GRAMMAR_SRC=""
@@ -294,7 +317,10 @@ regenerate_parser "${YAML_GRAMMAR_SRC}" "YAML"
 regenerate_parser "${XML_GRAMMAR_SRC}/xml" "XML"
 regenerate_parser "${MAKE_GRAMMAR_SRC}" "Make"
 regenerate_parser "${DIFF_GRAMMAR_SRC}" "Diff"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
+	"${LATEX_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
+rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
