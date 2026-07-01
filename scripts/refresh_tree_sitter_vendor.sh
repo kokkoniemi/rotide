@@ -183,8 +183,9 @@ sync_grammar_vendor() {
 
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
-	if [[ $# -ne 2 || "$1" != "--grammar" || ( "$2" != "csharp" && "$2" != "latex" ) ]]; then
-		echo "Usage: $0 [--grammar csharp|latex]" >&2
+	if [[ $# -ne 2 || "$1" != "--grammar" || \
+		( "$2" != "csharp" && "$2" != "latex" && "$2" != "scala" ) ]]; then
+		echo "Usage: $0 [--grammar csharp|latex|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -217,6 +218,19 @@ if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
 	sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
 	echo "Tree-sitter LaTeX vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "scala" ]]; then
+	SCALA_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-scala" \
+		"${TREE_SITTER_SCALA_GRAMMAR_REF}" SCALA_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/scala/grammar.js" \
+		"${SCALA_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${SCALA_GRAMMAR_SRC}" "Scala"
+	sync_grammar_vendor "${SCALA_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/scala"
+	echo "Tree-sitter Scala vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -321,6 +335,8 @@ regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
 # type). Only the ocaml sub-grammar is vendored; regenerate from there.
 regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
 regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/scala/grammar.js" \
+	"${SCALA_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${SCALA_GRAMMAR_SRC}" "Scala"
 regenerate_parser "${EMBEDDED_TEMPLATE_GRAMMAR_SRC}" "embedded-template"
 # tree-sitter-grammars/tree-sitter-markdown ships block (tree-sitter-markdown/)
