@@ -402,8 +402,14 @@ TEST_FLAGS  += --metrics-out $(METRICS_OUT)
 BENCH_FLAGS += --metrics-out $(METRICS_OUT)
 endif
 
-test: $(TEST_BIN)
+test: test-tree-sitter-sizes $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
+
+tree-sitter-sizes:
+	$(call LOG,SIZE,tree-sitter)scripts/report_tree_sitter_sizes.sh --object-root $(BUILD_DIR)
+
+test-tree-sitter-sizes:
+	$(call LOG,TEST,tree-sitter-size)scripts/check_tree_sitter_sizes.sh
 
 # Flake-hunt soak: run every test --repeat N. The runner varies the test seed
 # per repeat (deterministically, from the one recorded base seed), so a test
@@ -716,7 +722,7 @@ loc:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing test-tree-sitter-sizes tree-sitter-sizes release docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,$(BUILD_DIR))rm -rf $(BUILD_DIR)

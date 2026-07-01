@@ -2,6 +2,62 @@
 #include "test_helpers.h"
 #include "test_support.h"
 
+struct expectedSyntaxCapture {
+	uint32_t start_byte;
+	uint32_t end_byte;
+	enum editorSyntaxHighlightClass highlight_class;
+};
+
+static int assert_syntax_capture_contract(enum editorSyntaxLanguage language, const char *source,
+                                          const struct expectedSyntaxCapture *expected,
+                                          int expected_count) {
+	struct editorTextSource source_view = {0};
+	size_t source_len = strlen(source);
+	if (source_len > UINT32_MAX) {
+		return 1;
+	}
+	editorTextSourceInitString(&source_view, source, source_len);
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(language);
+	if (state == NULL || !editorSyntaxStateParseFull(state, &source_view)) {
+		editorSyntaxStateDestroy(state);
+		return 1;
+	}
+
+	struct editorSyntaxCapture actual[128];
+	int actual_count = 0;
+	int ok = editorSyntaxStateCollectCapturesForRange(
+	        state, &source_view, 0, (uint32_t)source_len, actual,
+	        (int)(sizeof(actual) / sizeof(actual[0])), &actual_count);
+	if (!ok || actual_count != expected_count) {
+		(void)fprintf(stderr, "capture count: expected %d, got %d\n", expected_count,
+		              actual_count);
+		for (int i = 0; i < actual_count; i++) {
+			(void)fprintf(stderr, "  {%u, %u, %d}\n", actual[i].start_byte,
+			              actual[i].end_byte, actual[i].highlight_class);
+		}
+		editorSyntaxStateDestroy(state);
+		return 1;
+	}
+
+	for (int i = 0; i < expected_count; i++) {
+		if (actual[i].start_byte != expected[i].start_byte ||
+		    actual[i].end_byte != expected[i].end_byte ||
+		    actual[i].highlight_class != expected[i].highlight_class) {
+			(void)fprintf(stderr,
+			              "capture %d: expected {%u, %u, %d}, got {%u, %u, %d}\n", i,
+			              expected[i].start_byte, expected[i].end_byte,
+			              expected[i].highlight_class, actual[i].start_byte,
+			              actual[i].end_byte, actual[i].highlight_class);
+			editorSyntaxStateDestroy(state);
+			return 1;
+		}
+	}
+
+	editorSyntaxStateDestroy(state);
+	return 0;
+}
+
 static char *build_dense_c_expression_source(int terms, size_t *len_out) {
 	if (terms <= 0 || len_out == NULL) {
 		return NULL;
@@ -38,6 +94,48 @@ static char *build_dense_c_expression_source(int terms, size_t *len_out) {
 	used += (size_t)written;
 	*len_out = used;
 	return source;
+}
+
+static int test_editor_syntax_latex_capture_contract(void) {
+	size_t source_len = 0;
+	char *source =
+	        read_file_contents("tests/syntax/supported/latex/highlight.tex", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture expected[] = {
+	        {0, 9, EDITOR_SYNTAX_HL_COMMENT},      {10, 24, EDITOR_SYNTAX_HL_KEYWORD},
+	        {24, 33, EDITOR_SYNTAX_HL_STRING},     {25, 32, EDITOR_SYNTAX_HL_STRING},
+	        {34, 45, EDITOR_SYNTAX_HL_KEYWORD},    {45, 54, EDITOR_SYNTAX_HL_STRING},
+	        {46, 53, EDITOR_SYNTAX_HL_STRING},     {55, 63, EDITOR_SYNTAX_HL_KEYWORD},
+	        {71, 77, EDITOR_SYNTAX_HL_FUNCTION},   {77, 88, EDITOR_SYNTAX_HL_CONSTANT},
+	        {78, 87, EDITOR_SYNTAX_HL_CONSTANT},   {93, 97, EDITOR_SYNTAX_HL_FUNCTION},
+	        {97, 108, EDITOR_SYNTAX_HL_CONSTANT},  {98, 107, EDITOR_SYNTAX_HL_CONSTANT},
+	        {113, 118, EDITOR_SYNTAX_HL_FUNCTION}, {118, 127, EDITOR_SYNTAX_HL_CONSTANT},
+	        {129, 135, EDITOR_SYNTAX_HL_KEYWORD},  {135, 145, EDITOR_SYNTAX_HL_TYPE},
+	        {154, 155, EDITOR_SYNTAX_HL_OPERATOR}, {155, 156, EDITOR_SYNTAX_HL_VARIABLE},
+	        {157, 161, EDITOR_SYNTAX_HL_KEYWORD},  {161, 171, EDITOR_SYNTAX_HL_TYPE},
+	};
+
+	int result = assert_syntax_capture_contract(EDITOR_SYNTAX_LATEX, source, expected,
+	                                            (int)(sizeof(expected) / sizeof(expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/latex/incomplete.tex", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture incomplete_expected[] = {
+	        {0, 12, EDITOR_SYNTAX_HL_COMMENT},
+	        {38, 39, EDITOR_SYNTAX_HL_OPERATOR},
+	        {40, 41, EDITOR_SYNTAX_HL_OPERATOR},
+	        {41, 42, EDITOR_SYNTAX_HL_VARIABLE},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_LATEX, source, incomplete_expected,
+	        (int)(sizeof(incomplete_expected) / sizeof(incomplete_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+	return 0;
 }
 
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
@@ -358,6 +456,7 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 }
 
 const struct editorTestCase g_syntax_captures_tests[] = {
+        {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",
