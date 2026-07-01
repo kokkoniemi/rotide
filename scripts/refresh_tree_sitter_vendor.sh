@@ -184,9 +184,9 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "csharp" && "$2" != "latex" && "$2" != "ocaml" && \
+		( "$2" != "csharp" && "$2" != "julia" && "$2" != "latex" && "$2" != "ocaml" && \
 		"$2" != "ruby" && "$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar csharp|latex|ocaml|ruby|scala]" >&2
+		echo "Usage: $0 [--grammar csharp|julia|latex|ocaml|ruby|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -205,6 +205,20 @@ if [[ "${ONLY_GRAMMAR}" == "csharp" ]]; then
 	sync_grammar_vendor "${CSHARP_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/csharp"
 	echo "Tree-sitter C# vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "julia" ]]; then
+	JULIA_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-julia" \
+		"${TREE_SITTER_JULIA_GRAMMAR_REF}" JULIA_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/julia/grammar.js" \
+		"${JULIA_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
+	rm -f "${JULIA_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${JULIA_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/julia"
+	echo "Tree-sitter Julia vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -372,7 +386,10 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ocaml/grammar.js" \
 	"${OCAML_GRAMMAR_SRC}/grammars/ocaml/grammar.js"
 regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
 rm -f "${OCAML_GRAMMAR_SRC}/grammars/ocaml/src/scanner.c"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/julia/grammar.js" \
+	"${JULIA_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
+rm -f "${JULIA_GRAMMAR_SRC}/src/scanner.c"
 cp "${REPO_ROOT}/vendor/tree_sitter/overrides/scala/grammar.js" \
 	"${SCALA_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${SCALA_GRAMMAR_SRC}" "Scala"

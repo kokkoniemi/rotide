@@ -144,6 +144,7 @@ static const struct langCase k_lang_cases[] = {
         {"scala", EDITOR_SYNTAX_SCALA, "tests/syntax/supported/scala/contract.scala", 20},
         {"ocaml", EDITOR_SYNTAX_OCAML, "tests/syntax/supported/ocaml/contract.ml", 20},
         {"ruby", EDITOR_SYNTAX_RUBY, "tests/syntax/supported/ruby/contract.rb", 20},
+        {"julia", EDITOR_SYNTAX_JULIA, "tests/syntax/supported/julia/contract.jl", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -365,6 +366,7 @@ INCR_EQUIV_TEST(latex, 11)
 INCR_EQUIV_TEST(scala, 12)
 INCR_EQUIV_TEST(ocaml, 13)
 INCR_EQUIV_TEST(ruby, 14)
+INCR_EQUIV_TEST(julia, 15)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -382,6 +384,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_scala", test_syntax_incremental_equiv_scala},
         {"syntax_incremental_equiv_ocaml", test_syntax_incremental_equiv_ocaml},
         {"syntax_incremental_equiv_ruby", test_syntax_incremental_equiv_ruby},
+        {"syntax_incremental_equiv_julia", test_syntax_incremental_equiv_julia},
 };
 
 const int g_syntax_incremental_equiv_test_count =

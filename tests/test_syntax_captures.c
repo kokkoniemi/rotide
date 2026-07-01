@@ -305,6 +305,31 @@ static int test_editor_syntax_ruby_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_julia_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/julia/highlight.jl", 8, UINT64_C(0x723201961f1aaf6c)},
+	        {"tests/syntax/supported/julia/contract.jl", 112, UINT64_C(0x2a1f00793d8efba5)},
+	        {"tests/syntax/supported/julia/incomplete.jl", 13, UINT64_C(0x401667f1e49d89e1)},
+	        {"tests/syntax/supported/julia/injections.jl", 22, UINT64_C(0x3a5aebae41096873)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_JULIA, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
@@ -626,6 +651,7 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
         {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},
+        {"editor_syntax_julia_capture_contract", test_editor_syntax_julia_capture_contract},
         {"editor_syntax_scala_capture_contract", test_editor_syntax_scala_capture_contract},
         {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
