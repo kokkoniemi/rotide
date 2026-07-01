@@ -142,6 +142,7 @@ static const struct langCase k_lang_cases[] = {
         {"toml", EDITOR_SYNTAX_TOML, "tests/syntax/supported/toml/highlight.toml", 20},
         {"latex", EDITOR_SYNTAX_LATEX, "tests/syntax/supported/latex/highlight.tex", 20},
         {"scala", EDITOR_SYNTAX_SCALA, "tests/syntax/supported/scala/contract.scala", 20},
+        {"ocaml", EDITOR_SYNTAX_OCAML, "tests/syntax/supported/ocaml/contract.ml", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -361,6 +362,7 @@ INCR_EQUIV_TEST(bash, 9)
 INCR_EQUIV_TEST(toml, 10)
 INCR_EQUIV_TEST(latex, 11)
 INCR_EQUIV_TEST(scala, 12)
+INCR_EQUIV_TEST(ocaml, 13)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -376,6 +378,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_toml", test_syntax_incremental_equiv_toml},
         {"syntax_incremental_equiv_latex", test_syntax_incremental_equiv_latex},
         {"syntax_incremental_equiv_scala", test_syntax_incremental_equiv_scala},
+        {"syntax_incremental_equiv_ocaml", test_syntax_incremental_equiv_ocaml},
 };
 
 const int g_syntax_incremental_equiv_test_count =

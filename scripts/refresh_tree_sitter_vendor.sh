@@ -184,8 +184,9 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "csharp" && "$2" != "latex" && "$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar csharp|latex|scala]" >&2
+		( "$2" != "csharp" && "$2" != "latex" && "$2" != "ocaml" && \
+		"$2" != "scala" ) ]]; then
+		echo "Usage: $0 [--grammar csharp|latex|ocaml|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -218,6 +219,23 @@ if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
 	sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
 	echo "Tree-sitter LaTeX vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "ocaml" ]]; then
+	OCAML_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-ocaml" \
+		"${TREE_SITTER_OCAML_GRAMMAR_REF}" OCAML_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ocaml/grammar.js" \
+		"${OCAML_GRAMMAR_SRC}/grammars/ocaml/grammar.js"
+	regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
+	rm -f "${OCAML_GRAMMAR_SRC}/grammars/ocaml/src/scanner.c"
+	cp -R "${OCAML_GRAMMAR_SRC}/queries" \
+		"${OCAML_GRAMMAR_SRC}/grammars/ocaml/queries"
+	sync_grammar_vendor "${OCAML_GRAMMAR_SRC}/grammars/ocaml" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml"
+	rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
+	echo "Tree-sitter OCaml vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -333,7 +351,10 @@ regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
 regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
 # tree-sitter-ocaml ships sub-grammars under grammars/<name>/ (ocaml, interface,
 # type). Only the ocaml sub-grammar is vendored; regenerate from there.
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ocaml/grammar.js" \
+	"${OCAML_GRAMMAR_SRC}/grammars/ocaml/grammar.js"
 regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
+rm -f "${OCAML_GRAMMAR_SRC}/grammars/ocaml/src/scanner.c"
 regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
 cp "${REPO_ROOT}/vendor/tree_sitter/overrides/scala/grammar.js" \
 	"${SCALA_GRAMMAR_SRC}/grammar.js"
@@ -420,13 +441,7 @@ sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 # Stage them into the sub-grammar so sync_grammar_vendor picks them up.
 cp -R "${OCAML_GRAMMAR_SRC}/queries" "${OCAML_GRAMMAR_SRC}/grammars/ocaml/queries"
 sync_grammar_vendor "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml"
-# scanner.c includes ../../../common/scanner.h; place the shared common/ under
-# ocaml/ and repoint the include so each grammar owns its common/.
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
-cp -R "${OCAML_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
-sed -i.bak 's|\.\./\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c.bak"
 sync_grammar_vendor "${JULIA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/julia"
 sync_grammar_vendor "${SCALA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/scala"
 # tree-sitter-embedded-template is shared between EJS and ERB; vendor as a single
