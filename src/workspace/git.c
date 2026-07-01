@@ -19,6 +19,14 @@ enum {
 
 static int gitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos, const char *value);
 static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char *literal);
+static void gitBlameFileCacheReset(void);
+static int gitReplaceString(char **slot, const char *value);
+static char *gitDupStringLimited(const char *s);
+static char *gitDupLimited(const char *data, size_t len);
+static int gitBlameParseField(char *line, struct editorGitBlameLine *out);
+static int gitShaIsAllZero(const char *sha);
+static char *gitRelativePathDup(const char *abs_path);
+static char *gitReadCappedCommandOutput(FILE *fp, size_t max_len, size_t *len_out);
 
 static void gitFreeEntries(void) {
 	for (int i = 0; i < E.git_entry_count; i++) {
@@ -355,6 +363,7 @@ void editorGitRefresh(void) {
 
 void editorGitFree(void) {
 	editorGitBlameCacheClearAll();
+	gitBlameFileCacheReset();
 	free(E.git_repo_root);
 	E.git_repo_root = NULL;
 	free(E.git_branch);
@@ -486,6 +495,10 @@ void editorGitBlameCacheClear(struct editorBuffer *buffer) {
 }
 
 void editorGitBlameCacheClearAll(void) {
+	/* The whole-file cache is intentionally not cleared here: its key
+	 * (branch/head/disk_state) already forces a reload when blame actually
+	 * changes, so a routine git refresh (e.g. from a file-watch tick) keeps
+	 * the in-memory blame instead of respawning `git blame`. */
 	editorGitBlameCacheClear(&E.active_buffer);
 	if (E.tabs == NULL) {
 		return;
@@ -551,6 +564,447 @@ static int gitBlameStoreActiveCacheKey(int one_based_line) {
 	return 1;
 }
 
+/* Incremental blame emits commit metadata once but terminates every group with
+ * its filename. Keep commits deduplicated while retaining group-specific paths. */
+enum { GIT_BLAME_FILE_MAX_LINES = 2000000, GIT_BLAME_FILE_MAX_OUTPUT_BYTES = 4 * 1024 * 1024 };
+
+enum gitBlameFileState {
+	GIT_BLAME_FILE_EMPTY = 0,  /* no key stored */
+	GIT_BLAME_FILE_LOADED,     /* commits/lines populated for the stored key */
+	GIT_BLAME_FILE_UNAVAILABLE /* key stored but too big / failed: use fallback */
+};
+
+struct gitBlameLineRef {
+	int commit_idx;
+	int group_idx;
+	int orig_line;
+};
+
+struct gitBlameGroup {
+	char *filename;
+};
+
+struct gitBlameFileCache {
+	enum gitBlameFileState state;
+	char *filename;
+	char *repo_root;
+	char *branch;
+	char *head;
+	struct editorFileDiskState disk_state;
+	struct editorGitBlameLine *commits;
+	int commit_count;
+	int commit_capacity;
+	struct gitBlameGroup *groups;
+	int group_count;
+	int group_capacity;
+	struct gitBlameLineRef *lines;
+	int line_count;
+	int line_capacity;
+};
+
+static struct gitBlameFileCache g_git_blame_file_cache;
+static long g_git_blame_load_count;
+
+static void gitBlameFileCacheClearData(struct gitBlameFileCache *c) {
+	for (int i = 0; i < c->commit_count; i++) {
+		gitBlameLineClear(&c->commits[i]);
+	}
+	free(c->commits);
+	c->commits = NULL;
+	c->commit_count = 0;
+	c->commit_capacity = 0;
+	for (int i = 0; i < c->group_count; i++) {
+		free(c->groups[i].filename);
+	}
+	free(c->groups);
+	c->groups = NULL;
+	c->group_count = 0;
+	c->group_capacity = 0;
+	free(c->lines);
+	c->lines = NULL;
+	c->line_count = 0;
+	c->line_capacity = 0;
+	c->state = GIT_BLAME_FILE_EMPTY;
+}
+
+static void gitBlameFileCacheReset(void) {
+	struct gitBlameFileCache *c = &g_git_blame_file_cache;
+	gitBlameFileCacheClearData(c);
+	free(c->filename);
+	free(c->repo_root);
+	free(c->branch);
+	free(c->head);
+	c->filename = NULL;
+	c->repo_root = NULL;
+	c->branch = NULL;
+	c->head = NULL;
+	memset(&c->disk_state, 0, sizeof(c->disk_state));
+}
+
+static int gitBlameFileCacheKeyMatchesActive(const struct gitBlameFileCache *c) {
+	return gitBlameCacheStringEqual(c->filename, E.filename) &&
+	       gitBlameCacheStringEqual(c->repo_root, E.git_repo_root) &&
+	       gitBlameCacheStringEqual(c->branch, E.git_branch) &&
+	       gitBlameCacheStringEqual(c->head, E.git_head) &&
+	       gitBlameDiskStateEqual(&c->disk_state, &E.disk_state);
+}
+
+static int gitBlameFileCacheStoreKey(struct gitBlameFileCache *c) {
+	c->filename = E.filename != NULL ? strdup(E.filename) : NULL;
+	c->repo_root = E.git_repo_root != NULL ? strdup(E.git_repo_root) : NULL;
+	c->branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	c->head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	c->disk_state = E.disk_state;
+	return !((E.filename != NULL && c->filename == NULL) ||
+	         (E.git_repo_root != NULL && c->repo_root == NULL) ||
+	         (E.git_branch != NULL && c->branch == NULL) ||
+	         (E.git_head != NULL && c->head == NULL));
+}
+
+static int gitBlameHexDigit(char c) {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+static size_t gitBlameIncrementalObjectIdLength(const char *line) {
+	const char *space = strchr(line, ' ');
+	if (space == NULL) {
+		return 0;
+	}
+	size_t len = (size_t)(space - line);
+	if (len != 40 && len != 64) {
+		return 0;
+	}
+	for (size_t i = 0; i < len; i++) {
+		if (!gitBlameHexDigit(line[i])) {
+			return 0;
+		}
+	}
+	return len;
+}
+
+static int gitBlameCommitCopy(struct editorGitBlameLine *out,
+                              const struct editorGitBlameLine *src) {
+	gitBlameLineClear(out);
+	if ((src->commit_sha != NULL && !gitReplaceString(&out->commit_sha, src->commit_sha)) ||
+	    (src->short_sha != NULL && !gitReplaceString(&out->short_sha, src->short_sha)) ||
+	    (src->author_name != NULL && !gitReplaceString(&out->author_name, src->author_name)) ||
+	    (src->author_email != NULL &&
+	     !gitReplaceString(&out->author_email, src->author_email)) ||
+	    (src->committer_name != NULL &&
+	     !gitReplaceString(&out->committer_name, src->committer_name)) ||
+	    (src->summary != NULL && !gitReplaceString(&out->summary, src->summary)) ||
+	    (src->original_path != NULL &&
+	     !gitReplaceString(&out->original_path, src->original_path))) {
+		gitBlameLineClear(out);
+		return 0;
+	}
+	out->author_time = src->author_time;
+	out->committer_time = src->committer_time;
+	return 1;
+}
+
+/* Find the commit with `sha` (reverse scan — the same commit tends to recur in
+ * nearby groups), or append a new entry seeded with sha/short_sha. Sets *is_new
+ * so the caller knows whether the following metadata lines populate it. */
+static int gitBlameFileCacheFindOrAddCommit(struct gitBlameFileCache *c, const char *sha,
+                                            int *is_new) {
+	*is_new = 0;
+	for (int i = c->commit_count - 1; i >= 0; i--) {
+		if (c->commits[i].commit_sha != NULL &&
+		    strcmp(c->commits[i].commit_sha, sha) == 0) {
+			return i;
+		}
+	}
+	if (c->commit_count == c->commit_capacity) {
+		int new_cap = c->commit_capacity < 16 ? 16 : c->commit_capacity * 2;
+		struct editorGitBlameLine *grown =
+		        editorRealloc(c->commits, (size_t)new_cap * sizeof(*grown));
+		if (grown == NULL) {
+			return -1;
+		}
+		c->commits = grown;
+		c->commit_capacity = new_cap;
+	}
+	struct editorGitBlameLine *entry = &c->commits[c->commit_count];
+	memset(entry, 0, sizeof(*entry));
+	entry->commit_sha = gitDupStringLimited(sha);
+	size_t sha_len = strlen(sha);
+	size_t short_len =
+	        sha_len < GIT_BLAME_SHORT_SHA_BYTES ? sha_len : GIT_BLAME_SHORT_SHA_BYTES;
+	entry->short_sha = gitDupLimited(sha, short_len);
+	if (entry->commit_sha == NULL || entry->short_sha == NULL) {
+		gitBlameLineClear(entry);
+		return -1;
+	}
+	*is_new = 1;
+	return c->commit_count++;
+}
+
+static int gitBlameFileCacheEnsureLineCapacity(struct gitBlameFileCache *c, int needed) {
+	if (needed <= c->line_capacity) {
+		return 1;
+	}
+	int new_cap = c->line_capacity < 256 ? 256 : c->line_capacity;
+	while (new_cap < needed) {
+		new_cap *= 2;
+	}
+	struct gitBlameLineRef *grown = editorRealloc(c->lines, (size_t)new_cap * sizeof(*grown));
+	if (grown == NULL) {
+		return 0;
+	}
+	for (int i = c->line_capacity; i < new_cap; i++) {
+		grown[i].commit_idx = -1;
+		grown[i].group_idx = -1;
+		grown[i].orig_line = 0;
+	}
+	c->lines = grown;
+	c->line_capacity = new_cap;
+	return 1;
+}
+
+static int gitBlameFileCacheAddGroup(struct gitBlameFileCache *c) {
+	if (c->group_count == c->group_capacity) {
+		int new_cap = c->group_capacity < 16 ? 16 : c->group_capacity * 2;
+		struct gitBlameGroup *grown =
+		        editorRealloc(c->groups, (size_t)new_cap * sizeof(*grown));
+		if (grown == NULL) {
+			return -1;
+		}
+		c->groups = grown;
+		c->group_capacity = new_cap;
+	}
+	struct gitBlameGroup *group = &c->groups[c->group_count];
+	memset(group, 0, sizeof(*group));
+	return c->group_count++;
+}
+
+static int gitBlameFileCacheAssignLines(struct gitBlameFileCache *c, long final_line,
+                                        long num_lines, int commit_idx, int group_idx,
+                                        long orig_line) {
+	if (final_line < 1 || num_lines < 1 || orig_line < 1 ||
+	    final_line > GIT_BLAME_FILE_MAX_LINES || num_lines > GIT_BLAME_FILE_MAX_LINES ||
+	    num_lines - 1 > GIT_BLAME_FILE_MAX_LINES - final_line || orig_line > INT_MAX ||
+	    num_lines - 1 > INT_MAX - orig_line) {
+		return 0;
+	}
+	long last = final_line + num_lines - 1;
+	if (!gitBlameFileCacheEnsureLineCapacity(c, (int)last)) {
+		return 0;
+	}
+	for (long i = 0; i < num_lines; i++) {
+		int idx = (int)(final_line - 1 + i);
+		c->lines[idx].commit_idx = commit_idx;
+		c->lines[idx].group_idx = group_idx;
+		c->lines[idx].orig_line = (int)(orig_line + i);
+	}
+	if ((int)last > c->line_count) {
+		c->line_count = (int)last;
+	}
+	return 1;
+}
+
+/* Parse `git blame --incremental` output into deduped commits + a per-line
+ * index. Returns 1 on success (at least one blamed line). */
+static int gitBlameParseIncremental(const char *data, size_t len, struct gitBlameFileCache *c) {
+	if (data == NULL || len == 0) {
+		return 0;
+	}
+	char *buf = editorMalloc(len + 1);
+	if (buf == NULL) {
+		return 0;
+	}
+	memcpy(buf, data, len);
+	buf[len] = '\0';
+
+	int ok = 1;
+	int cur = -1;
+	int cur_group = -1;
+	int cur_is_new = 0;
+	char *line = buf;
+	while (line != NULL) {
+		char *next = strchr(line, '\n');
+		if (next != NULL) {
+			*next++ = '\0';
+		}
+		size_t line_len = strlen(line);
+		if (line_len > 0 && line[line_len - 1] == '\r') {
+			line[line_len - 1] = '\0';
+		}
+		size_t object_id_len = gitBlameIncrementalObjectIdLength(line);
+		if (object_id_len > 0) {
+			char sha[65];
+			memcpy(sha, line, object_id_len);
+			sha[object_id_len] = '\0';
+			long orig = 0;
+			long final = 0;
+			long num = 0;
+			// NOLINTNEXTLINE(cert-err34-c)
+			if (sscanf(line + object_id_len, " %ld %ld %ld", &orig, &final, &num) !=
+			    3) {
+				ok = 0;
+				break;
+			}
+			cur_group = gitBlameFileCacheAddGroup(c);
+			if (gitShaIsAllZero(sha)) {
+				cur = -1;
+				cur_is_new = 0;
+			} else {
+				cur = gitBlameFileCacheFindOrAddCommit(c, sha, &cur_is_new);
+			}
+			if (cur_group < 0 || (!gitShaIsAllZero(sha) && cur < 0) ||
+			    !gitBlameFileCacheAssignLines(c, final, num, cur, cur_group, orig)) {
+				ok = 0;
+				break;
+			}
+		} else if (cur_group >= 0 && strncmp(line, "filename ", 9) == 0) {
+			if (!gitReplaceString(&c->groups[cur_group].filename, line + 9)) {
+				ok = 0;
+				break;
+			}
+		} else if (cur_is_new && cur >= 0 && line[0] != '\0') {
+			if (!gitBlameParseField(line, &c->commits[cur])) {
+				ok = 0;
+				break;
+			}
+		}
+		line = next;
+	}
+
+	free(buf);
+	return ok && c->line_count > 0;
+}
+
+static int gitBlameLoadFileCache(struct gitBlameFileCache *c) {
+	if (E.filename == NULL || E.git_repo_root == NULL) {
+		return 0;
+	}
+	char *rel_path = gitRelativePathDup(E.filename);
+	if (rel_path == NULL) {
+		return 0;
+	}
+	char cmd[PATH_MAX * 4 + 256];
+	size_t pos = 0;
+	if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " --no-pager blame --incremental -- ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+		free(rel_path);
+		return 0;
+	}
+	free(rel_path);
+
+	g_git_blame_load_count++;
+	FILE *fp = popen(cmd, "r");
+	if (fp == NULL) {
+		return 0;
+	}
+	size_t buf_len = 0;
+	char *buf = gitReadCappedCommandOutput(fp, GIT_BLAME_FILE_MAX_OUTPUT_BYTES, &buf_len);
+	int status = pclose(fp);
+	if (buf == NULL || status != 0 || buf_len == 0) {
+		free(buf);
+		return 0;
+	}
+	int ok = gitBlameParseIncremental(buf, buf_len, c);
+	free(buf);
+	return ok;
+}
+
+/* Ensure the whole-file cache is valid for the active file, loading it once on
+ * a key miss. Returns 1 only when line lookups are available (state LOADED). */
+static int gitBlameFileCacheEnsureActive(void) {
+	struct gitBlameFileCache *c = &g_git_blame_file_cache;
+	if (c->state != GIT_BLAME_FILE_EMPTY && gitBlameFileCacheKeyMatchesActive(c)) {
+		return c->state == GIT_BLAME_FILE_LOADED;
+	}
+	gitBlameFileCacheReset(); /* drop stale key + data */
+	if (!gitBlameFileCacheStoreKey(c)) {
+		gitBlameFileCacheReset();
+		return 0;
+	}
+	if (E.numrows > GIT_BLAME_FILE_MAX_LINES || !gitBlameLoadFileCache(c)) {
+		gitBlameFileCacheClearData(c); /* keep the key so we don't retry until it changes */
+		c->state = GIT_BLAME_FILE_UNAVAILABLE;
+		return 0;
+	}
+	c->state = GIT_BLAME_FILE_LOADED;
+	return 1;
+}
+
+enum gitBlameFileLookup {
+	GIT_BLAME_FILE_LOOKUP_UNAVAILABLE = 0,
+	GIT_BLAME_FILE_LOOKUP_FOUND,
+	GIT_BLAME_FILE_LOOKUP_UNBLAMED
+};
+
+static enum gitBlameFileLookup gitBlameFillLineFromFileCache(int one_based_line,
+                                                             struct editorGitBlameLine *out) {
+	if (!gitBlameFileCacheEnsureActive()) {
+		return GIT_BLAME_FILE_LOOKUP_UNAVAILABLE;
+	}
+	struct gitBlameFileCache *c = &g_git_blame_file_cache;
+	if (one_based_line < 1 || one_based_line > c->line_count) {
+		return GIT_BLAME_FILE_LOOKUP_UNAVAILABLE;
+	}
+	struct gitBlameLineRef ref = c->lines[one_based_line - 1];
+	if (ref.commit_idx < 0 && ref.orig_line > 0) {
+		return GIT_BLAME_FILE_LOOKUP_UNBLAMED;
+	}
+	if (ref.commit_idx < 0 || ref.commit_idx >= c->commit_count || ref.group_idx < 0 ||
+	    ref.group_idx >= c->group_count) {
+		return GIT_BLAME_FILE_LOOKUP_UNAVAILABLE;
+	}
+	if (!gitBlameCommitCopy(out, &c->commits[ref.commit_idx])) {
+		return GIT_BLAME_FILE_LOOKUP_UNAVAILABLE;
+	}
+	const char *filename = c->groups[ref.group_idx].filename;
+	if (filename != NULL && !gitReplaceString(&out->filename, filename)) {
+		gitBlameLineClear(out);
+		return GIT_BLAME_FILE_LOOKUP_UNAVAILABLE;
+	}
+	out->original_line = ref.orig_line;
+	out->final_line = one_based_line;
+	return GIT_BLAME_FILE_LOOKUP_FOUND;
+}
+
+int editorGitBlameTestIncrementalLookup(const char *incremental, int one_based_line,
+                                        char *author_out, size_t author_size, char *filename_out,
+                                        size_t filename_size, int *unique_commits_out) {
+	struct gitBlameFileCache tmp;
+	memset(&tmp, 0, sizeof(tmp));
+	if (author_out != NULL && author_size > 0) {
+		author_out[0] = '\0';
+	}
+	if (filename_out != NULL && filename_size > 0) {
+		filename_out[0] = '\0';
+	}
+	int parsed = incremental != NULL &&
+	             gitBlameParseIncremental(incremental, strlen(incremental), &tmp);
+	if (unique_commits_out != NULL) {
+		*unique_commits_out = tmp.commit_count;
+	}
+	int found = 0;
+	if (parsed && one_based_line >= 1 && one_based_line <= tmp.line_count) {
+		struct gitBlameLineRef ref = tmp.lines[one_based_line - 1];
+		if (ref.commit_idx >= 0 && ref.commit_idx < tmp.commit_count) {
+			const struct editorGitBlameLine *commit = &tmp.commits[ref.commit_idx];
+			if (author_out != NULL && author_size > 0 && commit->author_name != NULL) {
+				(void)snprintf(author_out, author_size, "%s", commit->author_name);
+			}
+			if (filename_out != NULL && filename_size > 0 && ref.group_idx >= 0 &&
+			    ref.group_idx < tmp.group_count &&
+			    tmp.groups[ref.group_idx].filename != NULL) {
+				(void)snprintf(filename_out, filename_size, "%s",
+				               tmp.groups[ref.group_idx].filename);
+			}
+			found = 1;
+		}
+	}
+	gitBlameFileCacheClearData(&tmp);
+	return found;
+}
+
 const struct editorGitBlameLine *editorGitBlameActiveLine(int one_based_line) {
 	if (one_based_line <= 0 || E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL ||
 	    E.filename[0] == '\0' || E.dirty != 0 || E.git_repo_root == NULL) {
@@ -571,7 +1025,10 @@ const struct editorGitBlameLine *editorGitBlameActiveLine(int one_based_line) {
 		return NULL;
 	}
 	memset(line, 0, sizeof(*line));
-	if (!editorGitLoadBlameLine(E.filename, one_based_line, line)) {
+	enum gitBlameFileLookup lookup = gitBlameFillLineFromFileCache(one_based_line, line);
+	if (lookup == GIT_BLAME_FILE_LOOKUP_UNBLAMED ||
+	    (lookup == GIT_BLAME_FILE_LOOKUP_UNAVAILABLE &&
+	     !editorGitLoadBlameLine(E.filename, one_based_line, line))) {
 		editorGitBlameLineFree(line);
 		free(line);
 		E.git_blame_line_miss = 1;
@@ -599,6 +1056,10 @@ int editorGitBlameActiveInlineLabel(int one_based_line, time_t now, char *buf, s
 	                             : "Unknown";
 	int n = snprintf(buf, buf_size, "  %s %s", author, relative);
 	return n > 0 && (size_t)n < buf_size;
+}
+
+long editorGitBlameTestLoadCount(void) {
+	return g_git_blame_load_count;
 }
 
 static int gitShaIsAllZero(const char *sha) {
@@ -896,6 +1357,7 @@ int editorGitLoadBlameLine(const char *abs_path, int one_based_line,
 	}
 	free(rel_path);
 
+	g_git_blame_load_count++;
 	FILE *fp = popen(cmd, "r");
 	if (fp == NULL) {
 		return 0;

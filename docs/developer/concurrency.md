@@ -41,3 +41,9 @@ formal safety.
   not the primary parser.
 - LSP, DAP, terminal-pane, and project-search I/O is poll-driven on the
   main thread. There are no I/O threads.
+- Inline git blame runs `git blame --incremental` synchronously on the main
+  thread on the first lookup for the active file. The result is stored in a
+  single cache keyed by file/repository/branch/HEAD/disk-state, so subsequent
+  line changes use in-memory lookups. Activating a different key replaces the
+  cache. Files or command output past the cache guards fall back to per-line
+  blame.
