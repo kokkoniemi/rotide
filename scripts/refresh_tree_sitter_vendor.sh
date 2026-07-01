@@ -133,7 +133,7 @@ regenerate_parser() {
 	echo "Regenerating ${name} parser with official CLI binary" >&2
 	(
 		cd "${src_dir}"
-		"${CLI_BIN}" generate
+		"${CLI_BIN}" generate --js-runtime native
 	)
 }
 
@@ -181,7 +181,132 @@ sync_grammar_vendor() {
 	fi
 }
 
+ONLY_GRAMMAR=""
+if [[ $# -gt 0 ]]; then
+	if [[ $# -ne 2 || "$1" != "--grammar" || \
+		( "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		"$2" != "latex" && "$2" != "ocaml" && "$2" != "ruby" && \
+		"$2" != "scala" ) ]]; then
+		echo "Usage: $0 [--grammar cpp|csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
+		exit 2
+	fi
+	ONLY_GRAMMAR="$2"
+fi
+
 download_cli
+
+if [[ "${ONLY_GRAMMAR}" == "cpp" ]]; then
+	CPP_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-cpp" \
+		"${TREE_SITTER_CPP_GRAMMAR_REF}" CPP_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/cpp/grammar.js" \
+		"${CPP_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
+	sync_grammar_vendor "${CPP_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/cpp"
+	echo "Tree-sitter C++ vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "csharp" ]]; then
+	CSHARP_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-c-sharp" \
+		"${TREE_SITTER_CSHARP_GRAMMAR_REF}" CSHARP_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/csharp/grammar.js" \
+		"${CSHARP_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
+	rm -f "${CSHARP_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${CSHARP_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/csharp"
+	echo "Tree-sitter C# vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "julia" ]]; then
+	JULIA_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-julia" \
+		"${TREE_SITTER_JULIA_GRAMMAR_REF}" JULIA_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/julia/grammar.js" \
+		"${JULIA_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
+	rm -f "${JULIA_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${JULIA_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/julia"
+	echo "Tree-sitter Julia vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "haskell" ]]; then
+	HASKELL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-haskell" \
+		"${TREE_SITTER_HASKELL_GRAMMAR_REF}" HASKELL_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/haskell/grammar.js" \
+		"${HASKELL_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
+	rm -f "${HASKELL_GRAMMAR_SRC}/src/scanner.c" "${HASKELL_GRAMMAR_SRC}/src/unicode.h"
+	sync_grammar_vendor "${HASKELL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/haskell"
+	echo "Tree-sitter Haskell vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
+	LATEX_GRAMMAR_SRC=""
+	download_repo_tarball "latex-lsp/tree-sitter-latex" \
+		"${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
+		"${LATEX_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
+	rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
+	echo "Tree-sitter LaTeX vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "ocaml" ]]; then
+	OCAML_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-ocaml" \
+		"${TREE_SITTER_OCAML_GRAMMAR_REF}" OCAML_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ocaml/grammar.js" \
+		"${OCAML_GRAMMAR_SRC}/grammars/ocaml/grammar.js"
+	regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
+	rm -f "${OCAML_GRAMMAR_SRC}/grammars/ocaml/src/scanner.c"
+	cp -R "${OCAML_GRAMMAR_SRC}/queries" \
+		"${OCAML_GRAMMAR_SRC}/grammars/ocaml/queries"
+	sync_grammar_vendor "${OCAML_GRAMMAR_SRC}/grammars/ocaml" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml"
+	rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
+	echo "Tree-sitter OCaml vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "ruby" ]]; then
+	RUBY_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-ruby" \
+		"${TREE_SITTER_RUBY_GRAMMAR_REF}" RUBY_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ruby/grammar.js" \
+		"${RUBY_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
+	rm -f "${RUBY_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/ruby"
+	echo "Tree-sitter Ruby vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "scala" ]]; then
+	SCALA_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-scala" \
+		"${TREE_SITTER_SCALA_GRAMMAR_REF}" SCALA_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/scala/grammar.js" \
+		"${SCALA_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${SCALA_GRAMMAR_SRC}" "Scala"
+	sync_grammar_vendor "${SCALA_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/scala"
+	echo "Tree-sitter Scala vendor refresh complete." >&2
+	exit 0
+fi
 
 RUNTIME_SRC=""
 C_GRAMMAR_SRC=""
@@ -251,9 +376,8 @@ if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sit
 fi
 
 regenerate_parser "${C_GRAMMAR_SRC}" "C"
-# tree-sitter-cpp grammar.js does `require('tree-sitter-c/grammar')`, so expose
-# the pinned C grammar source under cpp's node_modules before regenerating.
-link_grammar_dep "${CPP_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/cpp/grammar.js" \
+	"${CPP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
 regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
@@ -274,13 +398,30 @@ regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
 regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
 regenerate_parser "${JAVA_GRAMMAR_SRC}" "Java"
 regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/csharp/grammar.js" \
+	"${CSHARP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
+rm -f "${CSHARP_GRAMMAR_SRC}/src/scanner.c"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/haskell/grammar.js" \
+	"${HASKELL_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
+rm -f "${HASKELL_GRAMMAR_SRC}/src/scanner.c" "${HASKELL_GRAMMAR_SRC}/src/unicode.h"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ruby/grammar.js" \
+	"${RUBY_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
+rm -f "${RUBY_GRAMMAR_SRC}/src/scanner.c"
 # tree-sitter-ocaml ships sub-grammars under grammars/<name>/ (ocaml, interface,
 # type). Only the ocaml sub-grammar is vendored; regenerate from there.
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ocaml/grammar.js" \
+	"${OCAML_GRAMMAR_SRC}/grammars/ocaml/grammar.js"
 regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
+rm -f "${OCAML_GRAMMAR_SRC}/grammars/ocaml/src/scanner.c"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/julia/grammar.js" \
+	"${JULIA_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
+rm -f "${JULIA_GRAMMAR_SRC}/src/scanner.c"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/scala/grammar.js" \
+	"${SCALA_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${SCALA_GRAMMAR_SRC}" "Scala"
 regenerate_parser "${EMBEDDED_TEMPLATE_GRAMMAR_SRC}" "embedded-template"
 # tree-sitter-grammars/tree-sitter-markdown ships block (tree-sitter-markdown/)
@@ -294,7 +435,10 @@ regenerate_parser "${YAML_GRAMMAR_SRC}" "YAML"
 regenerate_parser "${XML_GRAMMAR_SRC}/xml" "XML"
 regenerate_parser "${MAKE_GRAMMAR_SRC}" "Make"
 regenerate_parser "${DIFF_GRAMMAR_SRC}" "Diff"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
+	"${LATEX_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
+rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -361,13 +505,7 @@ sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 # Stage them into the sub-grammar so sync_grammar_vendor picks them up.
 cp -R "${OCAML_GRAMMAR_SRC}/queries" "${OCAML_GRAMMAR_SRC}/grammars/ocaml/queries"
 sync_grammar_vendor "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml"
-# scanner.c includes ../../../common/scanner.h; place the shared common/ under
-# ocaml/ and repoint the include so each grammar owns its common/.
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
-cp -R "${OCAML_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
-sed -i.bak 's|\.\./\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c.bak"
 sync_grammar_vendor "${JULIA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/julia"
 sync_grammar_vendor "${SCALA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/scala"
 # tree-sitter-embedded-template is shared between EJS and ERB; vendor as a single

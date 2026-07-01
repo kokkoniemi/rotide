@@ -2,6 +2,108 @@
 #include "test_helpers.h"
 #include "test_support.h"
 
+struct expectedSyntaxCapture {
+	uint32_t start_byte;
+	uint32_t end_byte;
+	enum editorSyntaxHighlightClass highlight_class;
+};
+
+static uint64_t syntax_capture_digest(const struct editorSyntaxCapture *captures, int count) {
+	uint64_t digest = UINT64_C(1469598103934665603);
+	for (int i = 0; i < count; i++) {
+		digest ^= captures[i].start_byte;
+		digest *= UINT64_C(1099511628211);
+		digest ^= captures[i].end_byte;
+		digest *= UINT64_C(1099511628211);
+		digest ^= (uint64_t)captures[i].highlight_class;
+		digest *= UINT64_C(1099511628211);
+	}
+	return digest;
+}
+
+static int assert_syntax_capture_digest(enum editorSyntaxLanguage language, const char *source,
+                                        int expected_count, uint64_t expected_digest) {
+	struct editorTextSource source_view = {0};
+	size_t source_len = strlen(source);
+	if (source_len > UINT32_MAX) {
+		return 1;
+	}
+	editorTextSourceInitString(&source_view, source, source_len);
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(language);
+	if (state == NULL || !editorSyntaxStateParseFull(state, &source_view)) {
+		editorSyntaxStateDestroy(state);
+		return 1;
+	}
+
+	struct editorSyntaxCapture captures[512];
+	int count = 0;
+	int ok = editorSyntaxStateCollectCapturesForRange(
+	        state, &source_view, 0, (uint32_t)source_len, captures,
+	        (int)(sizeof(captures) / sizeof(captures[0])), &count);
+	uint64_t digest = syntax_capture_digest(captures, count);
+	editorSyntaxStateDestroy(state);
+	if (!ok || count != expected_count || digest != expected_digest) {
+		(void)fprintf(stderr,
+		              "capture digest: expected count=%d hash=%016llx, got count=%d "
+		              "hash=%016llx\n",
+		              expected_count, (unsigned long long)expected_digest, count,
+		              (unsigned long long)digest);
+		return 1;
+	}
+	return 0;
+}
+
+static int assert_syntax_capture_contract(enum editorSyntaxLanguage language, const char *source,
+                                          const struct expectedSyntaxCapture *expected,
+                                          int expected_count) {
+	struct editorTextSource source_view = {0};
+	size_t source_len = strlen(source);
+	if (source_len > UINT32_MAX) {
+		return 1;
+	}
+	editorTextSourceInitString(&source_view, source, source_len);
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(language);
+	if (state == NULL || !editorSyntaxStateParseFull(state, &source_view)) {
+		editorSyntaxStateDestroy(state);
+		return 1;
+	}
+
+	struct editorSyntaxCapture actual[128];
+	int actual_count = 0;
+	int ok = editorSyntaxStateCollectCapturesForRange(
+	        state, &source_view, 0, (uint32_t)source_len, actual,
+	        (int)(sizeof(actual) / sizeof(actual[0])), &actual_count);
+	if (!ok || actual_count != expected_count) {
+		(void)fprintf(stderr, "capture count: expected %d, got %d\n", expected_count,
+		              actual_count);
+		for (int i = 0; i < actual_count; i++) {
+			(void)fprintf(stderr, "  {%u, %u, %d}\n", actual[i].start_byte,
+			              actual[i].end_byte, actual[i].highlight_class);
+		}
+		editorSyntaxStateDestroy(state);
+		return 1;
+	}
+
+	for (int i = 0; i < expected_count; i++) {
+		if (actual[i].start_byte != expected[i].start_byte ||
+		    actual[i].end_byte != expected[i].end_byte ||
+		    actual[i].highlight_class != expected[i].highlight_class) {
+			(void)fprintf(stderr,
+			              "capture %d: expected {%u, %u, %d}, got {%u, %u, %d}\n", i,
+			              expected[i].start_byte, expected[i].end_byte,
+			              expected[i].highlight_class, actual[i].start_byte,
+			              actual[i].end_byte, actual[i].highlight_class);
+			editorSyntaxStateDestroy(state);
+			return 1;
+		}
+	}
+
+	editorSyntaxStateDestroy(state);
+	return 0;
+}
+
 static char *build_dense_c_expression_source(int terms, size_t *len_out) {
 	if (terms <= 0 || len_out == NULL) {
 		return NULL;
@@ -38,6 +140,245 @@ static char *build_dense_c_expression_source(int terms, size_t *len_out) {
 	used += (size_t)written;
 	*len_out = used;
 	return source;
+}
+
+static int test_editor_syntax_latex_capture_contract(void) {
+	size_t source_len = 0;
+	char *source =
+	        read_file_contents("tests/syntax/supported/latex/highlight.tex", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture expected[] = {
+	        {0, 9, EDITOR_SYNTAX_HL_COMMENT},      {10, 24, EDITOR_SYNTAX_HL_KEYWORD},
+	        {24, 33, EDITOR_SYNTAX_HL_STRING},     {25, 32, EDITOR_SYNTAX_HL_STRING},
+	        {34, 45, EDITOR_SYNTAX_HL_KEYWORD},    {45, 54, EDITOR_SYNTAX_HL_STRING},
+	        {46, 53, EDITOR_SYNTAX_HL_STRING},     {55, 63, EDITOR_SYNTAX_HL_KEYWORD},
+	        {71, 77, EDITOR_SYNTAX_HL_FUNCTION},   {77, 88, EDITOR_SYNTAX_HL_CONSTANT},
+	        {78, 87, EDITOR_SYNTAX_HL_CONSTANT},   {93, 97, EDITOR_SYNTAX_HL_FUNCTION},
+	        {97, 108, EDITOR_SYNTAX_HL_CONSTANT},  {98, 107, EDITOR_SYNTAX_HL_CONSTANT},
+	        {113, 118, EDITOR_SYNTAX_HL_FUNCTION}, {118, 127, EDITOR_SYNTAX_HL_CONSTANT},
+	        {129, 135, EDITOR_SYNTAX_HL_KEYWORD},  {135, 145, EDITOR_SYNTAX_HL_TYPE},
+	        {154, 155, EDITOR_SYNTAX_HL_OPERATOR}, {155, 156, EDITOR_SYNTAX_HL_VARIABLE},
+	        {157, 161, EDITOR_SYNTAX_HL_KEYWORD},  {161, 171, EDITOR_SYNTAX_HL_TYPE},
+	};
+
+	int result = assert_syntax_capture_contract(EDITOR_SYNTAX_LATEX, source, expected,
+	                                            (int)(sizeof(expected) / sizeof(expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/latex/incomplete.tex", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture incomplete_expected[] = {
+	        {0, 12, EDITOR_SYNTAX_HL_COMMENT},
+	        {38, 39, EDITOR_SYNTAX_HL_OPERATOR},
+	        {40, 41, EDITOR_SYNTAX_HL_OPERATOR},
+	        {41, 42, EDITOR_SYNTAX_HL_VARIABLE},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_LATEX, source, incomplete_expected,
+	        (int)(sizeof(incomplete_expected) / sizeof(incomplete_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/latex/contract.tex", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture contract_expected[] = {
+	        {0, 5, EDITOR_SYNTAX_HL_KEYWORD},      {16, 24, EDITOR_SYNTAX_HL_KEYWORD},
+	        {37, 48, EDITOR_SYNTAX_HL_KEYWORD},    {58, 72, EDITOR_SYNTAX_HL_KEYWORD},
+	        {80, 90, EDITOR_SYNTAX_HL_KEYWORD},    {123, 140, EDITOR_SYNTAX_HL_STRING},
+	        {156, 160, EDITOR_SYNTAX_HL_STRING},   {161, 166, EDITOR_SYNTAX_HL_STRING},
+	        {176, 185, EDITOR_SYNTAX_HL_STRING},   {187, 194, EDITOR_SYNTAX_HL_STRING},
+	        {202, 221, EDITOR_SYNTAX_HL_STRING},   {247, 249, EDITOR_SYNTAX_HL_NUMBER},
+	        {251, 260, EDITOR_SYNTAX_HL_FUNCTION}, {271, 290, EDITOR_SYNTAX_HL_CONSTANT},
+	        {291, 305, EDITOR_SYNTAX_HL_FUNCTION}, {305, 316, EDITOR_SYNTAX_HL_CONSTANT},
+	        {306, 315, EDITOR_SYNTAX_HL_CONSTANT}, {316, 326, EDITOR_SYNTAX_HL_CONSTANT},
+	        {317, 325, EDITOR_SYNTAX_HL_CONSTANT}, {327, 332, EDITOR_SYNTAX_HL_FUNCTION},
+	        {350, 351, EDITOR_SYNTAX_HL_OPERATOR}, {352, 353, EDITOR_SYNTAX_HL_OPERATOR},
+	        {353, 354, EDITOR_SYNTAX_HL_VARIABLE}, {354, 355, EDITOR_SYNTAX_HL_OPERATOR},
+	        {355, 356, EDITOR_SYNTAX_HL_VARIABLE}, {356, 357, EDITOR_SYNTAX_HL_OPERATOR},
+	        {363, 379, EDITOR_SYNTAX_HL_OPERATOR},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_LATEX, source, contract_expected,
+	        (int)(sizeof(contract_expected) / sizeof(contract_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+	return 0;
+}
+
+static int test_editor_syntax_csharp_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/csharp/highlight.cs", 16, UINT64_C(0x031420054c17a1a3)},
+	        {"tests/syntax/supported/csharp/contract.cs", 134, UINT64_C(0x68040afd67d15581)},
+	        {"tests/syntax/supported/csharp/incomplete.cs", 9, UINT64_C(0x7670410eec51c76f)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_CSHARP, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_scala_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/scala/highlight.scala", 5, UINT64_C(0x174f0c59d7fdae03)},
+	        {"tests/syntax/supported/scala/contract.scala", 106, UINT64_C(0xaf8327b1a7136aea)},
+	        {"tests/syntax/supported/scala/incomplete.scala", 5, UINT64_C(0x8033c4ebab4d4af5)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SCALA, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_ocaml_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/ocaml/highlight.ml", 5, UINT64_C(0xe85d212258641a5f)},
+	        {"tests/syntax/supported/ocaml/contract.ml", 89, UINT64_C(0x441a6f1521040203)},
+	        {"tests/syntax/supported/ocaml/incomplete.ml", 11, UINT64_C(0x71fe69c680e45d97)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_OCAML, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_ruby_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/ruby/highlight.rb", 7, UINT64_C(0x960f0d0bddba30bf)},
+	        {"tests/syntax/supported/ruby/contract.rb", 157, UINT64_C(0x2ecd54afd1bb3392)},
+	        {"tests/syntax/supported/ruby/incomplete.rb", 11, UINT64_C(0x767be8b5415e2bef)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_RUBY, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_julia_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/julia/highlight.jl", 8, UINT64_C(0x723201961f1aaf6c)},
+	        {"tests/syntax/supported/julia/contract.jl", 112, UINT64_C(0x2a1f00793d8efba5)},
+	        {"tests/syntax/supported/julia/incomplete.jl", 13, UINT64_C(0x401667f1e49d89e1)},
+	        {"tests/syntax/supported/julia/injections.jl", 22, UINT64_C(0x3a5aebae41096873)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_JULIA, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_haskell_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/haskell/highlight.hs", 5, UINT64_C(0x7642df1950c37a7b)},
+	        {"tests/syntax/supported/haskell/contract.hs", 71, UINT64_C(0xe373197bc3d137b7)},
+	        {"tests/syntax/supported/haskell/incomplete.hs", 2, UINT64_C(0x973da76b2f693144)},
+	        {"tests/syntax/supported/haskell/injections.hs", 32, UINT64_C(0xecd55c7e7e34e560)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_HASKELL, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_cpp_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/cpp/highlight.cpp", 19, UINT64_C(0xc11fcb91b55faeee)},
+	        {"tests/syntax/supported/cpp/contract.cpp", 138, UINT64_C(0xcad26b41eaddcaaa)},
+	        {"tests/syntax/supported/cpp/incomplete.cpp", 5, UINT64_C(0xea35068451de7aed)},
+	        {"tests/syntax/supported/cpp/incomplete_raw.cpp", 5, UINT64_C(0xea35068451de7aed)},
+	        {"tests/syntax/supported/cpp/injections.cpp", 16, UINT64_C(0x25e932e7ba654c0e)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_CPP, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
 }
 
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
@@ -358,6 +699,14 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 }
 
 const struct editorTestCase g_syntax_captures_tests[] = {
+        {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
+        {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
+        {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},
+        {"editor_syntax_julia_capture_contract", test_editor_syntax_julia_capture_contract},
+        {"editor_syntax_haskell_capture_contract", test_editor_syntax_haskell_capture_contract},
+        {"editor_syntax_cpp_capture_contract", test_editor_syntax_cpp_capture_contract},
+        {"editor_syntax_scala_capture_contract", test_editor_syntax_scala_capture_contract},
+        {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

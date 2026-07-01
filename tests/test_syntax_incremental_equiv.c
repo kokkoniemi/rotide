@@ -128,7 +128,7 @@ struct langCase {
 
 static const struct langCase k_lang_cases[] = {
         {"c", EDITOR_SYNTAX_C, "tests/syntax/supported/c/highlight.c", 20},
-        {"cpp", EDITOR_SYNTAX_CPP, "tests/syntax/supported/cpp/highlight.cpp", 20},
+        {"cpp", EDITOR_SYNTAX_CPP, "tests/syntax/supported/cpp/contract.cpp", 20},
         {"go", EDITOR_SYNTAX_GO, "tests/syntax/supported/go/highlight.go", 20},
         {"python", EDITOR_SYNTAX_PYTHON, "tests/syntax/supported/python/highlight.py", 20},
         {"javascript", EDITOR_SYNTAX_JAVASCRIPT, "tests/syntax/supported/javascript/highlight.js",
@@ -136,10 +136,16 @@ static const struct langCase k_lang_cases[] = {
         {"typescript", EDITOR_SYNTAX_TYPESCRIPT, "tests/syntax/supported/typescript/highlight.ts",
          20},
         {"rust", EDITOR_SYNTAX_RUST, "tests/syntax/supported/rust/highlight.rs", 20},
+        {"csharp", EDITOR_SYNTAX_CSHARP, "tests/syntax/supported/csharp/contract.cs", 20},
         {"json", EDITOR_SYNTAX_JSON, "tests/syntax/supported/json/activation.json", 20},
         {"bash", EDITOR_SYNTAX_SHELL, "tests/syntax/supported/bash/highlight.sh", 20},
         {"toml", EDITOR_SYNTAX_TOML, "tests/syntax/supported/toml/highlight.toml", 20},
         {"latex", EDITOR_SYNTAX_LATEX, "tests/syntax/supported/latex/highlight.tex", 20},
+        {"scala", EDITOR_SYNTAX_SCALA, "tests/syntax/supported/scala/contract.scala", 20},
+        {"ocaml", EDITOR_SYNTAX_OCAML, "tests/syntax/supported/ocaml/contract.ml", 20},
+        {"ruby", EDITOR_SYNTAX_RUBY, "tests/syntax/supported/ruby/contract.rb", 20},
+        {"julia", EDITOR_SYNTAX_JULIA, "tests/syntax/supported/julia/contract.jl", 20},
+        {"haskell", EDITOR_SYNTAX_HASKELL, "tests/syntax/supported/haskell/contract.hs", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -353,10 +359,16 @@ INCR_EQUIV_TEST(python, 3)
 INCR_EQUIV_TEST(javascript, 4)
 INCR_EQUIV_TEST(typescript, 5)
 INCR_EQUIV_TEST(rust, 6)
-INCR_EQUIV_TEST(json, 7)
-INCR_EQUIV_TEST(bash, 8)
-INCR_EQUIV_TEST(toml, 9)
-INCR_EQUIV_TEST(latex, 10)
+INCR_EQUIV_TEST(csharp, 7)
+INCR_EQUIV_TEST(json, 8)
+INCR_EQUIV_TEST(bash, 9)
+INCR_EQUIV_TEST(toml, 10)
+INCR_EQUIV_TEST(latex, 11)
+INCR_EQUIV_TEST(scala, 12)
+INCR_EQUIV_TEST(ocaml, 13)
+INCR_EQUIV_TEST(ruby, 14)
+INCR_EQUIV_TEST(julia, 15)
+INCR_EQUIV_TEST(haskell, 16)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -366,10 +378,16 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_javascript", test_syntax_incremental_equiv_javascript},
         {"syntax_incremental_equiv_typescript", test_syntax_incremental_equiv_typescript},
         {"syntax_incremental_equiv_rust", test_syntax_incremental_equiv_rust},
+        {"syntax_incremental_equiv_csharp", test_syntax_incremental_equiv_csharp},
         {"syntax_incremental_equiv_json", test_syntax_incremental_equiv_json},
         {"syntax_incremental_equiv_bash", test_syntax_incremental_equiv_bash},
         {"syntax_incremental_equiv_toml", test_syntax_incremental_equiv_toml},
         {"syntax_incremental_equiv_latex", test_syntax_incremental_equiv_latex},
+        {"syntax_incremental_equiv_scala", test_syntax_incremental_equiv_scala},
+        {"syntax_incremental_equiv_ocaml", test_syntax_incremental_equiv_ocaml},
+        {"syntax_incremental_equiv_ruby", test_syntax_incremental_equiv_ruby},
+        {"syntax_incremental_equiv_julia", test_syntax_incremental_equiv_julia},
+        {"syntax_incremental_equiv_haskell", test_syntax_incremental_equiv_haskell},
 };
 
 const int g_syntax_incremental_equiv_test_count =
