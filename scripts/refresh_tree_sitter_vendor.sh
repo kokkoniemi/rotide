@@ -184,9 +184,10 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "csharp" && "$2" != "julia" && "$2" != "latex" && "$2" != "ocaml" && \
-		"$2" != "ruby" && "$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar csharp|julia|latex|ocaml|ruby|scala]" >&2
+		( "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		"$2" != "latex" && "$2" != "ocaml" && "$2" != "ruby" && \
+		"$2" != "scala" ) ]]; then
+		echo "Usage: $0 [--grammar csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -219,6 +220,20 @@ if [[ "${ONLY_GRAMMAR}" == "julia" ]]; then
 	sync_grammar_vendor "${JULIA_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/julia"
 	echo "Tree-sitter Julia vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "haskell" ]]; then
+	HASKELL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-haskell" \
+		"${TREE_SITTER_HASKELL_GRAMMAR_REF}" HASKELL_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/haskell/grammar.js" \
+		"${HASKELL_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
+	rm -f "${HASKELL_GRAMMAR_SRC}/src/scanner.c" "${HASKELL_GRAMMAR_SRC}/src/unicode.h"
+	sync_grammar_vendor "${HASKELL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/haskell"
+	echo "Tree-sitter Haskell vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -375,7 +390,10 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/csharp/grammar.js" \
 	"${CSHARP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
 rm -f "${CSHARP_GRAMMAR_SRC}/src/scanner.c"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/haskell/grammar.js" \
+	"${HASKELL_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
+rm -f "${HASKELL_GRAMMAR_SRC}/src/scanner.c" "${HASKELL_GRAMMAR_SRC}/src/unicode.h"
 cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ruby/grammar.js" \
 	"${RUBY_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
