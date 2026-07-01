@@ -185,8 +185,8 @@ ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
 		( "$2" != "csharp" && "$2" != "latex" && "$2" != "ocaml" && \
-		"$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar csharp|latex|ocaml|scala]" >&2
+		"$2" != "ruby" && "$2" != "scala" ) ]]; then
+		echo "Usage: $0 [--grammar csharp|latex|ocaml|ruby|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -236,6 +236,20 @@ if [[ "${ONLY_GRAMMAR}" == "ocaml" ]]; then
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml"
 	rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
 	echo "Tree-sitter OCaml vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "ruby" ]]; then
+	RUBY_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-ruby" \
+		"${TREE_SITTER_RUBY_GRAMMAR_REF}" RUBY_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ruby/grammar.js" \
+		"${RUBY_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
+	rm -f "${RUBY_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/ruby"
+	echo "Tree-sitter Ruby vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -348,7 +362,10 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/csharp/grammar.js" \
 regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
 rm -f "${CSHARP_GRAMMAR_SRC}/src/scanner.c"
 regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ruby/grammar.js" \
+	"${RUBY_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
+rm -f "${RUBY_GRAMMAR_SRC}/src/scanner.c"
 # tree-sitter-ocaml ships sub-grammars under grammars/<name>/ (ocaml, interface,
 # type). Only the ocaml sub-grammar is vendored; regenerate from there.
 cp "${REPO_ROOT}/vendor/tree_sitter/overrides/ocaml/grammar.js" \

@@ -281,6 +281,30 @@ static int test_editor_syntax_ocaml_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_ruby_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/ruby/highlight.rb", 7, UINT64_C(0x960f0d0bddba30bf)},
+	        {"tests/syntax/supported/ruby/contract.rb", 157, UINT64_C(0x2ecd54afd1bb3392)},
+	        {"tests/syntax/supported/ruby/incomplete.rb", 11, UINT64_C(0x767be8b5415e2bef)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_RUBY, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
@@ -601,6 +625,7 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
+        {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},
         {"editor_syntax_scala_capture_contract", test_editor_syntax_scala_capture_contract},
         {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
