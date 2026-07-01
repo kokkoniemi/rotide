@@ -8,6 +8,52 @@ struct expectedSyntaxCapture {
 	enum editorSyntaxHighlightClass highlight_class;
 };
 
+static uint64_t syntax_capture_digest(const struct editorSyntaxCapture *captures, int count) {
+	uint64_t digest = UINT64_C(1469598103934665603);
+	for (int i = 0; i < count; i++) {
+		digest ^= captures[i].start_byte;
+		digest *= UINT64_C(1099511628211);
+		digest ^= captures[i].end_byte;
+		digest *= UINT64_C(1099511628211);
+		digest ^= (uint64_t)captures[i].highlight_class;
+		digest *= UINT64_C(1099511628211);
+	}
+	return digest;
+}
+
+static int assert_syntax_capture_digest(enum editorSyntaxLanguage language, const char *source,
+                                        int expected_count, uint64_t expected_digest) {
+	struct editorTextSource source_view = {0};
+	size_t source_len = strlen(source);
+	if (source_len > UINT32_MAX) {
+		return 1;
+	}
+	editorTextSourceInitString(&source_view, source, source_len);
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(language);
+	if (state == NULL || !editorSyntaxStateParseFull(state, &source_view)) {
+		editorSyntaxStateDestroy(state);
+		return 1;
+	}
+
+	struct editorSyntaxCapture captures[512];
+	int count = 0;
+	int ok = editorSyntaxStateCollectCapturesForRange(
+	        state, &source_view, 0, (uint32_t)source_len, captures,
+	        (int)(sizeof(captures) / sizeof(captures[0])), &count);
+	uint64_t digest = syntax_capture_digest(captures, count);
+	editorSyntaxStateDestroy(state);
+	if (!ok || count != expected_count || digest != expected_digest) {
+		(void)fprintf(stderr,
+		              "capture digest: expected count=%d hash=%016llx, got count=%d "
+		              "hash=%016llx\n",
+		              expected_count, (unsigned long long)expected_digest, count,
+		              (unsigned long long)digest);
+		return 1;
+	}
+	return 0;
+}
+
 static int assert_syntax_capture_contract(enum editorSyntaxLanguage language, const char *source,
                                           const struct expectedSyntaxCapture *expected,
                                           int expected_count) {
@@ -160,6 +206,30 @@ static int test_editor_syntax_latex_capture_contract(void) {
 	        (int)(sizeof(contract_expected) / sizeof(contract_expected[0])));
 	free(source);
 	ASSERT_EQ_INT(0, result);
+	return 0;
+}
+
+static int test_editor_syntax_csharp_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/csharp/highlight.cs", 16, UINT64_C(0x031420054c17a1a3)},
+	        {"tests/syntax/supported/csharp/contract.cs", 134, UINT64_C(0x68040afd67d15581)},
+	        {"tests/syntax/supported/csharp/incomplete.cs", 9, UINT64_C(0x7670410eec51c76f)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_CSHARP, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
 	return 0;
 }
 
@@ -481,6 +551,7 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 }
 
 const struct editorTestCase g_syntax_captures_tests[] = {
+        {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},

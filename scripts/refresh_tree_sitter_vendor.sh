@@ -183,14 +183,28 @@ sync_grammar_vendor() {
 
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
-	if [[ $# -ne 2 || "$1" != "--grammar" || "$2" != "latex" ]]; then
-		echo "Usage: $0 [--grammar latex]" >&2
+	if [[ $# -ne 2 || "$1" != "--grammar" || ( "$2" != "csharp" && "$2" != "latex" ) ]]; then
+		echo "Usage: $0 [--grammar csharp|latex]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
 fi
 
 download_cli
+
+if [[ "${ONLY_GRAMMAR}" == "csharp" ]]; then
+	CSHARP_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-c-sharp" \
+		"${TREE_SITTER_CSHARP_GRAMMAR_REF}" CSHARP_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/csharp/grammar.js" \
+		"${CSHARP_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
+	rm -f "${CSHARP_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${CSHARP_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/csharp"
+	echo "Tree-sitter C# vendor refresh complete." >&2
+	exit 0
+fi
 
 if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
 	LATEX_GRAMMAR_SRC=""
@@ -297,7 +311,10 @@ regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
 regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
 regenerate_parser "${JAVA_GRAMMAR_SRC}" "Java"
 regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/csharp/grammar.js" \
+	"${CSHARP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
+rm -f "${CSHARP_GRAMMAR_SRC}/src/scanner.c"
 regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
 regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
 # tree-sitter-ocaml ships sub-grammars under grammars/<name>/ (ocaml, interface,

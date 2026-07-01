@@ -136,6 +136,7 @@ static const struct langCase k_lang_cases[] = {
         {"typescript", EDITOR_SYNTAX_TYPESCRIPT, "tests/syntax/supported/typescript/highlight.ts",
          20},
         {"rust", EDITOR_SYNTAX_RUST, "tests/syntax/supported/rust/highlight.rs", 20},
+        {"csharp", EDITOR_SYNTAX_CSHARP, "tests/syntax/supported/csharp/contract.cs", 20},
         {"json", EDITOR_SYNTAX_JSON, "tests/syntax/supported/json/activation.json", 20},
         {"bash", EDITOR_SYNTAX_SHELL, "tests/syntax/supported/bash/highlight.sh", 20},
         {"toml", EDITOR_SYNTAX_TOML, "tests/syntax/supported/toml/highlight.toml", 20},
@@ -353,10 +354,11 @@ INCR_EQUIV_TEST(python, 3)
 INCR_EQUIV_TEST(javascript, 4)
 INCR_EQUIV_TEST(typescript, 5)
 INCR_EQUIV_TEST(rust, 6)
-INCR_EQUIV_TEST(json, 7)
-INCR_EQUIV_TEST(bash, 8)
-INCR_EQUIV_TEST(toml, 9)
-INCR_EQUIV_TEST(latex, 10)
+INCR_EQUIV_TEST(csharp, 7)
+INCR_EQUIV_TEST(json, 8)
+INCR_EQUIV_TEST(bash, 9)
+INCR_EQUIV_TEST(toml, 10)
+INCR_EQUIV_TEST(latex, 11)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -366,6 +368,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_javascript", test_syntax_incremental_equiv_javascript},
         {"syntax_incremental_equiv_typescript", test_syntax_incremental_equiv_typescript},
         {"syntax_incremental_equiv_rust", test_syntax_incremental_equiv_rust},
+        {"syntax_incremental_equiv_csharp", test_syntax_incremental_equiv_csharp},
         {"syntax_incremental_equiv_json", test_syntax_incremental_equiv_json},
         {"syntax_incremental_equiv_bash", test_syntax_incremental_equiv_bash},
         {"syntax_incremental_equiv_toml", test_syntax_incremental_equiv_toml},
