@@ -184,16 +184,29 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		( "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
 		"$2" != "latex" && "$2" != "ocaml" && "$2" != "ruby" && \
 		"$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
+		echo "Usage: $0 [--grammar cpp|csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
 fi
 
 download_cli
+
+if [[ "${ONLY_GRAMMAR}" == "cpp" ]]; then
+	CPP_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-cpp" \
+		"${TREE_SITTER_CPP_GRAMMAR_REF}" CPP_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/cpp/grammar.js" \
+		"${CPP_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
+	sync_grammar_vendor "${CPP_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/cpp"
+	echo "Tree-sitter C++ vendor refresh complete." >&2
+	exit 0
+fi
 
 if [[ "${ONLY_GRAMMAR}" == "csharp" ]]; then
 	CSHARP_GRAMMAR_SRC=""
@@ -363,9 +376,8 @@ if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sit
 fi
 
 regenerate_parser "${C_GRAMMAR_SRC}" "C"
-# tree-sitter-cpp grammar.js does `require('tree-sitter-c/grammar')`, so expose
-# the pinned C grammar source under cpp's node_modules before regenerating.
-link_grammar_dep "${CPP_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/cpp/grammar.js" \
+	"${CPP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
 regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"

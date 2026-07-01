@@ -128,7 +128,7 @@ struct langCase {
 
 static const struct langCase k_lang_cases[] = {
         {"c", EDITOR_SYNTAX_C, "tests/syntax/supported/c/highlight.c", 20},
-        {"cpp", EDITOR_SYNTAX_CPP, "tests/syntax/supported/cpp/highlight.cpp", 20},
+        {"cpp", EDITOR_SYNTAX_CPP, "tests/syntax/supported/cpp/contract.cpp", 20},
         {"go", EDITOR_SYNTAX_GO, "tests/syntax/supported/go/highlight.go", 20},
         {"python", EDITOR_SYNTAX_PYTHON, "tests/syntax/supported/python/highlight.py", 20},
         {"javascript", EDITOR_SYNTAX_JAVASCRIPT, "tests/syntax/supported/javascript/highlight.js",
