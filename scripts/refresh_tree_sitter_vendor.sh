@@ -186,8 +186,8 @@ if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
 		( "$2" != "bash" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
 		"$2" != "latex" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
-		"$2" != "rust" && "$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala]" >&2
+		"$2" != "rust" && "$2" != "scala" && "$2" != "typescript" ) ]]; then
+		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -318,6 +318,38 @@ if [[ "${ONLY_GRAMMAR}" == "php" ]]; then
 	exit 0
 fi
 
+if [[ "${ONLY_GRAMMAR}" == "typescript" ]]; then
+	JAVASCRIPT_GRAMMAR_SRC=""
+	TYPESCRIPT_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-javascript" \
+		"${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
+	download_repo_tarball "tree-sitter/tree-sitter-typescript" \
+		"${TREE_SITTER_TYPESCRIPT_GRAMMAR_REF}" TYPESCRIPT_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/typescript/define-grammar.js" \
+		"${TYPESCRIPT_GRAMMAR_SRC}/common/define-grammar.js"
+	link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" \
+		"${JAVASCRIPT_GRAMMAR_SRC}"
+	regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
+	regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "TSX"
+	cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" \
+		"${TYPESCRIPT_GRAMMAR_SRC}/typescript/queries"
+	sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/typescript" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/typescript"
+	cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/tsx/queries"
+	sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/tsx" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/tsx"
+	for grammar_name in typescript tsx; do
+		rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/common"
+		cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" \
+			"${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/common"
+		sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+			"${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/src/scanner.c"
+		rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/src/scanner.c.bak"
+	done
+	echo "Tree-sitter TypeScript/TSX vendor refresh complete." >&2
+	exit 0
+fi
+
 if [[ "${ONLY_GRAMMAR}" == "ruby" ]]; then
 	RUBY_GRAMMAR_SRC=""
 	download_repo_tarball "tree-sitter/tree-sitter-ruby" \
@@ -439,6 +471,8 @@ regenerate_parser "${JSDOC_GRAMMAR_SRC}" "JSDoc"
 # tree-sitter-typescript grammar.js requires tree-sitter-javascript via
 # common/define-grammar.js; expose the pinned JS source in node_modules.
 link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" "${JAVASCRIPT_GRAMMAR_SRC}"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/typescript/define-grammar.js" \
+	"${TYPESCRIPT_GRAMMAR_SRC}/common/define-grammar.js"
 regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
 regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "TSX"
 regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"

@@ -312,6 +312,61 @@ static int test_editor_syntax_php_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_typescript_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/typescript/highlight.ts", 14,
+	         UINT64_C(0x30742120ea77b1d1)},
+	        {"tests/syntax/supported/typescript/contract.ts", 254,
+	         UINT64_C(0x59d5198804e3967b)},
+	        {"tests/syntax/supported/typescript/injections.ts", 52,
+	         UINT64_C(0xbdb5dc0a99859efc)},
+	        {"tests/syntax/supported/typescript/incomplete.ts", 19,
+	         UINT64_C(0xf678890b67145ff4)},
+	        {"tests/syntax/supported/typescript/jsdoc.ts", 25, UINT64_C(0x747be4fe22e2dd3a)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_TYPESCRIPT, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_tsx_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/tsx/highlight.tsx", 83, UINT64_C(0x644bd99932e13279)},
+	        {"tests/syntax/supported/tsx/contract.tsx", 131, UINT64_C(0xe2b9393382bfeaae)},
+	        {"tests/syntax/supported/tsx/incomplete.tsx", 22, UINT64_C(0x012bffd4582b89a8)},
+	        {"tests/syntax/supported/tsx/jsdoc.tsx", 42, UINT64_C(0x301b8694dc0867c4)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_TSX, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_scala_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -781,6 +836,9 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_bash_capture_contract", test_editor_syntax_bash_capture_contract},
         {"editor_syntax_rust_capture_contract", test_editor_syntax_rust_capture_contract},
         {"editor_syntax_php_capture_contract", test_editor_syntax_php_capture_contract},
+        {"editor_syntax_typescript_capture_contract",
+         test_editor_syntax_typescript_capture_contract},
+        {"editor_syntax_tsx_capture_contract", test_editor_syntax_tsx_capture_contract},
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
         {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},
