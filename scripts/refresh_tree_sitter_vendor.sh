@@ -184,16 +184,29 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		( "$2" != "bash" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
 		"$2" != "latex" && "$2" != "ocaml" && "$2" != "ruby" && \
 		"$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar cpp|csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
+		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
 fi
 
 download_cli
+
+if [[ "${ONLY_GRAMMAR}" == "bash" ]]; then
+	BASH_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-bash" \
+		"${TREE_SITTER_BASH_GRAMMAR_REF}" BASH_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/bash/grammar.js" \
+		"${BASH_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
+	sync_grammar_vendor "${BASH_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
+	echo "Tree-sitter Bash vendor refresh complete." >&2
+	exit 0
+fi
 
 if [[ "${ONLY_GRAMMAR}" == "cpp" ]]; then
 	CPP_GRAMMAR_SRC=""
@@ -380,6 +393,8 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/cpp/grammar.js" \
 	"${CPP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
 regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/bash/grammar.js" \
+	"${BASH_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
 regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"

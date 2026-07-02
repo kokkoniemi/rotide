@@ -233,6 +233,32 @@ static int test_editor_syntax_csharp_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_bash_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/bash/highlight.sh", 15, UINT64_C(0x024863e33145cfa3)},
+	        {"tests/syntax/supported/bash/contract.sh", 106, UINT64_C(0xc37e39637070ebd3)},
+	        {"tests/syntax/supported/bash/incomplete.sh", 5, UINT64_C(0x4df0a55a4342f4bc)},
+	        {"tests/syntax/supported/bash/incomplete_heredoc.sh", 4,
+	         UINT64_C(0xcad64e051c9653df)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SHELL, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_scala_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -699,6 +725,7 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 }
 
 const struct editorTestCase g_syntax_captures_tests[] = {
+        {"editor_syntax_bash_capture_contract", test_editor_syntax_bash_capture_contract},
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
         {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},

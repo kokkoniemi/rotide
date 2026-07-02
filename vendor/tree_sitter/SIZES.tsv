@@ -1,5 +1,5 @@
 language	parser_lines	parser_bytes	scanner_lines	scanner_bytes	scanner_support_bytes	state_count	large_state_count	symbol_count	token_count	external_token_count	parser_object_bytes
-bash	350631	9912245	1217	45602	0	7571	523	280	174	29	0
+bash	138473	3652145	1217	45602	0	3223	46	153	95	29	0
 c	118872	3872012	0	0	0	2015	455	360	161	0	0
 cpp	46575	1583850	148	5169	0	590	185	206	120	2	0
 csharp	49689	1781461	0	0	0	524	263	226	163	0	0

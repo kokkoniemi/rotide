@@ -37,10 +37,11 @@ Pinned source/tooling used by this repository:
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.
 
-RotIDE applies the C++, C#, Haskell, Julia, LaTeX, OCaml, Ruby, and Scala grammars under `overrides/` before generation. The
-overrides preserve each registered highlight/locals query contract without carrying the full
-upstream language grammar. Pass `--grammar cpp`, `--grammar csharp`, `--grammar haskell`, `--grammar julia`,
-`--grammar latex`, `--grammar ocaml`, `--grammar ruby`, or `--grammar scala` to
+RotIDE applies the Bash, C++, C#, Haskell, Julia, LaTeX, OCaml, Ruby, and Scala grammars under
+`overrides/` before generation. The overrides preserve each registered highlight/locals query
+contract without carrying the full upstream language grammar. Pass `--grammar bash`,
+`--grammar cpp`, `--grammar csharp`, `--grammar haskell`, `--grammar julia`, `--grammar latex`,
+`--grammar ocaml`, `--grammar ruby`, or `--grammar scala` to
 `scripts/refresh_tree_sitter_vendor.sh` to refresh only that grammar.
 
 ## Size baseline
