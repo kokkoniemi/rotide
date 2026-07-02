@@ -233,6 +233,140 @@ static int test_editor_syntax_csharp_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_bash_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/bash/highlight.sh", 15, UINT64_C(0x024863e33145cfa3)},
+	        {"tests/syntax/supported/bash/contract.sh", 106, UINT64_C(0xc37e39637070ebd3)},
+	        {"tests/syntax/supported/bash/incomplete.sh", 5, UINT64_C(0x4df0a55a4342f4bc)},
+	        {"tests/syntax/supported/bash/incomplete_heredoc.sh", 4,
+	         UINT64_C(0xcad64e051c9653df)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SHELL, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_rust_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/rust/highlight.rs", 11, UINT64_C(0x63b72cba09d7bc1e)},
+	        {"tests/syntax/supported/rust/contract.rs", 263, UINT64_C(0x4fd9284e3655394c)},
+	        {"tests/syntax/supported/rust/incomplete.rs", 22, UINT64_C(0x45bdecc487ba6fe8)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_RUST, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_php_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/php/highlight.php", 7, UINT64_C(0x2b18dafb41aaaece)},
+	        {"tests/syntax/supported/php/contract.php", 126, UINT64_C(0xe24f76d9cbbb138b)},
+	        {"tests/syntax/supported/php/incomplete.php", 5, UINT64_C(0x89ad798c15bc4147)},
+	        {"tests/syntax/supported/php/incomplete_heredoc.php", 7,
+	         UINT64_C(0x7d46f8f62ea83e9c)},
+	        {"tests/syntax/supported/php/injections.php", 17, UINT64_C(0x38ab528b451ffc1c)},
+	        {"tests/syntax/supported/php/injections_nowdoc.php", 15,
+	         UINT64_C(0xc9ee70243c5d6c5c)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_PHP, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_typescript_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/typescript/highlight.ts", 14,
+	         UINT64_C(0x30742120ea77b1d1)},
+	        {"tests/syntax/supported/typescript/contract.ts", 254,
+	         UINT64_C(0x59d5198804e3967b)},
+	        {"tests/syntax/supported/typescript/injections.ts", 52,
+	         UINT64_C(0xbdb5dc0a99859efc)},
+	        {"tests/syntax/supported/typescript/incomplete.ts", 19,
+	         UINT64_C(0xf678890b67145ff4)},
+	        {"tests/syntax/supported/typescript/jsdoc.ts", 25, UINT64_C(0x747be4fe22e2dd3a)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_TYPESCRIPT, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_tsx_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/tsx/highlight.tsx", 83, UINT64_C(0x644bd99932e13279)},
+	        {"tests/syntax/supported/tsx/contract.tsx", 131, UINT64_C(0xe2b9393382bfeaae)},
+	        {"tests/syntax/supported/tsx/incomplete.tsx", 22, UINT64_C(0x012bffd4582b89a8)},
+	        {"tests/syntax/supported/tsx/jsdoc.tsx", 42, UINT64_C(0x301b8694dc0867c4)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_TSX, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_scala_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -699,6 +833,12 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 }
 
 const struct editorTestCase g_syntax_captures_tests[] = {
+        {"editor_syntax_bash_capture_contract", test_editor_syntax_bash_capture_contract},
+        {"editor_syntax_rust_capture_contract", test_editor_syntax_rust_capture_contract},
+        {"editor_syntax_php_capture_contract", test_editor_syntax_php_capture_contract},
+        {"editor_syntax_typescript_capture_contract",
+         test_editor_syntax_typescript_capture_contract},
+        {"editor_syntax_tsx_capture_contract", test_editor_syntax_tsx_capture_contract},
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
         {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},

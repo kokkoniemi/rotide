@@ -184,16 +184,29 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
-		"$2" != "latex" && "$2" != "ocaml" && "$2" != "ruby" && \
-		"$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar cpp|csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
+		( "$2" != "bash" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		"$2" != "latex" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
+		"$2" != "rust" && "$2" != "scala" && "$2" != "typescript" ) ]]; then
+		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
 fi
 
 download_cli
+
+if [[ "${ONLY_GRAMMAR}" == "bash" ]]; then
+	BASH_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-bash" \
+		"${TREE_SITTER_BASH_GRAMMAR_REF}" BASH_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/bash/grammar.js" \
+		"${BASH_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
+	sync_grammar_vendor "${BASH_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
+	echo "Tree-sitter Bash vendor refresh complete." >&2
+	exit 0
+fi
 
 if [[ "${ONLY_GRAMMAR}" == "cpp" ]]; then
 	CPP_GRAMMAR_SRC=""
@@ -281,6 +294,62 @@ if [[ "${ONLY_GRAMMAR}" == "ocaml" ]]; then
 	exit 0
 fi
 
+if [[ "${ONLY_GRAMMAR}" == "php" ]]; then
+	PHP_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-php" \
+		"${TREE_SITTER_PHP_GRAMMAR_REF}" PHP_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/php/grammar.js" \
+		"${PHP_GRAMMAR_SRC}/php/grammar.js"
+	regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
+	cp -R "${PHP_GRAMMAR_SRC}/queries" "${PHP_GRAMMAR_SRC}/php/queries"
+	sync_grammar_vendor "${PHP_GRAMMAR_SRC}/php" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/php"
+	rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
+	cp -R "${PHP_GRAMMAR_SRC}/common" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
+	sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c"
+	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
+	git -C "${REPO_ROOT}" apply \
+		"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-array-pop-lvalue.patch"
+	git -C "${REPO_ROOT}" apply \
+		"${REPO_ROOT}/vendor/tree_sitter/patches/php-injections-include-children.patch"
+	echo "Tree-sitter PHP vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "typescript" ]]; then
+	JAVASCRIPT_GRAMMAR_SRC=""
+	TYPESCRIPT_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-javascript" \
+		"${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
+	download_repo_tarball "tree-sitter/tree-sitter-typescript" \
+		"${TREE_SITTER_TYPESCRIPT_GRAMMAR_REF}" TYPESCRIPT_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/typescript/define-grammar.js" \
+		"${TYPESCRIPT_GRAMMAR_SRC}/common/define-grammar.js"
+	link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" \
+		"${JAVASCRIPT_GRAMMAR_SRC}"
+	regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
+	regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "TSX"
+	cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" \
+		"${TYPESCRIPT_GRAMMAR_SRC}/typescript/queries"
+	sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/typescript" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/typescript"
+	cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/tsx/queries"
+	sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/tsx" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/tsx"
+	for grammar_name in typescript tsx; do
+		rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/common"
+		cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" \
+			"${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/common"
+		sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+			"${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/src/scanner.c"
+		rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/src/scanner.c.bak"
+	done
+	echo "Tree-sitter TypeScript/TSX vendor refresh complete." >&2
+	exit 0
+fi
+
 if [[ "${ONLY_GRAMMAR}" == "ruby" ]]; then
 	RUBY_GRAMMAR_SRC=""
 	download_repo_tarball "tree-sitter/tree-sitter-ruby" \
@@ -292,6 +361,19 @@ if [[ "${ONLY_GRAMMAR}" == "ruby" ]]; then
 	sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/ruby"
 	echo "Tree-sitter Ruby vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "rust" ]]; then
+	RUST_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-rust" \
+		"${TREE_SITTER_RUST_GRAMMAR_REF}" RUST_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/rust/grammar.js" \
+		"${RUST_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
+	sync_grammar_vendor "${RUST_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/rust"
+	echo "Tree-sitter Rust vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -380,6 +462,8 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/cpp/grammar.js" \
 	"${CPP_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
 regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/bash/grammar.js" \
+	"${BASH_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
 regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"
@@ -387,6 +471,8 @@ regenerate_parser "${JSDOC_GRAMMAR_SRC}" "JSDoc"
 # tree-sitter-typescript grammar.js requires tree-sitter-javascript via
 # common/define-grammar.js; expose the pinned JS source in node_modules.
 link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" "${JAVASCRIPT_GRAMMAR_SRC}"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/typescript/define-grammar.js" \
+	"${TYPESCRIPT_GRAMMAR_SRC}/common/define-grammar.js"
 regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
 regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "TSX"
 regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"
@@ -394,7 +480,11 @@ regenerate_parser "${JSON_GRAMMAR_SRC}" "JSON"
 regenerate_parser "${PYTHON_GRAMMAR_SRC}" "Python"
 # tree-sitter-php grammar.js requires ../common/define-grammar.js inside the
 # tarball layout; regenerate from the php/ sub-grammar (HTML-mixed variant).
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/php/grammar.js" \
+	"${PHP_GRAMMAR_SRC}/php/grammar.js"
 regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/rust/grammar.js" \
+	"${RUST_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
 regenerate_parser "${JAVA_GRAMMAR_SRC}" "Java"
 regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
