@@ -283,6 +283,35 @@ static int test_editor_syntax_rust_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_php_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/php/highlight.php", 7, UINT64_C(0x2b18dafb41aaaece)},
+	        {"tests/syntax/supported/php/contract.php", 126, UINT64_C(0xe24f76d9cbbb138b)},
+	        {"tests/syntax/supported/php/incomplete.php", 5, UINT64_C(0x89ad798c15bc4147)},
+	        {"tests/syntax/supported/php/incomplete_heredoc.php", 7,
+	         UINT64_C(0x7d46f8f62ea83e9c)},
+	        {"tests/syntax/supported/php/injections.php", 17, UINT64_C(0x38ab528b451ffc1c)},
+	        {"tests/syntax/supported/php/injections_nowdoc.php", 15,
+	         UINT64_C(0xc9ee70243c5d6c5c)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_PHP, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_scala_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -751,6 +780,7 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_bash_capture_contract", test_editor_syntax_bash_capture_contract},
         {"editor_syntax_rust_capture_contract", test_editor_syntax_rust_capture_contract},
+        {"editor_syntax_php_capture_contract", test_editor_syntax_php_capture_contract},
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
         {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},
