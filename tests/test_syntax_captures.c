@@ -259,6 +259,30 @@ static int test_editor_syntax_bash_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_rust_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/rust/highlight.rs", 11, UINT64_C(0x63b72cba09d7bc1e)},
+	        {"tests/syntax/supported/rust/contract.rs", 263, UINT64_C(0x4fd9284e3655394c)},
+	        {"tests/syntax/supported/rust/incomplete.rs", 22, UINT64_C(0x45bdecc487ba6fe8)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_RUST, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_scala_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -726,6 +750,7 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 
 const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_bash_capture_contract", test_editor_syntax_bash_capture_contract},
+        {"editor_syntax_rust_capture_contract", test_editor_syntax_rust_capture_contract},
         {"editor_syntax_csharp_capture_contract", test_editor_syntax_csharp_capture_contract},
         {"editor_syntax_ocaml_capture_contract", test_editor_syntax_ocaml_capture_contract},
         {"editor_syntax_ruby_capture_contract", test_editor_syntax_ruby_capture_contract},

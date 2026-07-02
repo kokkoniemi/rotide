@@ -186,8 +186,8 @@ if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
 		( "$2" != "bash" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
 		"$2" != "latex" && "$2" != "ocaml" && "$2" != "ruby" && \
-		"$2" != "scala" ) ]]; then
-		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|ruby|scala]" >&2
+		"$2" != "rust" && "$2" != "scala" ) ]]; then
+		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|ruby|rust|scala]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -308,6 +308,19 @@ if [[ "${ONLY_GRAMMAR}" == "ruby" ]]; then
 	exit 0
 fi
 
+if [[ "${ONLY_GRAMMAR}" == "rust" ]]; then
+	RUST_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-rust" \
+		"${TREE_SITTER_RUST_GRAMMAR_REF}" RUST_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/rust/grammar.js" \
+		"${RUST_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
+	sync_grammar_vendor "${RUST_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/rust"
+	echo "Tree-sitter Rust vendor refresh complete." >&2
+	exit 0
+fi
+
 if [[ "${ONLY_GRAMMAR}" == "scala" ]]; then
 	SCALA_GRAMMAR_SRC=""
 	download_repo_tarball "tree-sitter/tree-sitter-scala" \
@@ -410,6 +423,8 @@ regenerate_parser "${PYTHON_GRAMMAR_SRC}" "Python"
 # tree-sitter-php grammar.js requires ../common/define-grammar.js inside the
 # tarball layout; regenerate from the php/ sub-grammar (HTML-mixed variant).
 regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/rust/grammar.js" \
+	"${RUST_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
 regenerate_parser "${JAVA_GRAMMAR_SRC}" "Java"
 regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
