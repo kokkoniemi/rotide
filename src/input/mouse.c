@@ -471,7 +471,17 @@ static int mouseDrawerHandleMenuAction(editorProcessMappedActionFn process_mappe
 	return 1;
 }
 
-static int mouseDrawerHandleGitMode(int *effects_out) {
+static int mouseDrawerHandleGitMode(editorProcessMappedActionFn process_mapped_action,
+                                    int *effects_out) {
+	enum editorAction git_action = EDITOR_ACTION_COUNT;
+	if (editorDrawerGitSelectedAction(&git_action)) {
+		if (process_mapped_action != NULL) {
+			int mapped = 0;
+			(void)process_mapped_action(git_action, &mapped);
+		}
+		mouseDrawerFinishPress(effects_out, 1);
+		return 1;
+	}
 	if (editorOpenSelectedGitDiff()) {
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	}
@@ -618,7 +628,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		return 1;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
-		return mouseDrawerHandleGitMode(effects_out);
+		return mouseDrawerHandleGitMode(process_mapped_action, effects_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 		return mouseDrawerHandleLspMode(visible_idx, now_ms, double_click_threshold_ms,
@@ -795,7 +805,16 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	E.text_last_click_ms = now_ms;
 
 	if (click_count == 2) {
-		mouseSelectWordAtCursor();
+		/* In git views double-click activates the row (checkout / show)
+		 * instead of selecting a word. */
+		if (E.tab_kind == EDITOR_TAB_GIT_BRANCHES || E.tab_kind == EDITOR_TAB_GIT_LOG ||
+		    E.tab_kind == EDITOR_TAB_GIT_STASH) {
+			int mapped = 0;
+			(void)editorDispatchProcessMappedAction(EDITOR_ACTION_GIT_VIEW_ACTIVATE,
+			                                        &mapped);
+		} else {
+			mouseSelectWordAtCursor();
+		}
 		apply_mouse_state = 1;
 		left_button_down = 0;
 		drag_started = 0;

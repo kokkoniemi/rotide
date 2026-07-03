@@ -2349,7 +2349,7 @@ static int test_editor_process_keypress_ctrl_q_restores_cursor_shape(void) {
 		}
 
 		char ctrl_q[] = {CTRL_KEY('q')};
-		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+		if (editor_process_keypress_with_input_to_stdout(ctrl_q, sizeof(ctrl_q)) == -1) {
 			_exit(114);
 		}
 		_exit(115);
@@ -2453,7 +2453,7 @@ static int test_editor_process_keypress_eof_restores_terminal_visual_state(void)
 			_exit(133);
 		}
 
-		if (editor_process_keypress_with_input("", 0) == -1) {
+		if (editor_process_keypress_with_input_to_stdout("", 0) == -1) {
 			_exit(134);
 		}
 		_exit(135);

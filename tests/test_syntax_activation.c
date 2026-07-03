@@ -1,6 +1,7 @@
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
+#include "workspace/git_view.h"
 
 static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	char c_path[] = "/tmp/rotide-test-syntax-c-XXXXXX.c";
@@ -604,24 +605,40 @@ static int test_editor_syntax_activation_for_diff_files(void) {
 	return 0;
 }
 
-static int test_editor_syntax_git_diff_tab_uses_diff_language(void) {
-	const char *diff_text = "diff --git a/src/app.c b/src/app.c\n"
-	                        "index 1111111..2222222 100644\n"
-	                        "--- a/src/app.c\n"
-	                        "+++ b/src/app.c\n"
-	                        "@@ -1,2 +1,2 @@\n"
-	                        "-old line\n"
-	                        "+new line\n";
+static int test_editor_syntax_git_diff_tab_uses_source_language(void) {
+	const char *patch = "diff --git a/src/app.c b/src/app.c\n"
+	                    "index 1111111..2222222 100644\n"
+	                    "--- a/src/app.c\n"
+	                    "+++ b/src/app.c\n"
+	                    "@@ -1,2 +1,2 @@\n"
+	                    "-int old_value = 1;\n"
+	                    "+int new_value = 2;\n";
+
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text =
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(source_path != NULL);
+	ASSERT_EQ_STR("src/app.c", source_path);
 
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorTabOpenGitDiff("git diff: src/app.c", diff_text));
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: src/app.c", text));
+	free(text);
+	free(E.git_view_line_kinds);
+	E.git_view_line_kinds = kinds;
+	E.git_view_line_kind_count = kind_count;
+	free(E.git_view_source_path);
+	E.git_view_source_path = source_path;
+	ASSERT_TRUE(editorSyntaxParseFullActive());
+
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
 	ASSERT_TRUE(editorActiveTabIsReadOnly());
+	ASSERT_TRUE(editorActiveTabIsPreview());
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
-	ASSERT_EQ_INT(EDITOR_SYNTAX_DIFF, editorSyntaxLanguageActive());
-	ASSERT_TRUE(editorSyntaxRootType() != NULL);
-	ASSERT_EQ_STR("source", editorSyntaxRootType());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 	return 0;
 }
 
@@ -1031,8 +1048,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_xml_files", test_editor_syntax_activation_for_xml_files},
         {"editor_syntax_activation_for_make_files", test_editor_syntax_activation_for_make_files},
         {"editor_syntax_activation_for_diff_files", test_editor_syntax_activation_for_diff_files},
-        {"editor_syntax_git_diff_tab_uses_diff_language",
-         test_editor_syntax_git_diff_tab_uses_diff_language},
+        {"editor_syntax_git_diff_tab_uses_source_language",
+         test_editor_syntax_git_diff_tab_uses_source_language},
         {"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
         {"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
         {"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},

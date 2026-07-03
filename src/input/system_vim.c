@@ -204,7 +204,8 @@ static const struct vimExCommand g_vim_ex_commands[] = {
 static const size_t g_vim_ex_command_count =
         sizeof(g_vim_ex_commands) / sizeof(g_vim_ex_commands[0]);
 
-static const char *const g_vim_ex_builtin_commands[] = {"w", "q", "q!", "wq", "x", "e", "edit"};
+static const char *const g_vim_ex_builtin_commands[] = {"w", "q", "q!",   "wq",
+                                                        "x", "e", "edit", "git"};
 
 static const size_t g_vim_ex_builtin_command_count =
         sizeof(g_vim_ex_builtin_commands) / sizeof(g_vim_ex_builtin_commands[0]);
@@ -3188,6 +3189,28 @@ char *vimSystemExCompletionTest(const char *current, int tab_iteration) {
 	return vimSystemExCompleteFn(current, current, NULL, tab_iteration);
 }
 
+/* `:git [subcommand]` — no args opens the Git drawer. */
+static void vimSystemExGit(const char *args, int *effects_out) {
+	static const struct vimExCommand k_git_subcommands[] = {
+	        {"branches", EDITOR_ACTION_GIT_BRANCHES}, {"log", EDITOR_ACTION_GIT_LOG},
+	        {"stash", EDITOR_ACTION_GIT_STASHES},     {"stashes", EDITOR_ACTION_GIT_STASHES},
+	        {"commit", EDITOR_ACTION_GIT_COMMIT},     {"amend", EDITOR_ACTION_GIT_COMMIT_AMEND},
+	        {"push", EDITOR_ACTION_GIT_PUSH},         {"pull", EDITOR_ACTION_GIT_PULL},
+	        {"fetch", EDITOR_ACTION_GIT_FETCH},
+	};
+	if (args == NULL || args[0] == '\0') {
+		vimSystemExDispatch(EDITOR_ACTION_GIT_DRAWER, effects_out);
+		return;
+	}
+	for (size_t i = 0; i < sizeof(k_git_subcommands) / sizeof(k_git_subcommands[0]); i++) {
+		if (strcmp(k_git_subcommands[i].name, args) == 0) {
+			vimSystemExDispatch(k_git_subcommands[i].action, effects_out);
+			return;
+		}
+	}
+	editorSetStatusMsg("Unknown :git subcommand: %s", args);
+}
+
 static void vimSystemRunExCommand(char *line, int *effects_out) {
 	char *cmd = line;
 	char *args = NULL;
@@ -3236,6 +3259,10 @@ static void vimSystemRunExCommand(char *line, int *effects_out) {
 	}
 	if (cmd[0] == '%' && cmd[1] == 's') {
 		vimSystemExSubstitute(cmd + 2, effects_out);
+		return;
+	}
+	if (strcmp(cmd, "git") == 0) {
+		vimSystemExGit(args, effects_out);
 		return;
 	}
 	if (args != NULL && args[0] != '\0') {
@@ -4157,6 +4184,15 @@ static int vimSystemIsIdleNormal(void) {
 	       E.input_vim_count == 0;
 }
 
+static int vimSystemKeySequencePending(void) {
+	return E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE ||
+	       E.input_vim_pending_g != 0 || E.input_vim_pending_find != 0 ||
+	       E.input_vim_pending_replace != 0 || E.input_vim_pending_z != 0 ||
+	       E.input_vim_pending_mark != 0 || E.input_vim_pending_register != 0 ||
+	       E.input_vim_pending_text_object != 0 || E.input_vim_pending_leader != 0 ||
+	       E.input_vim_pending_ctrl_w != 0 || E.input_vim_pending_bracket != 0;
+}
+
 static int vimSystemDotReplay(int *effects_out) {
 	int last = 0;
 
@@ -4368,6 +4404,7 @@ const struct editorInputSystem editorVimInputSystem = {
         .on_activate = vimSystemOnActivate,
         .on_deactivate = NULL,
         .handle_key = vimSystemHandleKey,
+        .key_sequence_pending = vimSystemKeySequencePending,
         .resolve_command = vimSystemResolveCommand,
         .bind_key = vimSystemBindKey,
         .status_segment = vimSystemStatusSegment,

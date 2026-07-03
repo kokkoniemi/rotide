@@ -359,6 +359,18 @@ drawer_create_folder = "ctrl+alt+d"
 drawer_rename = "ctrl+alt+r"
 drawer_delete = "ctrl+alt+k"
 git_drawer = "ctrl+alt+g"
+# Git actions have no default CUA chords; the Git drawer and the git views
+# expose them as single letters (s/u/a/d/c/A/R/P/p/f, B/L/S). Bind chords here
+# to also reach them from anywhere, e.g.:
+# git_branches = "alt+g"
+# git_log = "alt+l"
+# git_stashes = "alt+s"
+# git_commit = "ctrl+alt+m"
+# Other bindable names: git_stage, git_unstage, git_stage_all, git_discard,
+# git_commit_amend, git_refresh, git_push, git_pull, git_fetch,
+# git_view_activate, git_branch_new, git_branch_delete, git_cherry_pick,
+# git_revert, git_tag, git_stash_apply, git_stash_pop, git_stash_drop,
+# git_diff_toggle_context.
 dap_drawer = "ctrl+alt+b"
 # DAP control actions have no default binding; uncomment/remap as needed.
 # dap_start = "ctrl+alt+s"
@@ -439,8 +451,9 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # Set the leader key with "normal.leader" (default "space"; "space" and a literal
 # " " both work). Bind sub-keys with "leader.<command>". Built-in leader commands:
 #   find_file (default "p"), project_search ("f"), toggle_drawer ("e"),
-#   main_menu ("m"), git_blame_details (unbound by default; Normal mode uses
-#   "gb"). Sub-keys relocate like other commands.
+#   main_menu ("m"), git_drawer ("g"), git_blame_details (unbound by default;
+#   Normal mode uses "gb"). Sub-keys relocate like other commands. The Git
+#   views open from inside the Git drawer (B/L/S or the Actions rows).
 #
 # Built-in Vim window commands are not configurable yet: Ctrl-W s/v splits,
 # Ctrl-W c/q closes the focused pane, Ctrl-W o closes other panes, Ctrl-W w and
@@ -450,9 +463,10 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 #
 # Built-in ex aliases include :split/:sp, :vsplit/:vs/:vsp, :e/:edit <file>,
 # :split <file>, :vsplit <file>, :close/:clo, :only/:on, :tabclose/:tabc,
-# :bd/:bdelete, :tabnew, :term/:terminal, and :vterm. Press Tab in the :
-# prompt to complete/cycle command names. These spellings are built in and are
-# not configured under [keymap.vim].
+# :bd/:bdelete, :tabnew, :term/:terminal, and :vterm. The :git command opens
+# the Git drawer; :git branches|log|stash|commit|amend|push|pull|fetch runs the
+# matching view or action. Press Tab in the : prompt to complete/cycle command
+# names. These spellings are built in and are not configured under [keymap.vim].
 #
 # [keymap.vim]
 # normal.move_left = "h"

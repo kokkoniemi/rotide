@@ -142,8 +142,12 @@ void editorActionCloseTab(void) {
 		return;
 	}
 
+	int was_commit_tab = E.tab_kind == EDITOR_TAB_GIT_COMMIT;
 	if (editorTabCloseActive()) {
 		E.close_confirmed = 0;
+		if (was_commit_tab) {
+			editorSetStatusMsg("Commit aborted");
+		}
 	}
 }
 

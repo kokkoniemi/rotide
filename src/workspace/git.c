@@ -224,7 +224,8 @@ static int gitRefreshBuildStatusCommand(char *cmd, size_t cmd_size) {
 			cmd[pos++] = *p;
 		}
 	}
-	const char *suffix = "' status --porcelain=v1 -z --untracked-files=normal 2>/dev/null";
+	const char *suffix = "' status --porcelain=v2 --branch -z --untracked-files=normal"
+	                     " 2>/dev/null";
 	size_t suffix_len = strlen(suffix);
 	if (pos + suffix_len + 1 >= cmd_size) {
 		return 0;
@@ -275,38 +276,95 @@ static char *gitRefreshReadStatus(FILE *fp, size_t *buf_len_out) {
 	return buf;
 }
 
-static void gitRefreshParseStatus(char *buf, size_t buf_len, struct gitEntryCache *cache) {
+/* Advances past `count` space-separated fields; returns the next field or
+ * NULL when the record is shorter than expected. */
+static const char *gitStatusSkipFields(const char *cursor, int count) {
+	for (int i = 0; i < count; i++) {
+		cursor = strchr(cursor, ' ');
+		if (cursor == NULL) {
+			return NULL;
+		}
+		cursor++;
+	}
+	return cursor;
+}
+
+/* Porcelain v2 uses '.' for "unchanged"; v1 (and the drawer logic) use ' '. */
+static char gitStatusChar(char c) {
+	return c == '.' ? ' ' : c;
+}
+
+static void gitStatusParseAheadBehind(const char *header, int *ahead_out, int *behind_out) {
+	const char *plus = strchr(header, '+');
+	const char *minus = strchr(header, '-');
+	if (ahead_out != NULL && plus != NULL) {
+		*ahead_out = (int)strtol(plus + 1, NULL, 10);
+	}
+	if (behind_out != NULL && minus != NULL) {
+		*behind_out = (int)strtol(minus + 1, NULL, 10);
+	}
+}
+
+/* Parses `git status --porcelain=v2 --branch -z` output: NUL-terminated
+ * records; `# branch.ab +A -B` carries ahead/behind; `2` (rename) records are
+ * followed by one extra NUL-terminated original-path field. */
+static void gitRefreshParseStatus(char *buf, size_t buf_len, struct gitEntryCache *cache,
+                                  int *ahead_out, int *behind_out) {
 	size_t p = 0;
 	while (p < buf_len) {
-		if (p + 3 > buf_len) {
-			break;
+		char *rec = buf + p;
+		size_t rec_len = 0;
+		while (p + rec_len < buf_len && rec[rec_len] != '\0') {
+			rec_len++;
 		}
-		char x = buf[p];
-		char y = buf[p + 1];
-		if (buf[p + 2] != ' ') {
-			break;
+		rec[rec_len] = '\0';
+		p += rec_len + 1;
+		if (rec_len == 0) {
+			continue;
 		}
-		p += 3;
 
-		size_t path_start = p;
-		while (p < buf_len && buf[p] != '\0') {
-			p++;
-		}
-		if (p >= buf_len) {
-			break;
-		}
-		buf[p] = '\0';
-		const char *rel_path = buf + path_start;
-		p++;
-
-		// Renames/copies have an extra NUL-terminated original path
-		if (x == 'R' || x == 'C' || y == 'R' || y == 'C') {
-			while (p < buf_len && buf[p] != '\0') {
-				p++;
+		char x = ' ';
+		char y = ' ';
+		const char *rel_path = NULL;
+		switch (rec[0]) {
+			case '#':
+				if (strncmp(rec, "# branch.ab ", 12) == 0) {
+					gitStatusParseAheadBehind(rec + 12, ahead_out, behind_out);
+				}
+				continue;
+			case '1':
+			case '2':
+			case 'u': {
+				if (rec_len < 4) {
+					continue;
+				}
+				x = gitStatusChar(rec[2]);
+				y = gitStatusChar(rec[3]);
+				int skip = rec[0] == '1' ? 7 : (rec[0] == '2' ? 8 : 9);
+				rel_path = gitStatusSkipFields(rec + 2, skip);
+				if (rec[0] == '2') {
+					/* Consume the original-path record. */
+					while (p < buf_len && buf[p] != '\0') {
+						p++;
+					}
+					p++;
+				}
+				break;
 			}
-			p++;
+			case '?':
+				if (rec_len < 3) {
+					continue;
+				}
+				x = '?';
+				y = '?';
+				rel_path = rec + 2;
+				break;
+			default:
+				continue;
 		}
-
+		if (rel_path == NULL || rel_path[0] == '\0') {
+			continue;
+		}
 		enum editorGitStatus status = gitStatusFromXY(x, y);
 		if (status != EDITOR_GIT_STATUS_CLEAN) {
 			(void)gitEntryCacheAdd(cache, rel_path, status, x, y);
@@ -340,6 +398,8 @@ void editorGitRefresh(void) {
 	gitRefreshBranch();
 	gitRefreshHead();
 	gitFreeEntries();
+	E.git_ahead = 0;
+	E.git_behind = 0;
 
 	FILE *fp = gitRefreshSpawnStatus();
 	if (fp == NULL) {
@@ -354,11 +414,38 @@ void editorGitRefresh(void) {
 	}
 
 	struct gitEntryCache cache = {0};
-	gitRefreshParseStatus(buf, buf_len, &cache);
+	gitRefreshParseStatus(buf, buf_len, &cache, &E.git_ahead, &E.git_behind);
 	free(buf);
 	gitRefreshSortCache(&cache);
 	gitRefreshSwapCache(&cache);
 	gitEntryCacheFree(&cache);
+}
+
+/* Test hook: runs the porcelain-v2 parser on a fixture buffer and swaps the
+ * result into E.git_entries / E.git_ahead / E.git_behind. */
+int editorGitTestParseStatus(const char *data, size_t len, int *ahead_out, int *behind_out) {
+	char *buf = editorMalloc(len + 1);
+	if (buf == NULL) {
+		return 0;
+	}
+	memcpy(buf, data, len);
+	buf[len] = '\0';
+
+	E.git_ahead = 0;
+	E.git_behind = 0;
+	struct gitEntryCache cache = {0};
+	gitRefreshParseStatus(buf, len, &cache, &E.git_ahead, &E.git_behind);
+	free(buf);
+	gitRefreshSortCache(&cache);
+	gitRefreshSwapCache(&cache);
+	gitEntryCacheFree(&cache);
+	if (ahead_out != NULL) {
+		*ahead_out = E.git_ahead;
+	}
+	if (behind_out != NULL) {
+		*behind_out = E.git_behind;
+	}
+	return 1;
 }
 
 void editorGitFree(void) {
@@ -451,6 +538,17 @@ static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char 
 	*pos += literal_len;
 	cmd[*pos] = '\0';
 	return 1;
+}
+
+int editorGitBuildRepoCommand(char *cmd, size_t cmd_size, const char *args_literal) {
+	if (cmd == NULL || args_literal == NULL || E.git_repo_root == NULL) {
+		return 0;
+	}
+	size_t pos = 0;
+	return gitAppendLiteral(cmd, cmd_size, &pos, "git -C ") &&
+	       gitAppendShellQuotedArg(cmd, cmd_size, &pos, E.git_repo_root) &&
+	       gitAppendLiteral(cmd, cmd_size, &pos, " ") &&
+	       gitAppendLiteral(cmd, cmd_size, &pos, args_literal);
 }
 
 static void gitBlameLineClear(struct editorGitBlameLine *line) {
@@ -1414,99 +1512,6 @@ int editorGitFormatRelativeTime(time_t then, time_t now, char *buf, size_t buf_s
 		return gitFormatRelativeUnit(diff / 2592000, "month", "months", buf, buf_size);
 	}
 	return gitFormatRelativeUnit(diff / 31536000, "year", "years", buf, buf_size);
-}
-
-char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktree_status,
-                            size_t *len_out) {
-	if (len_out != NULL) {
-		*len_out = 0;
-	}
-	if (rel_path == NULL || rel_path[0] == '\0' || E.git_repo_root == NULL) {
-		return NULL;
-	}
-
-	int is_untracked = (index_status == '?' && worktree_status == '?');
-	int has_staged = !is_untracked && index_status != ' ' && index_status != '?';
-	int has_worktree = !is_untracked && worktree_status != ' ' && worktree_status != '?';
-	(void)has_worktree;
-
-	char cmd[PATH_MAX * 4 + 256];
-	size_t pos = 0;
-
-	if (is_untracked) {
-		// For untracked files, simulate a diff against /dev/null using git diff --no-index.
-		if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
-		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
-		    !gitAppendLiteral(cmd, sizeof(cmd), &pos,
-		                      " --no-pager diff --no-color --no-index -- /dev/null ") ||
-		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
-		    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
-			return NULL;
-		}
-	} else {
-		const char *diff_subcommand = has_staged
-		                                      ? " --no-pager diff --no-color --cached -- "
-		                                      : " --no-pager diff --no-color -- ";
-		if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
-		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
-		    !gitAppendLiteral(cmd, sizeof(cmd), &pos, diff_subcommand) ||
-		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
-		    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
-			return NULL;
-		}
-	}
-
-	FILE *fp = popen(cmd, "r");
-	if (fp == NULL) {
-		return NULL;
-	}
-
-	size_t buf_cap = 4096;
-	size_t buf_len = 0;
-	char *buf = editorMalloc(buf_cap);
-	if (buf == NULL) {
-		pclose(fp);
-		return NULL;
-	}
-	while (!feof(fp)) {
-		if (buf_len + 1 >= buf_cap) {
-			size_t new_cap = buf_cap * 2;
-			char *new_buf = editorRealloc(buf, new_cap);
-			if (new_buf == NULL) {
-				free(buf);
-				pclose(fp);
-				return NULL;
-			}
-			buf = new_buf;
-			buf_cap = new_cap;
-		}
-		size_t n_read = fread(buf + buf_len, 1, buf_cap - buf_len - 1, fp);
-		if (n_read == 0) {
-			break;
-		}
-		buf_len += n_read;
-	}
-	pclose(fp);
-	buf[buf_len] = '\0';
-
-	if (buf_len == 0) {
-		const char *empty = "(no changes to display)\n";
-		size_t empty_len = strlen(empty);
-		char *replacement = editorMalloc(empty_len + 1);
-		if (replacement == NULL) {
-			free(buf);
-			return NULL;
-		}
-		memcpy(replacement, empty, empty_len + 1);
-		free(buf);
-		buf = replacement;
-		buf_len = empty_len;
-	}
-
-	if (len_out != NULL) {
-		*len_out = buf_len;
-	}
-	return buf;
 }
 
 enum editorGitStatus editorGitDirStatus(const char *abs_path) {

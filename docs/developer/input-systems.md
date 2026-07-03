@@ -5,6 +5,15 @@ system owns command naming, mode-specific key bindings, and any small status-bar
 segment it wants to expose. Dispatch still owns the editor-wide pre-gates such as
 popups, mouse input, terminal panes, DAP console input, and action execution.
 
+Two of those pre-gates serve the Git UI: `dispatchTryGitDrawerKey` claims
+single-letter Git shortcuts while the Git drawer has focus, and
+`dispatchTryGitViewKey` does the same inside the branches/log/stash view tabs.
+Both run before the active input system's `handle_key`, so the letters behave
+identically under Vim and CUA, and both translate keys into `enum editorAction`
+values dispatched through `editorDispatchProcessMappedAction`. Unclaimed keys
+fall through to the input system, which keeps navigation and search working;
+the view buffers are read-only, so stray operator keys cannot mutate them.
+
 The default input system is Vim: a compiled-in system with its own modes and
 command table that resolves keys to Vim commands, which continue to route edits
 and navigation through the editor action and editing paths where semantics match.

@@ -62,6 +62,8 @@ enum editorThemeUiRole {
 	EDITOR_THEME_UI_BREAKPOINT,
 	EDITOR_THEME_UI_DEBUG_STOPPED_LINE,
 	EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG,
+	EDITOR_THEME_UI_DIFF_ADDED_BG,
+	EDITOR_THEME_UI_DIFF_REMOVED_BG,
 	EDITOR_THEME_UI_ROLE_COUNT
 };
 
@@ -97,6 +99,7 @@ struct editorThemeColor editorThemeDefaultColor(void);
 struct editorThemeColor editorThemeAnsiColor(enum editorThemeAnsiColor color);
 struct editorThemeColor editorTheme256Color(unsigned char color);
 struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, unsigned char b);
+struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme, int added);
 
 void editorThemeInitDefault(struct editorTheme *theme_out);
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name);

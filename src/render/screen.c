@@ -29,6 +29,7 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/git_view.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
@@ -89,6 +90,9 @@ struct screenRenderSliceArgs {
 	const struct editorRow *row;
 	const struct editorRowSyntaxSpan *syntax_spans;
 	int syntax_span_count;
+	/* Spans produced without tree-sitter (git views); they apply even when
+	 * the buffer has no syntax state. */
+	int synthetic_syntax;
 	const struct editorRowSyntaxSpan *diagnostic_spans;
 	int diagnostic_span_count;
 	int hover_render_start;
@@ -100,6 +104,8 @@ static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
 static int g_screen_last_refresh_file_row_draw_count = 0;
 int g_screen_drawing_current_line_highlight = 0;
 int g_screen_drawing_stopped_line_highlight = 0;
+int g_screen_drawing_git_row_bg_active = 0;
+struct editorThemeColor g_screen_drawing_git_row_bg;
 int g_screen_drawing_focused_editor_pane = 0;
 int g_screen_drawing_file_row_origin_col = -1;
 int g_screen_drawing_file_row_screen_y = -1;
@@ -148,9 +154,13 @@ static int screenAppendTextRowReset(struct writeBuf *wb) {
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
-	/* The debug stopped-line tint takes precedence over the cursor-line tint. */
+	/* Row-tint precedence: debug stopped line, then git diff/header tint,
+	 * then the cursor-line tint. */
 	if (g_screen_drawing_stopped_line_highlight) {
 		return editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG);
+	}
+	if (g_screen_drawing_git_row_bg_active) {
+		return editorAppendThemeBackground(wb, g_screen_drawing_git_row_bg);
 	}
 	if (g_screen_drawing_current_line_highlight &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
@@ -625,7 +635,8 @@ static int screenSliceResetStyles(struct writeBuf *wb, int active_color_emitted,
 
 static int screenSliceSyntaxFastPathApplies(const struct screenRenderSliceArgs *args) {
 	int has_syntax = args->syntax_spans != NULL && args->syntax_span_count > 0 &&
-	                 E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE;
+	                 (args->synthetic_syntax ||
+	                  (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE));
 	int has_diag = args->diagnostic_spans != NULL && args->diagnostic_span_count > 0;
 	int has_bracket = args->bracket_render_idx[0] >= 0 || args->bracket_render_idx[1] >= 0;
 	return !has_syntax && !has_diag && !has_bracket;
@@ -806,10 +817,16 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 
 	struct editorRowSyntaxSpan syntax_spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
 	int syntax_span_count = 0;
-	if (!editorPaneSyntaxRowOverrideCopy(row_idx, syntax_spans, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
-	                                     &syntax_span_count) &&
-	    !editorSyntaxRowRenderSpans(row_idx, syntax_spans, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
+	int synthetic_syntax = 0;
+	if (editorGitViewRowSyntaxSpans(row_idx, syntax_spans, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
 	                                &syntax_span_count)) {
+		synthetic_syntax = 1;
+	} else if (!editorPaneSyntaxRowOverrideCopy(row_idx, syntax_spans,
+	                                            ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
+	                                            &syntax_span_count) &&
+	           !editorSyntaxRowRenderSpans(row_idx, syntax_spans,
+	                                       ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
+	                                       &syntax_span_count)) {
 		syntax_span_count = 0;
 	}
 	struct editorRowSyntaxSpan diagnostic_spans[EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW];
@@ -838,6 +855,7 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 	        .row = row,
 	        .syntax_spans = syntax_spans,
 	        .syntax_span_count = syntax_span_count,
+	        .synthetic_syntax = synthetic_syntax,
 	        .diagnostic_spans = diagnostic_spans,
 	        .diagnostic_span_count = diagnostic_span_count,
 	        .hover_render_start = hover_render_start,

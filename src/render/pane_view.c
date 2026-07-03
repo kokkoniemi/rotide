@@ -16,6 +16,7 @@
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
+#include "workspace/git_view.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
@@ -32,6 +33,8 @@
 int editorAppendCursorMove(struct writeBuf *wb, int row, int col);
 extern int g_screen_drawing_current_line_highlight;
 extern int g_screen_drawing_stopped_line_highlight;
+extern int g_screen_drawing_git_row_bg_active;
+extern struct editorThemeColor g_screen_drawing_git_row_bg;
 extern int g_screen_drawing_focused_editor_pane;
 extern int g_screen_drawing_file_row_origin_col;
 extern int g_screen_drawing_file_row_screen_y;
@@ -373,10 +376,16 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	}
 
 	int stopped_row = y_offset < E.numrows && editorDebugStoppedLineHighlightApplies(y_offset);
-	int highlight_row = !stopped_row && y_offset < E.numrows &&
+	struct editorThemeColor git_row_bg;
+	int git_row = !stopped_row && y_offset < E.numrows &&
+	              editorGitViewRowBgColor(y_offset, &git_row_bg);
+	int highlight_row = !stopped_row && !git_row && y_offset < E.numrows &&
 	                    editorCurrentLineHighlightApplies(y_offset, segment_coloff);
 	if (stopped_row &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG)) {
+		goto fail;
+	}
+	if (git_row && !editorAppendThemeBackground(wb, git_row_bg)) {
 		goto fail;
 	}
 	if (highlight_row &&
@@ -385,6 +394,10 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	}
 	g_screen_drawing_current_line_highlight = highlight_row;
 	g_screen_drawing_stopped_line_highlight = stopped_row;
+	g_screen_drawing_git_row_bg_active = git_row;
+	if (git_row) {
+		g_screen_drawing_git_row_bg = git_row_bg;
+	}
 	g_screen_drawing_focused_editor_pane = leaf == E.focused_leaf;
 	if (g_screen_drawing_file_row_origin_col >= 0) {
 		g_screen_drawing_file_row_origin_col += gutter_cols;
@@ -415,10 +428,11 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	}
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_git_row_bg_active = 0;
 	g_screen_drawing_focused_editor_pane = 0;
 	g_screen_drawing_file_row_origin_col = -1;
 	g_screen_drawing_file_row_screen_y = -1;
-	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
+	if ((highlight_row || stopped_row || git_row) && !editorAppendThemeReset(wb)) {
 		goto fail_reset;
 	}
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
@@ -429,6 +443,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 fail:
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_git_row_bg_active = 0;
 	g_screen_drawing_focused_editor_pane = 0;
 	g_screen_drawing_file_row_origin_col = -1;
 	g_screen_drawing_file_row_screen_y = -1;
@@ -588,10 +603,16 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 		file_cols = 1;
 	}
 	int stopped_row = y_offset < E.numrows && editorDebugStoppedLineHighlightApplies(y_offset);
-	int highlight_row = !stopped_row && y_offset < E.numrows &&
+	struct editorThemeColor git_row_bg;
+	int git_row = !stopped_row && y_offset < E.numrows &&
+	              editorGitViewRowBgColor(y_offset, &git_row_bg);
+	int highlight_row = !stopped_row && !git_row && y_offset < E.numrows &&
 	                    editorCurrentLineHighlightApplies(y_offset, segment_coloff);
 	if (stopped_row &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG)) {
+		return 0;
+	}
+	if (git_row && !editorAppendThemeBackground(wb, git_row_bg)) {
 		return 0;
 	}
 	if (highlight_row &&
@@ -600,6 +621,10 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	}
 	g_screen_drawing_current_line_highlight = highlight_row;
 	g_screen_drawing_stopped_line_highlight = stopped_row;
+	g_screen_drawing_git_row_bg_active = git_row;
+	if (git_row) {
+		g_screen_drawing_git_row_bg = git_row_bg;
+	}
 	g_screen_drawing_focused_editor_pane = 1;
 	g_screen_drawing_file_row_origin_col = drawer_cols + separator_cols + gutter_cols;
 	g_screen_drawing_file_row_screen_y = y + 1;
@@ -624,10 +649,11 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	}
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_git_row_bg_active = 0;
 	g_screen_drawing_focused_editor_pane = 0;
 	g_screen_drawing_file_row_origin_col = -1;
 	g_screen_drawing_file_row_screen_y = -1;
-	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
+	if ((highlight_row || stopped_row || git_row) && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
 
@@ -644,6 +670,7 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 clear_highlight:
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_git_row_bg_active = 0;
 	g_screen_drawing_focused_editor_pane = 0;
 	g_screen_drawing_file_row_origin_col = -1;
 	g_screen_drawing_file_row_screen_y = -1;

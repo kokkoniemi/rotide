@@ -509,9 +509,19 @@ int editor_read_key_with_input(const char *input, size_t len, int *key_out) {
 	return 0;
 }
 
-int editor_process_keypress_with_input(const char *input, size_t len) {
+static int process_keypress_bytes(const char *input, size_t len, int suppress_stdout) {
 	int saved_stdin;
 	if (setup_stdin_bytes(input, len, &saved_stdin) == -1) {
+		return -1;
+	}
+
+	/* Keypress dispatch may repaint the screen; by default send those frames
+	 * to /dev/null so they do not interleave with test PASS/FAIL output. The
+	 * few tests that assert terminal-restore bytes opt out via the
+	 * *_to_stdout variant. */
+	int saved_stdout = -1;
+	if (suppress_stdout && redirect_stdout_to_devnull(&saved_stdout) == -1) {
+		restore_stdin(saved_stdin);
 		return -1;
 	}
 
@@ -531,10 +541,22 @@ int editor_process_keypress_with_input(const char *input, size_t len) {
 		}
 	} while (1);
 
+	if (suppress_stdout && restore_stdout(saved_stdout) == -1) {
+		restore_stdin(saved_stdin);
+		return -1;
+	}
 	if (restore_stdin(saved_stdin) == -1) {
 		return -1;
 	}
 	return 0;
+}
+
+int editor_process_keypress_with_input(const char *input, size_t len) {
+	return process_keypress_bytes(input, len, 1);
+}
+
+int editor_process_keypress_with_input_to_stdout(const char *input, size_t len) {
+	return process_keypress_bytes(input, len, 0);
 }
 
 char *editor_prompt_with_input(const char *input, size_t len, const char *prompt) {

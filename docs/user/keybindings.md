@@ -43,6 +43,7 @@ by one key:
 - `<leader>f`: search text across the project
 - `<leader>e`: toggle the drawer (explorer)
 - `<leader>m`: open the main menu
+- `<leader>g`: open the Git drawer (`B`/`L`/`S` inside it open the Git views)
 - `leader.git_blame_details`: configurable Git blame details action; unbound by
   default because Normal mode already uses `gb`
 
@@ -78,6 +79,8 @@ The `:` prompt accepts these Vim-style aliases:
 - `:tabnew`: create an empty tab
 - `:term` / `:terminal`: open a terminal in a horizontal split
 - `:vterm`: open a terminal in a vertical split
+- `:git`: open the Git drawer; `:git branches` / `log` / `stash` / `commit` /
+  `amend` / `push` / `pull` / `fetch` run the matching Git view or action
 
 Press Tab in the `:` prompt to complete and cycle command names. File-path
 arguments are not completed yet. `:q` keeps RotIDE's quit-app behavior.
@@ -149,3 +152,65 @@ configurable actions without default bindings in the built-in CUA keymap.
 ## Vim Git
 
 - `gb`: show Git blame details for the current line
+
+## Git drawer and views
+
+The Git drawer (`Ctrl-Alt-G`, `<leader>g`, or `:git`) lists an Actions section
+followed by Staged / Changes / Untracked / Conflicts. The Actions rows (Commit
+staged…, Amend last commit…, Branches, Commit log, Stashes, Push, Pull, Fetch,
+Refresh) run on Enter or a mouse click; push/pull/fetch run as background tasks
+with their output in a task tab.
+
+On a file row, Enter or a plain mouse click opens the file's diff directly.
+Right-click opens a small menu (Open Diff / Stage-or-Unstage / Discard…) that
+is navigable with the arrow keys. Right-clicking a group header offers Stage
+all / Unstage all for that group.
+
+While a Git surface has focus (the drawer or any git tab), the status bar
+replaces the tab name with the actions that currently apply as clickable
+buttons — in the drawer, stage/unstage/discard appear only when a file row is
+selected (stage or unstage matching the selected group), "Stage all" /
+"Unstage all" when a group header is selected, and commit only when something
+is staged —
+with nerd-font icons when enabled, like the debug controls — and each label
+starts with the key that runs it, so the shortcuts teach themselves.
+Single-letter shortcuts work the same in Vim and CUA while the drawer has
+focus:
+
+- `s`: stage the selected file (unstages it when selected under Staged); on a
+  group header (Staged / Changes / Untracked / Conflicts) it applies to every
+  file in that group
+- `u`: unstage the selected file, or the whole group on the Staged header
+- `d`: discard the selected file's changes (asks for confirmation)
+- `c` / `A`: open the commit / amend message tab
+- `B` / `L` / `S`: open the branches / commits / stash view
+
+Committing opens an editable `git commit` message tab: type the message and
+save (`Ctrl-S` / `:w`) to commit; lines starting with `#` are ignored; closing
+the tab without saving aborts the commit.
+
+Diff tabs open as preview tabs (one shared slot, like drawer file previews), so
+browsing diffs does not accumulate tabs. The `+`/`-` patch prefixes are
+stripped: added lines get a green-tinted background, removed lines a red one,
+and single-file diffs are syntax highlighted with the file's own language.
+Inside a diff tab `z` toggles between the changed hunks and the whole file,
+and `R` regenerates the diff. Custom themes can override the tint colors with
+the `diff_added_bg` / `diff_removed_bg` UI roles.
+
+The branches, commits, and stash views are read-only tabs; move with the usual
+navigation keys (search works too), then:
+
+- Branches: Enter or double-click checks out the selected branch; `n` creates a
+  branch (prompt); `d` deletes it (confirm); `R` refreshes. Push/pull/fetch
+  intentionally have no single-letter keys (accident-prone); run them from the
+  drawer's Actions rows, the status-bar buttons, or bound chords
+- Commits: Enter or double-click shows the commit as a diff tab; `c`
+  cherry-picks; `r` reverts; `t` tags (prompt); `R` refreshes
+- Stash: Enter or double-click shows the stash as a diff tab; `a` applies; `p`
+  pops; `d` drops (confirm); `R` refreshes
+
+The status bar shows the current branch, a `+` when the tree is dirty, and
+`↑N↓M` ahead/behind counts when the branch has an upstream. If a cherry-pick or
+revert hits conflicts, the conflicted files appear in the Git drawer's
+Conflicts group; resolve them in the editor and use a terminal pane for
+`git cherry-pick --continue` / `--abort`.

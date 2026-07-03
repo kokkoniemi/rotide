@@ -17,6 +17,7 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/git.h"
+#include "workspace/git_view.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
 
@@ -870,6 +871,14 @@ void editorSave(void) {
 	}
 	if (editorActiveTabIsTaskLog()) {
 		editorSetStatusMsg("Task logs cannot be saved");
+		return;
+	}
+	if (E.tab_kind == EDITOR_TAB_GIT_COMMIT) {
+		editorGitViewCommitFromActiveTab();
+		return;
+	}
+	if (editorActiveTabIsReadOnly()) {
+		editorSetStatusMsg("This view is read-only");
 		return;
 	}
 

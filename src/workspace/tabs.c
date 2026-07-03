@@ -122,6 +122,16 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	editorGitBlameCacheClear(buffer);
 	free(buffer->tab_title);
 	buffer->tab_title = NULL;
+	free(buffer->git_view_line_kinds);
+	buffer->git_view_line_kinds = NULL;
+	buffer->git_view_line_kind_count = 0;
+	free(buffer->git_view_source_path);
+	buffer->git_view_source_path = NULL;
+	free(buffer->git_view_regen_arg);
+	buffer->git_view_regen_arg = NULL;
+	buffer->git_view_regen_kind = 0;
+	buffer->git_view_whole_file = 0;
+	buffer->git_view_commit_amend = 0;
 	editorSyntaxStateDestroy(buffer->syntax_state);
 	buffer->syntax_state = NULL;
 	buffer->syntax_language = EDITOR_SYNTAX_NONE;
@@ -662,7 +672,8 @@ static int tabsCanReuseActiveEmptyBuffer(void) {
 }
 
 static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind) {
-	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
+	       tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 static int tabsFindReusablePreviewIndex(void) {
@@ -1155,6 +1166,12 @@ const char *editorTabFilenameAt(int idx) {
 	return E.tabs[idx].filename;
 }
 
+static int tabsKindUsesTitle(enum editorTabKind kind) {
+	return kind == EDITOR_TAB_TASK_LOG || kind == EDITOR_TAB_GIT_DIFF ||
+	       kind == EDITOR_TAB_GIT_COMMIT || kind == EDITOR_TAB_GIT_BRANCHES ||
+	       kind == EDITOR_TAB_GIT_LOG || kind == EDITOR_TAB_GIT_STASH;
+}
+
 const char *editorTabDisplayNameAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return "[No Name]";
@@ -1166,23 +1183,21 @@ const char *editorTabDisplayNameAt(int idx) {
 		return "Debug Console";
 	}
 	if (idx == E.active_tab) {
-		if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
-		    E.tab_title != NULL && E.tab_title[0] != '\0') {
+		if (tabsKindUsesTitle(E.tab_kind) && E.tab_title != NULL &&
+		    E.tab_title[0] != '\0') {
 			return E.tab_title;
 		}
 		return E.filename != NULL ? E.filename : "[No Name]";
 	}
-	if ((E.tabs[idx].tab_kind == EDITOR_TAB_TASK_LOG ||
-	     E.tabs[idx].tab_kind == EDITOR_TAB_GIT_DIFF) &&
-	    E.tabs[idx].tab_title != NULL && E.tabs[idx].tab_title[0] != '\0') {
+	if (tabsKindUsesTitle(E.tabs[idx].tab_kind) && E.tabs[idx].tab_title != NULL &&
+	    E.tabs[idx].tab_title[0] != '\0') {
 		return E.tabs[idx].tab_title;
 	}
 	return E.tabs[idx].filename != NULL ? E.tabs[idx].filename : "[No Name]";
 }
 
 const char *editorActiveBufferDisplayName(void) {
-	if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
-	    E.tab_title != NULL && E.tab_title[0] != '\0') {
+	if (tabsKindUsesTitle(E.tab_kind) && E.tab_title != NULL && E.tab_title[0] != '\0') {
 		return E.tab_title;
 	}
 	return E.filename != NULL ? E.filename : "[No Name]";
@@ -1208,7 +1223,8 @@ int editorActiveTabIsUnsupportedFile(void) {
 
 int editorActiveTabIsReadOnly(void) {
 	return E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
-	       E.tab_kind == EDITOR_TAB_GIT_DIFF;
+	       E.tab_kind == EDITOR_TAB_GIT_DIFF || E.tab_kind == EDITOR_TAB_GIT_BRANCHES ||
+	       E.tab_kind == EDITOR_TAB_GIT_LOG || E.tab_kind == EDITOR_TAB_GIT_STASH;
 }
 
 int editorActiveTaskTabIsRunning(void) {
@@ -1542,50 +1558,62 @@ static int tabsTaskPrepareLogTab(const char *title, const char *text) {
 	return 1;
 }
 
-int editorTabOpenGitDiff(const char *title, const char *diff_text) {
-	if (title == NULL || title[0] == '\0' || diff_text == NULL) {
-		return 0;
-	}
-
-	for (int idx = 0; idx < E.tab_count; idx++) {
-		const char *existing_title =
-		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
-		enum editorTabKind existing_kind =
-		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
-		if (existing_kind == EDITOR_TAB_GIT_DIFF && existing_title != NULL &&
-		    strcmp(existing_title, title) == 0) {
-			return editorTabSwitchToIndex(idx);
-		}
-	}
-
-	if (!editorTabNewEmpty()) {
-		return 0;
-	}
-
-	E.tab_kind = EDITOR_TAB_GIT_DIFF;
-	E.tab_title = strdup(title);
-	if (E.tab_title == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-	E.dirty = 0;
-	free(E.filename);
-	E.filename = NULL;
-	editorSyntaxStateDestroy(E.syntax_state);
-	E.syntax_state = NULL;
-	E.syntax_language = EDITOR_SYNTAX_NONE;
-	E.lsp_doc_open = 0;
-	E.lsp_doc_version = 0;
-	E.lsp_eslint_doc_open = 0;
-	E.lsp_eslint_doc_version = 0;
-	memset(&E.disk_state, 0, sizeof(E.disk_state));
-	E.disk_conflict = 0;
-	if (!editorDocumentResetActiveFromText(diff_text, strlen(diff_text))) {
+/* Replaces the active buffer's document with `text` (generated-tab reload). */
+static int tabsResetActiveDocumentText(const char *text) {
+	if (!editorDocumentResetActiveFromText(text, strlen(text))) {
 		editorSetAllocFailureStatus();
 		return 0;
 	}
 	if (!editorRestoreActiveFromDocument(E.document, 0, 0, 0, 0)) {
 		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.dirty = 0;
+	if (E.cy >= E.numrows) {
+		E.cy = E.numrows > 0 ? E.numrows - 1 : 0;
+	}
+	E.cx = 0;
+	(void)editorSyntaxParseFullActive();
+	editorViewportEnsureCursorVisible();
+	tabsStoreActiveTab();
+	tabsLoadActiveTab(E.active_tab);
+	return 1;
+}
+
+/* Converts the active tab (empty or reusable preview) into a generated tab,
+ * releasing the previous occupant's file/LSP/syntax state first. */
+static int tabsLoadGeneratedIntoActive(enum editorTabKind kind, const char *title,
+                                       const char *text) {
+	struct editorDocument document;
+	char *title_copy = strdup(title);
+	if (title_copy == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	editorDocumentInit(&document);
+	if (!editorDocumentResetFromString(&document, text, strlen(text))) {
+		editorSetAllocFailureStatus();
+		editorDocumentFree(&document);
+		free(title_copy);
+		return 0;
+	}
+
+	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
+	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+	                              &E.lsp_eslint_doc_version);
+	editorFreeActiveBufferState();
+	E.tab_kind = kind;
+	E.tab_title = title_copy;
+	/* Diff tabs behave like previews so browsing diffs reuses one tab slot;
+	 * the views are deduped singletons and the commit tab holds a message
+	 * being typed. */
+	E.is_preview = kind == EDITOR_TAB_GIT_DIFF;
+	E.dirty = 0;
+	memset(&E.disk_state, 0, sizeof(E.disk_state));
+	E.disk_conflict = 0;
+	int ok = editorRestoreActiveFromDocument(&document, 0, 0, 0, 0);
+	editorDocumentFree(&document);
+	if (!ok) {
 		return 0;
 	}
 	E.cy = 0;
@@ -1595,6 +1623,55 @@ int editorTabOpenGitDiff(const char *title, const char *diff_text) {
 	tabsStoreActiveTab();
 	tabsLoadActiveTab(E.active_tab);
 	return 1;
+}
+
+int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text) {
+	if (title == NULL || title[0] == '\0' || text == NULL) {
+		return 0;
+	}
+
+	/* Diff and commit tabs are keyed by title (per-file diffs coexist; a
+	 * commit and its amend variant are distinct surfaces); the list views are
+	 * singletons whose content regenerates on reopen. A matched commit tab is
+	 * reused as-is so a typed message is never clobbered. */
+	int dedupe_by_title = kind == EDITOR_TAB_GIT_DIFF || kind == EDITOR_TAB_GIT_COMMIT;
+	for (int idx = 0; idx < E.tab_count; idx++) {
+		const char *existing_title =
+		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
+		enum editorTabKind existing_kind =
+		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
+		if (existing_kind != kind) {
+			continue;
+		}
+		if (dedupe_by_title &&
+		    (existing_title == NULL || strcmp(existing_title, title) != 0)) {
+			continue;
+		}
+		if (!editorTabSwitchToIndex(idx)) {
+			return 0;
+		}
+		if (kind == EDITOR_TAB_GIT_COMMIT) {
+			return 1;
+		}
+		return tabsResetActiveDocumentText(text);
+	}
+
+	if (kind == EDITOR_TAB_GIT_DIFF) {
+		int preview_idx = tabsFindReusablePreviewIndex();
+		if (preview_idx >= 0) {
+			if (!editorTabSwitchToIndex(preview_idx)) {
+				return 0;
+			}
+			return tabsLoadGeneratedIntoActive(kind, title, text);
+		}
+	}
+	if (tabsCanReuseActiveEmptyBuffer()) {
+		return tabsLoadGeneratedIntoActive(kind, title, text);
+	}
+	if (!editorTabNewEmpty()) {
+		return 0;
+	}
+	return tabsLoadGeneratedIntoActive(kind, title, text);
 }
 
 int editorTaskPoll(void) {

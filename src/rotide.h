@@ -165,7 +165,11 @@ enum editorTabKind {
 	EDITOR_TAB_FILE = 0,
 	EDITOR_TAB_TASK_LOG,
 	EDITOR_TAB_UNSUPPORTED_FILE,
-	EDITOR_TAB_GIT_DIFF
+	EDITOR_TAB_GIT_DIFF,
+	EDITOR_TAB_GIT_COMMIT,
+	EDITOR_TAB_GIT_BRANCHES,
+	EDITOR_TAB_GIT_LOG,
+	EDITOR_TAB_GIT_STASH
 };
 
 /*
@@ -373,6 +377,29 @@ enum editorAction {
 	EDITOR_ACTION_TERMINAL_OPEN_VERTICAL,
 	EDITOR_ACTION_TERMINAL_PREFIX,
 	EDITOR_ACTION_OPEN_SETTINGS,
+	EDITOR_ACTION_GIT_STAGE,
+	EDITOR_ACTION_GIT_UNSTAGE,
+	EDITOR_ACTION_GIT_STAGE_ALL,
+	EDITOR_ACTION_GIT_DISCARD,
+	EDITOR_ACTION_GIT_COMMIT,
+	EDITOR_ACTION_GIT_COMMIT_AMEND,
+	EDITOR_ACTION_GIT_REFRESH,
+	EDITOR_ACTION_GIT_PUSH,
+	EDITOR_ACTION_GIT_PULL,
+	EDITOR_ACTION_GIT_FETCH,
+	EDITOR_ACTION_GIT_BRANCHES,
+	EDITOR_ACTION_GIT_LOG,
+	EDITOR_ACTION_GIT_STASHES,
+	EDITOR_ACTION_GIT_VIEW_ACTIVATE,
+	EDITOR_ACTION_GIT_BRANCH_NEW,
+	EDITOR_ACTION_GIT_BRANCH_DELETE,
+	EDITOR_ACTION_GIT_CHERRY_PICK,
+	EDITOR_ACTION_GIT_REVERT,
+	EDITOR_ACTION_GIT_TAG,
+	EDITOR_ACTION_GIT_STASH_APPLY,
+	EDITOR_ACTION_GIT_STASH_POP,
+	EDITOR_ACTION_GIT_STASH_DROP,
+	EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT,
 	EDITOR_ACTION_COUNT
 };
 
@@ -455,6 +482,13 @@ struct editorHistory {
 	X(struct editorGitBlameLine *, git_blame_line)                                             \
 	X(int, git_blame_line_number)                                                              \
 	X(int, git_blame_line_miss)                                                                \
+	X(unsigned char *, git_view_line_kinds)                                                    \
+	X(int, git_view_line_kind_count)                                                           \
+	X(char *, git_view_source_path)                                                            \
+	X(char *, git_view_regen_arg)                                                              \
+	X(int, git_view_regen_kind)                                                                \
+	X(int, git_view_whole_file)                                                                \
+	X(int, git_view_commit_amend)                                                              \
 	X(char *, git_blame_filename)                                                              \
 	X(char *, git_blame_repo_root)                                                             \
 	X(char *, git_blame_branch)                                                                \
@@ -756,6 +790,8 @@ struct editorConfig {
 	struct editorGitEntry *git_entries;
 	int git_entry_count;
 	int git_entry_capacity;
+	int git_ahead;
+	int git_behind;
 
 	/* --- Debug: live DAP session state --- */
 	struct editorDapBreakpoint dap_breakpoints[ROTIDE_DAP_MAX_BREAKPOINTS];

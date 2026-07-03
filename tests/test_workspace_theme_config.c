@@ -424,6 +424,8 @@ static int test_editor_theme_custom_tables_cover_every_theme_role(void) {
 	                                        "breakpoint = \"#200E0F\"\n"
 	                                        "debug_stopped_line = \"#200F10\"\n"
 	                                        "debug_stopped_line_bg = \"#201011\"\n"
+	                                        "diff_added_bg = \"#201112\"\n"
+	                                        "diff_removed_bg = \"#201213\"\n"
 	                                        "selection_fg = \"#300001\"\n"
 	                                        "selection_bg = \"#300102\"\n"
 	                                        "status_fg = \"#300203\"\n"

@@ -527,8 +527,9 @@ static int test_editor_drawer_git_mode_groups_entries_by_status(void) {
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, E.drawer_mode);
 
 	int visible = editorDrawerVisibleCount();
-	// 1 root + 4 groups + 2 staged + 2 changes + 1 untracked + 1 conflict = 11.
-	ASSERT_EQ_INT(11, visible);
+	// 1 root + 5 groups + 9 action rows + 2 staged + 2 changes + 1 untracked +
+	// 1 conflict = 21.
+	ASSERT_EQ_INT(21, visible);
 
 	struct editorDrawerEntryView view;
 	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &view));
@@ -536,24 +537,28 @@ static int test_editor_drawer_git_mode_groups_entries_by_status(void) {
 	ASSERT_TRUE(view.is_root);
 
 	ASSERT_TRUE(editorDrawerVisibleEntryView(1, &view));
-	ASSERT_EQ_STR("Staged", view.name);
+	ASSERT_EQ_STR("Actions", view.name);
 	ASSERT_TRUE(editorDrawerVisibleEntryView(2, &view));
+	ASSERT_EQ_STR("Commit staged…", view.name);
+	ASSERT_TRUE(editorDrawerVisibleEntryView(11, &view));
+	ASSERT_EQ_STR("Staged", view.name);
+	ASSERT_TRUE(editorDrawerVisibleEntryView(12, &view));
 	ASSERT_EQ_STR("M both.c", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(3, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(13, &view));
 	ASSERT_EQ_STR("M staged.c", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(4, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(14, &view));
 	ASSERT_EQ_STR("Changes", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(5, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(15, &view));
 	ASSERT_EQ_STR("M both.c", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(6, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(16, &view));
 	ASSERT_EQ_STR("M changed.c", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(7, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(17, &view));
 	ASSERT_EQ_STR("Untracked", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(8, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(18, &view));
 	ASSERT_EQ_STR("? new.c", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(9, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(19, &view));
 	ASSERT_EQ_STR("Conflicts", view.name);
-	ASSERT_TRUE(editorDrawerVisibleEntryView(10, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(20, &view));
 	ASSERT_EQ_STR("U conflict.c", view.name);
 
 	editorGitFree();
@@ -571,9 +576,9 @@ static int test_editor_drawer_git_mode_collapses_group(void) {
 
 	ASSERT_TRUE(editorDrawerGitToggle());
 	int expanded_count = editorDrawerVisibleCount();
-	// 1 root + 4 groups + 0 staged-placeholder + 0 changes-placeholder + 2 untracked + 0
-	// conflicts-placeholder Each empty group with expansion shows a placeholder row (= 1).
-	ASSERT_EQ_INT(1 + 4 + 1 + 1 + 2 + 1, expanded_count);
+	// 1 root + 5 groups + 9 action rows + staged/changes/conflicts placeholders
+	// (1 each) + 2 untracked entries.
+	ASSERT_EQ_INT(1 + 5 + 9 + 1 + 1 + 2 + 1, expanded_count);
 
 	int untracked_idx = -1;
 	for (int i = 0; i < expanded_count; i++) {

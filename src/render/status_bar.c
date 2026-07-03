@@ -30,6 +30,28 @@
 #define STATUS_DAP_ICON_RESTART "\xEF\x80\xA1" /* U+F021 refresh */
 #define STATUS_DAP_ICON_STOP "\xEF\x81\x8D"    /* U+F04D stop */
 
+/* Git action glyphs (same nerd-font PUA range as the drawer icons). */
+#define STATUS_GIT_ICON_STAGE "\xEF\x81\xA7"     /* U+F067 plus */
+#define STATUS_GIT_ICON_UNSTAGE "\xEF\x81\xA8"   /* U+F068 minus */
+#define STATUS_GIT_ICON_STAGE_ALL "\xEF\x81\x95" /* U+F055 plus-circle */
+#define STATUS_GIT_ICON_DISCARD "\xEF\x87\xB8"   /* U+F1F8 trash */
+#define STATUS_GIT_ICON_COMMIT "\xEF\x80\x8C"    /* U+F00C check */
+#define STATUS_GIT_ICON_AMEND "\xEF\x81\x84"     /* U+F044 pencil-square */
+#define STATUS_GIT_ICON_BRANCH "\xEF\x84\xA6"    /* U+F126 code-branch */
+#define STATUS_GIT_ICON_LOG "\xEF\x87\x9A"       /* U+F1DA history */
+#define STATUS_GIT_ICON_STASH "\xEF\x86\x87"     /* U+F187 archive */
+#define STATUS_GIT_ICON_SHOW "\xEF\x81\xAE"      /* U+F06E eye */
+#define STATUS_GIT_ICON_CHECKOUT "\xEF\x81\xA1"  /* U+F061 arrow-right */
+#define STATUS_GIT_ICON_TAG "\xEF\x80\xAB"       /* U+F02B tag */
+#define STATUS_GIT_ICON_CHERRY "\xEF\x83\x85"    /* U+F0C5 copy */
+#define STATUS_GIT_ICON_REVERT "\xEF\x83\xA2"    /* U+F0E2 undo */
+#define STATUS_GIT_ICON_APPLY "\xEF\x80\x99"     /* U+F019 download */
+#define STATUS_GIT_ICON_POP "\xEF\x80\x9A"       /* U+F01A arrow-circle-down */
+#define STATUS_GIT_ICON_REFRESH "\xEF\x80\xA1"   /* U+F021 refresh */
+#define STATUS_GIT_ICON_EXPAND "\xEF\x81\xA5"    /* U+F065 expand */
+#define STATUS_GIT_ICON_COMPRESS "\xEF\x81\xA6"  /* U+F066 compress */
+#define STATUS_GIT_ICON_ABORT "\xEF\x80\x8D"     /* U+F00D close */
+
 #define STATUS_INPUT_SEGMENT_MAX_COLS 24
 
 /*
@@ -38,7 +60,7 @@
  * maps a left-press column to the button's action; see
  * editorStatusBarDebugButtonAt.
  */
-#define STATUS_DEBUG_MAX_BUTTONS 6
+#define STATUS_DEBUG_MAX_BUTTONS 12
 struct statusDebugButton {
 	int start_col;
 	int end_col;
@@ -46,26 +68,38 @@ struct statusDebugButton {
 };
 static struct statusDebugButton g_status_debug_buttons[STATUS_DEBUG_MAX_BUTTONS];
 static int g_status_debug_button_count;
+/*
+ * Column offset added to every recorded button span. The segment renders with
+ * a local column that starts at 0, but the segment itself may sit further right
+ * (e.g. after the input-system badge); this offset keeps the clickable spans in
+ * absolute status-row columns so the mouse layer resolves hits correctly.
+ */
+static int g_status_debug_button_col_offset;
 
-static void statusDebugButtonsReset(void) {
+static void statusDebugButtonsReset(int col_offset) {
 	g_status_debug_button_count = 0;
+	g_status_debug_button_col_offset = col_offset;
 }
 
 /*
- * Appends a debug control button at *col (capped at max_col), records the
- * clickable span, and advances *col. `icon` (a one-column nerd glyph) and
- * `label` are each optional; when both are present a space separates them.
+ * Appends a control button at *col (capped at max_col), records the clickable
+ * span, and advances *col. `icon` (a one-column nerd glyph), `label`, and
+ * `hotkey` are each optional; single spaces separate the present parts, and
+ * the hotkey renders italic so it reads as a hint without overriding the
+ * theme's status foreground.
  * `icon_color`, if non-NULL, tints the icon glyph, restoring the status style
  * afterward. A button with no room is silently dropped. Returns 0 only on a
- * write failure.
+ * write failure. Labels and hotkeys must be ASCII (measured in bytes).
  */
 static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const char *icon,
                              const struct editorThemeColor *icon_color, const char *label,
-                             enum editorAction action) {
+                             const char *hotkey, enum editorAction action) {
 	int has_icon = icon != NULL && icon[0] != '\0';
 	int label_cols = label != NULL ? (int)strlen(label) : 0;
+	int hotkey_cols = hotkey != NULL ? (int)strlen(hotkey) : 0;
 	int sep = (has_icon && label_cols > 0) ? 1 : 0;
-	int cols = (has_icon ? 1 : 0) + sep + label_cols;
+	int hotkey_sep = (hotkey_cols > 0 && (has_icon || label_cols > 0)) ? 1 : 0;
+	int cols = (has_icon ? 1 : 0) + sep + label_cols + hotkey_sep + hotkey_cols;
 	if (cols == 0 || *col + cols > max_col) {
 		return 1;
 	}
@@ -88,17 +122,31 @@ static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const c
 	if (label_cols > 0 && !wbAppend(wb, label, (size_t)label_cols)) {
 		return 0;
 	}
+	if (hotkey_cols > 0) {
+		if (hotkey_sep && !wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		if (!wbAppend(wb, "\x1b[3m", 4) || !wbAppend(wb, hotkey, (size_t)hotkey_cols) ||
+		    !wbAppend(wb, "\x1b[23m", 5)) {
+			return 0;
+		}
+	}
 	if (g_status_debug_button_count < STATUS_DEBUG_MAX_BUTTONS) {
-		g_status_debug_buttons[g_status_debug_button_count].start_col = start_col;
-		g_status_debug_buttons[g_status_debug_button_count].end_col = start_col + cols;
+		g_status_debug_buttons[g_status_debug_button_count].start_col =
+		        g_status_debug_button_col_offset + start_col;
+		g_status_debug_buttons[g_status_debug_button_count].end_col =
+		        g_status_debug_button_col_offset + start_col + cols;
 		g_status_debug_buttons[g_status_debug_button_count].action = action;
 		g_status_debug_button_count++;
 	}
 	*col += cols;
-	if (*col + 2 <= max_col && !wbAppend(wb, "  ", 2)) {
+	/* Three trailing spaces between buttons: a wider gap than the single space
+	 * separating a label from its hotkey, so each hotkey groups visually with
+	 * the button it belongs to. */
+	if (*col + 3 <= max_col && !wbAppend(wb, "   ", 3)) {
 		return 0;
 	}
-	*col += (*col + 2 <= max_col) ? 2 : 0;
+	*col += (*col + 3 <= max_col) ? 3 : 0;
 	return 1;
 }
 
@@ -106,11 +154,13 @@ static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const c
  * Renders the debug control segment at the left of the status bar when a DAP
  * session is active: a PAUSED/RUNNING badge then context-appropriate buttons.
  * Stopped → Cont/Over/Into/Out/Restart/Stop; running → Pause/Restart/Stop.
- * Records button spans for the mouse layer; writes the columns consumed to
- * *col_io. `max_col` bounds the segment so it never overruns the right side.
+ * Records button spans for the mouse layer (offset by `col_offset`, the segment's
+ * absolute start column); writes the columns consumed to *col_io. `max_col`
+ * bounds the segment width so it never overruns the right side.
  */
-static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *col_io) {
-	statusDebugButtonsReset();
+static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *col_io,
+                                       int col_offset) {
+	statusDebugButtonsReset(col_offset);
 	int col = 0;
 	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -142,26 +192,227 @@ static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *co
 	int nerd = E.nerd_fonts_enabled;
 	if (editorDapIsStopped()) {
 		if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_CONT : NULL,
-		                       &color_cont, "Cont", EDITOR_ACTION_DAP_CONTINUE) ||
+		                       &color_cont, "Cont", NULL, EDITOR_ACTION_DAP_CONTINUE) ||
 		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OVER : NULL, NULL,
-		                       "Over", EDITOR_ACTION_DAP_STEP_OVER) ||
+		                       "Over", NULL, EDITOR_ACTION_DAP_STEP_OVER) ||
 		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_INTO : NULL, NULL,
-		                       "Into", EDITOR_ACTION_DAP_STEP_INTO) ||
+		                       "Into", NULL, EDITOR_ACTION_DAP_STEP_INTO) ||
 		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OUT : NULL, NULL,
-		                       "Out", EDITOR_ACTION_DAP_STEP_OUT)) {
+		                       "Out", NULL, EDITOR_ACTION_DAP_STEP_OUT)) {
 			return 0;
 		}
 	} else if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_PAUSE : NULL, NULL,
-	                              "Pause", EDITOR_ACTION_DAP_PAUSE)) {
+	                              "Pause", NULL, EDITOR_ACTION_DAP_PAUSE)) {
 		return 0;
 	}
 	/* Restart and Stop are icon-only (and accent-colored) when nerd fonts are on. */
 	if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_RESTART : NULL,
-	                       &color_restart, nerd ? NULL : "Restart",
+	                       &color_restart, nerd ? NULL : "Restart", NULL,
 	                       EDITOR_ACTION_DAP_RESTART) ||
 	    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_STOP : NULL, &color_stop,
-	                       nerd ? NULL : "Stop", EDITOR_ACTION_DAP_STOP)) {
+	                       nerd ? NULL : "Stop", NULL, EDITOR_ACTION_DAP_STOP)) {
 		return 0;
+	}
+	*col_io = col;
+	return 1;
+}
+
+/* Which git surface owns the status bar's action segment, if any. */
+enum statusBarGitContext {
+	STATUS_GIT_CONTEXT_NONE = 0,
+	STATUS_GIT_CONTEXT_DRAWER,
+	STATUS_GIT_CONTEXT_DIFF,
+	STATUS_GIT_CONTEXT_BRANCHES,
+	STATUS_GIT_CONTEXT_LOG,
+	STATUS_GIT_CONTEXT_STASH,
+	STATUS_GIT_CONTEXT_COMMIT
+};
+
+static enum statusBarGitContext statusBarGitContext(void) {
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT && !editorDrawerIsCollapsed()) {
+			return STATUS_GIT_CONTEXT_DRAWER;
+		}
+		return STATUS_GIT_CONTEXT_NONE;
+	}
+	switch (E.tab_kind) {
+		case EDITOR_TAB_GIT_DIFF:
+			return STATUS_GIT_CONTEXT_DIFF;
+		case EDITOR_TAB_GIT_BRANCHES:
+			return STATUS_GIT_CONTEXT_BRANCHES;
+		case EDITOR_TAB_GIT_LOG:
+			return STATUS_GIT_CONTEXT_LOG;
+		case EDITOR_TAB_GIT_STASH:
+			return STATUS_GIT_CONTEXT_STASH;
+		case EDITOR_TAB_GIT_COMMIT:
+			return STATUS_GIT_CONTEXT_COMMIT;
+		default:
+			return STATUS_GIT_CONTEXT_NONE;
+	}
+}
+
+struct statusBarGitButton {
+	const char *icon;
+	const char *label;
+	const char *hotkey;
+	enum editorAction action;
+};
+
+static void statusBarGitButtonAdd(struct statusBarGitButton *buttons, int *count, int max,
+                                  const char *icon, const char *label, const char *hotkey,
+                                  enum editorAction action) {
+	if (*count >= max) {
+		return;
+	}
+	buttons[*count].icon = icon;
+	buttons[*count].label = label;
+	buttons[*count].hotkey = hotkey;
+	buttons[*count].action = action;
+	(*count)++;
+}
+
+/*
+ * Builds the git drawer's button list from what is actually possible right
+ * now: stage or unstage (by the selected row's group) and discard only when a
+ * file row is selected, group-wide stage/unstage when a group header is
+ * selected, commit only when something is staged. View openers and amend are
+ * always available.
+ */
+static int statusBarGitDrawerButtons(struct statusBarGitButton *buttons, int max) {
+	int count = 0;
+	int has_staged = 0;
+	for (int i = 0; i < E.git_entry_count; i++) {
+		char x = E.git_entries[i].index_status;
+		if (x != ' ' && x != '?' && x != '\0') {
+			has_staged = 1;
+			break;
+		}
+	}
+
+	int entry_idx = 0;
+	int staged_group = 0;
+	int group_items = 0;
+	if (editorDrawerGitSelectedFile(&entry_idx, &staged_group)) {
+		if (staged_group) {
+			statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_UNSTAGE,
+			                      "Unstage", "u", EDITOR_ACTION_GIT_UNSTAGE);
+		} else {
+			statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_STAGE, "Stage",
+			                      "s", EDITOR_ACTION_GIT_STAGE);
+		}
+		statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_DISCARD, "Discard", "d",
+		                      EDITOR_ACTION_GIT_DISCARD);
+	} else if (editorDrawerGitSelectedGroup(&staged_group, &group_items) && group_items > 0) {
+		/* Group header: the action applies to every file in the group. */
+		if (staged_group) {
+			statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_UNSTAGE,
+			                      "Unstage all", "u", EDITOR_ACTION_GIT_UNSTAGE);
+		} else {
+			statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_STAGE,
+			                      "Stage all", "s", EDITOR_ACTION_GIT_STAGE);
+		}
+	}
+	if (has_staged) {
+		statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_COMMIT, "Commit", "c",
+		                      EDITOR_ACTION_GIT_COMMIT);
+	}
+	statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_AMEND, "Amend", "A",
+	                      EDITOR_ACTION_GIT_COMMIT_AMEND);
+	statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_BRANCH, "Branches", "B",
+	                      EDITOR_ACTION_GIT_BRANCHES);
+	statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_LOG, "Log", "L",
+	                      EDITOR_ACTION_GIT_LOG);
+	statusBarGitButtonAdd(buttons, &count, max, STATUS_GIT_ICON_STASH, "Stash", "S",
+	                      EDITOR_ACTION_GIT_STASHES);
+	return count;
+}
+
+/*
+ * Renders the git action segment at the left of the status bar: one clickable
+ * button per action available on the focused git surface. Labels start with
+ * the key that triggers them (Stage → s, Amend → A, …) so the keys teach
+ * themselves; buttons that do not fit are dropped from the right.
+ */
+static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitContext context,
+                                     int max_col, int *col_io, int col_offset) {
+	static const struct statusBarGitButton k_branches[] = {
+	        {STATUS_GIT_ICON_CHECKOUT, "Checkout", "enter", EDITOR_ACTION_GIT_VIEW_ACTIVATE},
+	        {STATUS_GIT_ICON_STAGE, "New", "n", EDITOR_ACTION_GIT_BRANCH_NEW},
+	        {STATUS_GIT_ICON_DISCARD, "Delete", "d", EDITOR_ACTION_GIT_BRANCH_DELETE},
+	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
+	};
+	static const struct statusBarGitButton k_log[] = {
+	        {STATUS_GIT_ICON_SHOW, "Show", "enter", EDITOR_ACTION_GIT_VIEW_ACTIVATE},
+	        {STATUS_GIT_ICON_CHERRY, "Cherry-pick", "c", EDITOR_ACTION_GIT_CHERRY_PICK},
+	        {STATUS_GIT_ICON_REVERT, "Revert", "r", EDITOR_ACTION_GIT_REVERT},
+	        {STATUS_GIT_ICON_TAG, "Tag", "t", EDITOR_ACTION_GIT_TAG},
+	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
+	};
+	static const struct statusBarGitButton k_stash[] = {
+	        {STATUS_GIT_ICON_SHOW, "Show", "enter", EDITOR_ACTION_GIT_VIEW_ACTIVATE},
+	        {STATUS_GIT_ICON_APPLY, "Apply", "a", EDITOR_ACTION_GIT_STASH_APPLY},
+	        {STATUS_GIT_ICON_POP, "Pop", "p", EDITOR_ACTION_GIT_STASH_POP},
+	        {STATUS_GIT_ICON_DISCARD, "Drop", "d", EDITOR_ACTION_GIT_STASH_DROP},
+	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
+	};
+	static const struct statusBarGitButton k_commit[] = {
+	        {STATUS_GIT_ICON_COMMIT, "Commit", "save", EDITOR_ACTION_SAVE},
+	        {STATUS_GIT_ICON_ABORT, "Abort", "close", EDITOR_ACTION_CLOSE_TAB},
+	};
+	static const struct statusBarGitButton k_diff_hunks[] = {
+	        {STATUS_GIT_ICON_EXPAND, "Show whole", "z", EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT},
+	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
+	};
+	static const struct statusBarGitButton k_diff_whole[] = {
+	        {STATUS_GIT_ICON_COMPRESS, "Show hunks", "z",
+	         EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT},
+	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
+	};
+
+	struct statusBarGitButton drawer_buttons[STATUS_DEBUG_MAX_BUTTONS];
+	const struct statusBarGitButton *buttons = NULL;
+	int count = 0;
+	switch (context) {
+		case STATUS_GIT_CONTEXT_DRAWER:
+			buttons = drawer_buttons;
+			count = statusBarGitDrawerButtons(drawer_buttons, STATUS_DEBUG_MAX_BUTTONS);
+			break;
+		case STATUS_GIT_CONTEXT_BRANCHES:
+			buttons = k_branches;
+			count = (int)(sizeof(k_branches) / sizeof(k_branches[0]));
+			break;
+		case STATUS_GIT_CONTEXT_LOG:
+			buttons = k_log;
+			count = (int)(sizeof(k_log) / sizeof(k_log[0]));
+			break;
+		case STATUS_GIT_CONTEXT_STASH:
+			buttons = k_stash;
+			count = (int)(sizeof(k_stash) / sizeof(k_stash[0]));
+			break;
+		case STATUS_GIT_CONTEXT_COMMIT:
+			buttons = k_commit;
+			count = (int)(sizeof(k_commit) / sizeof(k_commit[0]));
+			break;
+		case STATUS_GIT_CONTEXT_DIFF:
+			buttons = E.git_view_whole_file ? k_diff_whole : k_diff_hunks;
+			count = 2;
+			break;
+		default:
+			return 1;
+	}
+
+	statusDebugButtonsReset(col_offset);
+	int col = 0;
+	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
+		return 0;
+	}
+	col += (col + 1 <= max_col) ? 1 : 0;
+	int nerd = E.nerd_fonts_enabled;
+	for (int i = 0; i < count; i++) {
+		if (!statusDebugButton(wb, &col, max_col, nerd ? buttons[i].icon : NULL, NULL,
+		                       buttons[i].label, buttons[i].hotkey, buttons[i].action)) {
+			return 0;
+		}
 	}
 	*col_io = col;
 	return 1;
@@ -275,8 +526,17 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		char branch_trunc[25];
 		(void)snprintf(branch_trunc, sizeof(branch_trunc), "%s", git_branch);
 		const char *dirty_marker = E.git_entry_count > 0 ? "+" : "";
-		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s  %d,%d    %d%%", branch_trunc,
-		                dirty_marker, E.cy + 1, cursor_col, progress);
+		char ahead_behind[32] = "";
+		if (E.git_ahead > 0 && E.git_behind > 0) {
+			(void)snprintf(ahead_behind, sizeof(ahead_behind), " ↑%d↓%d", E.git_ahead,
+			               E.git_behind);
+		} else if (E.git_ahead > 0) {
+			(void)snprintf(ahead_behind, sizeof(ahead_behind), " ↑%d", E.git_ahead);
+		} else if (E.git_behind > 0) {
+			(void)snprintf(ahead_behind, sizeof(ahead_behind), " ↓%d", E.git_behind);
+		}
+		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s%s  %d,%d    %d%%", branch_trunc,
+		                dirty_marker, ahead_behind, E.cy + 1, cursor_col, progress);
 	} else {
 		rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%", E.cy + 1, cursor_col,
 		                progress);
@@ -290,53 +550,20 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		right_start_col = 0;
 	}
 
-	/* Debug control segment occupies the far left while a session is active;
-	 * the path/diagnostics region renders into whatever space remains. */
-	int debug_cols = 0;
-	if (editorDapIsRunning()) {
-		if (!statusBarAppendDebugSegment(wb, right_start_col, &debug_cols)) {
-			return 0;
-		}
-	} else {
-		statusDebugButtonsReset();
-	}
-
+	/* The input-system badge (e.g. the Vim mode label) is always the far-left
+	 * element of the status bar, ahead of any debug or git action buttons. */
 	const struct editorInputSystem *active_system = editorInputSystemActive();
 	char *input_segment = NULL;
 	int input_segment_cols = 0;
 	int input_segment_total_cols = 0;
 	if (!statusBarPrepareInputSegment(&input_segment, &input_segment_cols,
-	                                  &input_segment_total_cols,
-	                                  right_start_col - debug_cols)) {
+	                                  &input_segment_total_cols, right_start_col)) {
 		return 0;
 	}
 
 	int ok = 0;
-	int dirty_cols = (int)strlen(dirtyflag);
-	int diag_cols = (int)strlen(diagbuf);
-	int left_budget = right_start_col - debug_cols - input_segment_total_cols;
-	if (left_budget < 0) {
-		left_budget = 0;
-	}
-	int reserved_for_dirty = 0;
-	int include_dirty_sep = 0;
-	if (dirty_cols > 0) {
-		if (left_budget >= dirty_cols + 1) {
-			reserved_for_dirty = dirty_cols + 1;
-			include_dirty_sep = 1;
-		} else if (left_budget >= dirty_cols) {
-			reserved_for_dirty = dirty_cols;
-		}
-	}
 
-	int path_budget = left_budget - reserved_for_dirty;
-	if (path_budget < 0) {
-		path_budget = 0;
-	}
-	if (diag_cols > 0 && path_budget >= diag_cols) {
-		path_budget -= diag_cols;
-	}
-
+	/* Render the input badge first so it occupies the leftmost columns. */
 	if (input_segment_total_cols > 0) {
 		int color_idx = -1;
 		int colored = 0;
@@ -377,6 +604,57 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		                !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS))) {
 			goto cleanup;
 		}
+	}
+
+	/* The next segment is context-sensitive: debug controls while a DAP session
+	 * runs, git action buttons while a git surface has focus. Both sit just to
+	 * the right of the input badge, so their clickable spans are recorded with
+	 * that column offset. The git segment replaces the tab name to leave room
+	 * for its buttons. */
+	int debug_cols = 0;
+	enum statusBarGitContext git_context = statusBarGitContext();
+	int segment_max = right_start_col - input_segment_total_cols;
+	if (segment_max < 0) {
+		segment_max = 0;
+	}
+	if (editorDapIsRunning()) {
+		if (!statusBarAppendDebugSegment(wb, segment_max, &debug_cols,
+		                                 input_segment_total_cols)) {
+			goto cleanup;
+		}
+	} else if (git_context != STATUS_GIT_CONTEXT_NONE) {
+		if (!statusBarAppendGitSegment(wb, git_context, segment_max, &debug_cols,
+		                               input_segment_total_cols)) {
+			goto cleanup;
+		}
+		filename = "";
+	} else {
+		statusDebugButtonsReset(0);
+	}
+
+	int dirty_cols = (int)strlen(dirtyflag);
+	int diag_cols = (int)strlen(diagbuf);
+	int left_budget = right_start_col - input_segment_total_cols - debug_cols;
+	if (left_budget < 0) {
+		left_budget = 0;
+	}
+	int reserved_for_dirty = 0;
+	int include_dirty_sep = 0;
+	if (dirty_cols > 0) {
+		if (left_budget >= dirty_cols + 1) {
+			reserved_for_dirty = dirty_cols + 1;
+			include_dirty_sep = 1;
+		} else if (left_budget >= dirty_cols) {
+			reserved_for_dirty = dirty_cols;
+		}
+	}
+
+	int path_budget = left_budget - reserved_for_dirty;
+	if (path_budget < 0) {
+		path_budget = 0;
+	}
+	if (diag_cols > 0 && path_budget >= diag_cols) {
+		path_budget -= diag_cols;
 	}
 
 	int left_cols = 0;

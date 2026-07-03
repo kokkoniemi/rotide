@@ -16,9 +16,13 @@ list. Common sections:
 - `[lsp]`: language-server enable flags, commands, install commands, and
   autocomplete settings.
 - `[input]`: active editing-input system (`vim`, the default, or `cua`).
-- `[keymap.cua]`: CUA action bindings.
+- `[keymap.cua]`: CUA action bindings. Git actions (`git_stage`, `git_commit`,
+  `git_branches`, `git_push`, …) are bindable here; they have no default
+  chords because the Git drawer and views expose them as single letters.
 - `[keymap.vim]`: mode-qualified Vim bindings (`normal.*`, `insert.*`,
-  `visual.*`).
+  `visual.*`) plus leader sub-keys (`leader.*`, including `leader.git_drawer`).
+- Custom themes can set `diff_added_bg` / `diff_removed_bg` under `[theme.ui]`
+  to override the derived green/red diff line tints.
 
 Built-in themes include `terminal`, `a11y-dark`, `a11y-light`, `acme`,
 `silentium`, `256noir`, `github-light`, `github-dark`, `modus-operandi`,

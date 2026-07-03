@@ -278,7 +278,9 @@ static int recoveryReadI32(int fd, int32_t *value_out) {
 
 static int recoveryTabKindIsValid(int tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_TASK_LOG ||
-	       tab_kind == EDITOR_TAB_UNSUPPORTED_FILE || tab_kind == EDITOR_TAB_GIT_DIFF;
+	       tab_kind == EDITOR_TAB_UNSUPPORTED_FILE || tab_kind == EDITOR_TAB_GIT_DIFF ||
+	       tab_kind == EDITOR_TAB_GIT_COMMIT || tab_kind == EDITOR_TAB_GIT_BRANCHES ||
+	       tab_kind == EDITOR_TAB_GIT_LOG || tab_kind == EDITOR_TAB_GIT_STASH;
 }
 
 static int recoveryGetTabView(int idx, struct recoveryTabView *view_out) {

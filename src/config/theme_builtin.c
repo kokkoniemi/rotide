@@ -51,6 +51,28 @@ static struct editorThemeColor themeBlendRgb(struct editorThemeColor accent,
 	                           (unsigned char)((accent.b * accent_pct + base.b * b) / 100));
 }
 
+/* Background tint for added/removed diff lines. Themes may set the
+ * diff_added_bg / diff_removed_bg roles explicitly; otherwise the tint is
+ * derived by blending a green/red accent into the theme background so every
+ * built-in theme (light or dark) gets a readable value for free. */
+struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme, int added) {
+	if (theme == NULL) {
+		return editorThemeDefaultColor();
+	}
+	struct editorThemeColor configured =
+	        theme->ui[added ? EDITOR_THEME_UI_DIFF_ADDED_BG : EDITOR_THEME_UI_DIFF_REMOVED_BG];
+	if (configured.kind != EDITOR_THEME_COLOR_DEFAULT) {
+		return configured;
+	}
+	struct editorThemeColor bg = theme->ui[EDITOR_THEME_UI_BACKGROUND];
+	if (bg.kind == EDITOR_THEME_COLOR_RGB) {
+		struct editorThemeColor accent = added ? editorThemeRgbColor(0x2E, 0xA0, 0x43)
+		                                       : editorThemeRgbColor(0xD1, 0x37, 0x3F);
+		return themeBlendRgb(accent, bg, 22);
+	}
+	return editorTheme256Color(added ? 22 : 52);
+}
+
 static struct editorThemeStyle themeBuiltinStyleDefault(void) {
 	struct editorThemeStyle style;
 	style.fg = editorThemeDefaultColor();
