@@ -19,8 +19,10 @@ are implemented and tested.
   tab, branches/commits/stash views (checkout, create and delete branches,
   cherry-pick, revert, tag, stash apply/pop/drop), blame, and ahead/behind
   counts in the status bar. Diffs open in a shared preview tab with green/red
-  line tints, the file's own syntax highlighting, and a chunks/whole-file
-  toggle. See "Git drawer and views" in [keybindings](keybindings.md).
+  line tints, the file's own syntax highlighting, and a hunks/whole-file
+  toggle. When a Git surface has focus, the status bar shows its actions as
+  clickable, icon-labelled buttons (like the debug controls). See "Git drawer
+  and views" in [keybindings](keybindings.md).
 - Search, go to line, matching bracket jump, selection/copy/cut/paste.
 - Undo/redo with edit grouping.
 - Selectable editing-input systems via `[input] system`: Vim (default — modal

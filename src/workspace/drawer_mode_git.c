@@ -279,8 +279,6 @@ int editorDrawerGitToggle(void) {
 	E.drawer_resize_active = 0;
 	(void)editorDrawerSetCollapsed(0);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-	editorSetStatusMsg("Enter menu/run  s stage  a all  d discard  c commit  A amend  "
-	                   "B branches  L log  S stash");
 	return 1;
 }
 
@@ -422,6 +420,40 @@ int editorDrawerSelectedGitEntry(int *entry_idx_out) {
 	}
 	*entry_idx_out = lookup.entry_idx;
 	return 1;
+}
+
+/* Reports a selected Staged/Changes/Untracked/Conflicts group header (not
+ * Actions) so group-wide stage/unstage can target it. */
+int editorDrawerGitSelectedGroup(int *staged_group_out, int *item_count_out) {
+	if (E.drawer_mode != EDITOR_DRAWER_MODE_GIT) {
+		return 0;
+	}
+	struct drawerModeGitLookup lookup;
+	if (!drawerModeGitLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	    lookup.kind != EDITOR_DRAWER_GIT_ENTRY_GROUP ||
+	    lookup.group_idx == EDITOR_DRAWER_GIT_GROUP_ACTIONS) {
+		return 0;
+	}
+	if (staged_group_out != NULL) {
+		*staged_group_out = lookup.group_idx == EDITOR_DRAWER_GIT_GROUP_STAGED;
+	}
+	if (item_count_out != NULL) {
+		*item_count_out = drawerModeGitGroupItemCount(lookup.group_idx);
+	}
+	return 1;
+}
+
+int editorDrawerGitEntryInSelectedGroup(int entry_idx) {
+	if (E.drawer_mode != EDITOR_DRAWER_MODE_GIT || entry_idx < 0 ||
+	    entry_idx >= E.git_entry_count) {
+		return 0;
+	}
+	struct drawerModeGitLookup lookup;
+	if (!drawerModeGitLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	    lookup.kind != EDITOR_DRAWER_GIT_ENTRY_GROUP) {
+		return 0;
+	}
+	return drawerModeGitEntryInGroup(&E.git_entries[entry_idx], lookup.group_idx);
 }
 
 int editorDrawerGitSelectedAction(enum editorAction *action_out) {

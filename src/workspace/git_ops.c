@@ -396,7 +396,7 @@ char *editorGitOpsPatchDup(enum editorGitOpsPatchKind kind, const char *arg, int
 	if (arg == NULL || arg[0] == '\0') {
 		return NULL;
 	}
-	/* A huge context radius turns "changed chunks" into "the whole file". */
+	/* A huge context radius turns "changed hunks" into "the whole file". */
 	char *context_arg = whole_file ? "-U100000" : "-U3";
 	switch (kind) {
 		case EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE: {

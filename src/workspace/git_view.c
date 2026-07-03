@@ -67,7 +67,41 @@ static void gitViewAfterDrawerOp(void) {
 	}
 }
 
+/* Stages or unstages every file in the selected group header (the Staged
+ * group unstages; the others stage). Entry pointers stay valid across the
+ * ops — only the final refresh rebuilds the array. */
+static void gitViewStageSelectedGroup(int staged_group, int force_unstage) {
+	if (force_unstage && !staged_group) {
+		editorSetStatusMsg("Select the Staged group to unstage");
+		return;
+	}
+	int unstage = staged_group;
+	int done = 0;
+	for (int i = 0; i < E.git_entry_count; i++) {
+		if (!editorDrawerGitEntryInSelectedGroup(i)) {
+			continue;
+		}
+		const char *path = E.git_entries[i].rel_path;
+		if (unstage ? editorGitOpsUnstageFile(path) : editorGitOpsStageFile(path)) {
+			done++;
+		}
+	}
+	gitViewAfterDrawerOp();
+	editorSetStatusMsg("%s %d file%s", unstage ? "Unstaged" : "Staged", done,
+	                   done == 1 ? "" : "s");
+}
+
 static void gitViewStageToggleSelected(int force_unstage) {
+	int group_staged = 0;
+	int group_items = 0;
+	if (editorDrawerGitSelectedGroup(&group_staged, &group_items)) {
+		if (group_items == 0) {
+			editorSetStatusMsg("Group is empty");
+			return;
+		}
+		gitViewStageSelectedGroup(group_staged, force_unstage);
+		return;
+	}
 	char name[PATH_MAX];
 	int staged_group = 0;
 	if (!gitViewSelectedDrawerFile(name, sizeof(name), &staged_group, NULL)) {
@@ -173,12 +207,6 @@ char *editorGitViewFormatBranchesDup(const char *raw, time_t now) {
 	char *buf = NULL;
 	size_t len = 0;
 	size_t cap = 0;
-	if (!gitViewAppend(&buf, &len, &cap,
-	                   "# branches · Enter checkout · n new · d delete · "
-	                   "R refresh · P push · p pull · f fetch\n")) {
-		goto err;
-	}
-
 	char *raw_copy = strdup(raw);
 	if (raw_copy == NULL) {
 		goto err;
@@ -261,12 +289,6 @@ char *editorGitViewFormatLogDup(const char *raw, time_t now) {
 	char *buf = NULL;
 	size_t len = 0;
 	size_t cap = 0;
-	if (!gitViewAppend(&buf, &len, &cap,
-	                   "# commits · Enter show · c cherry-pick · r revert "
-	                   "· t tag · R refresh\n")) {
-		goto err;
-	}
-
 	char *raw_copy = strdup(raw);
 	if (raw_copy == NULL) {
 		goto err;
@@ -328,11 +350,6 @@ char *editorGitViewFormatStashDup(const char *raw) {
 	char *buf = NULL;
 	size_t len = 0;
 	size_t cap = 0;
-	if (!gitViewAppend(&buf, &len, &cap,
-	                   "# stashes · Enter show · a apply · p pop · "
-	                   "d drop · R refresh\n")) {
-		goto err;
-	}
 	if (raw[0] == '\0') {
 		if (!gitViewAppend(&buf, &len, &cap, "(no stashes)\n")) {
 			goto err;
@@ -640,7 +657,7 @@ void editorGitViewToggleDiffContext(void) {
 	E.git_view_whole_file = !E.git_view_whole_file;
 	int whole = E.git_view_whole_file;
 	gitViewRebuildActivePatch();
-	editorSetStatusMsg(whole ? "Showing whole file" : "Showing changed chunks");
+	editorSetStatusMsg(whole ? "Showing whole file" : "Showing changed hunks");
 }
 
 static int gitViewActiveLineEntity(char *entity_out, size_t entity_size) {

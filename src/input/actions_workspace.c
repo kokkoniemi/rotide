@@ -454,19 +454,28 @@ static void actionsWorkspaceCtxAppend(struct editorPopupItem *items, int *count_
 /* VSCode-style menu for the selected Git drawer file row (Enter or right
  * click): open diff, stage/unstage by the selected group, discard. */
 int editorDrawerGitOpenSelectionMenu(int anchor_row, int anchor_col) {
-	int entry_idx = 0;
-	int staged_group = 0;
-	if (!editorDrawerGitSelectedFile(&entry_idx, &staged_group)) {
-		return 0;
-	}
-
 	struct editorPopupItem items[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
 	int count = 0;
-	actionsWorkspaceCtxAppend(items, &count, "Open Diff", ACTIONS_WORKSPACE_CTX_GIT_OPEN_DIFF);
-	actionsWorkspaceCtxAppend(items, &count, staged_group ? "Unstage" : "Stage",
-	                          staged_group ? ACTIONS_WORKSPACE_CTX_GIT_UNSTAGE
-	                                       : ACTIONS_WORKSPACE_CTX_GIT_STAGE);
-	actionsWorkspaceCtxAppend(items, &count, "Discard…", ACTIONS_WORKSPACE_CTX_GIT_DISCARD);
+	int entry_idx = 0;
+	int staged_group = 0;
+	int group_items = 0;
+	if (editorDrawerGitSelectedFile(&entry_idx, &staged_group)) {
+		actionsWorkspaceCtxAppend(items, &count, "Open Diff",
+		                          ACTIONS_WORKSPACE_CTX_GIT_OPEN_DIFF);
+		actionsWorkspaceCtxAppend(items, &count, staged_group ? "Unstage" : "Stage",
+		                          staged_group ? ACTIONS_WORKSPACE_CTX_GIT_UNSTAGE
+		                                       : ACTIONS_WORKSPACE_CTX_GIT_STAGE);
+		actionsWorkspaceCtxAppend(items, &count, "Discard…",
+		                          ACTIONS_WORKSPACE_CTX_GIT_DISCARD);
+	} else if (editorDrawerGitSelectedGroup(&staged_group, &group_items) && group_items > 0) {
+		/* Group header: one group-wide entry (Staged unstages, the others
+		 * stage); the stage/unstage handler resolves the group itself. */
+		actionsWorkspaceCtxAppend(items, &count, staged_group ? "Unstage all" : "Stage all",
+		                          staged_group ? ACTIONS_WORKSPACE_CTX_GIT_UNSTAGE
+		                                       : ACTIONS_WORKSPACE_CTX_GIT_STAGE);
+	} else {
+		return 0;
+	}
 	g_actionsWorkspace_ctx_op_count = count;
 	if (!editorPopupOpenMenu(items, count, anchor_row, anchor_col)) {
 		g_actionsWorkspace_ctx_op_count = 0;

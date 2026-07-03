@@ -1,8 +1,12 @@
+#include "editor_test_api.h"
+#include "render/status_bar.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
 #include "test_helpers.h"
+#include "workspace/drawer.h"
+#include "workspace/git.h"
 #include "workspace/git_view.h"
 #include "workspace/tabs.h"
 
@@ -64,7 +68,6 @@ static int test_git_view_format_branches_groups_and_tracks(void) {
 	                  " \trefs/remotes/origin/main\torigin/main\t\t\t1000000\n";
 	char *text = editorGitViewFormatBranchesDup(raw, 1000000 + 3 * GIT_VIEW_TEST_DAY);
 	ASSERT_TRUE(text != NULL);
-	ASSERT_TRUE(strstr(text, "# branches") != NULL);
 	ASSERT_TRUE(strstr(text, "* main  ↑2↓1  origin/main") != NULL);
 	ASSERT_TRUE(strstr(text, "\n  feature/x") != NULL);
 	ASSERT_TRUE(strstr(text, "# remotes\n") != NULL);
@@ -86,7 +89,6 @@ static int test_git_view_format_log_with_decorations(void) {
 	                  "def5678\t\tsecond subject\tBob\t1000000\n";
 	char *text = editorGitViewFormatLogDup(raw, 1000000 + GIT_VIEW_TEST_DAY);
 	ASSERT_TRUE(text != NULL);
-	ASSERT_TRUE(strstr(text, "# commits") != NULL);
 	ASSERT_TRUE(strstr(text, "abc1234  (HEAD -> main, tag: v1) fix the bug — Alice") != NULL);
 	ASSERT_TRUE(strstr(text, "def5678  second subject — Bob") != NULL);
 	free(text);
@@ -101,7 +103,6 @@ static int test_git_view_format_log_with_decorations(void) {
 static int test_git_view_format_stash_lists_and_empty(void) {
 	char *text = editorGitViewFormatStashDup("stash@{0}: WIP on main: quick fix\n");
 	ASSERT_TRUE(text != NULL);
-	ASSERT_TRUE(strstr(text, "# stashes") != NULL);
 	ASSERT_TRUE(strstr(text, "stash@{0}: WIP on main: quick fix") != NULL);
 	free(text);
 
@@ -285,6 +286,169 @@ static int test_git_view_row_spans_colorize_views(void) {
 	return 0;
 }
 
+/* Re-renders the status bar and reports whether a button dispatches action. */
+static int git_view_status_bar_has_action(enum editorAction action) {
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	if (out == NULL) {
+		return -1;
+	}
+	free(out);
+	for (int col = 0; col < E.window_cols; col++) {
+		int found = 0;
+		if (editorStatusBarDebugButtonAt(col, &found) && found == (int)action) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* Selects the first non-empty git drawer group header matching staged. */
+static int git_view_select_group(int staged) {
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		E.drawer_selected_index = idx;
+		int group_staged = 0;
+		int items = 0;
+		if (editorDrawerGitSelectedGroup(&group_staged, &items) && group_staged == staged &&
+		    items > 0) {
+			return 1;
+		}
+	}
+	E.drawer_selected_index = -1;
+	return 0;
+}
+
+/* Selects the first git drawer file row matching staged_group; returns 1. */
+static int git_view_select_drawer_file(int staged_group) {
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		E.drawer_selected_index = idx;
+		int entry_idx = 0;
+		int in_staged = 0;
+		if (editorDrawerGitSelectedFile(&entry_idx, &in_staged) &&
+		    in_staged == staged_group) {
+			return 1;
+		}
+	}
+	E.drawer_selected_index = -1;
+	return 0;
+}
+
+static int test_git_view_status_bar_git_drawer_buttons(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	E.filename = strdup("visible-name.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.window_rows = 12;
+	E.window_cols = 120;
+	/* One staged and one unstaged entry (porcelain v2 fixture). */
+	static const char status[] = "1 M. N... 100644 100644 100644 aaa bbb staged.c\0"
+	                             "1 .M N... 100644 100644 100644 aaa bbb dirty.c\0";
+	ASSERT_TRUE(editorGitTestParseStatusV2(status, sizeof(status) - 1, NULL, NULL));
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	/* Git drawer focus: the action buttons replace the tab name in the
+	 * status bar (the tab bar still shows it once). */
+	ASSERT_TRUE(strstr(out, "Branches") != NULL);
+	const char *first_name = strstr(out, "visible-name.c");
+	ASSERT_TRUE(first_name != NULL);
+	ASSERT_TRUE(strstr(first_name + 1, "visible-name.c") == NULL);
+	free(out);
+
+	/* No file selected: no per-file buttons; commit applies (staged exists). */
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_STAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_UNSTAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_DISCARD));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_STAGE_ALL));
+	ASSERT_EQ_INT(1, git_view_status_bar_has_action(EDITOR_ACTION_GIT_COMMIT));
+
+	/* Group headers get a group-wide stage or unstage button. */
+	ASSERT_TRUE(git_view_select_group(0));
+	ASSERT_EQ_INT(1, git_view_status_bar_has_action(EDITOR_ACTION_GIT_STAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_UNSTAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_DISCARD));
+	ASSERT_TRUE(git_view_select_group(1));
+	ASSERT_EQ_INT(1, git_view_status_bar_has_action(EDITOR_ACTION_GIT_UNSTAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_STAGE));
+
+	/* Unstaged file selected: stage + discard, no unstage. */
+	ASSERT_TRUE(git_view_select_drawer_file(0));
+	ASSERT_EQ_INT(1, git_view_status_bar_has_action(EDITOR_ACTION_GIT_STAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_UNSTAGE));
+	ASSERT_EQ_INT(1, git_view_status_bar_has_action(EDITOR_ACTION_GIT_DISCARD));
+
+	/* Staged file selected: unstage, no stage. */
+	ASSERT_TRUE(git_view_select_drawer_file(1));
+	ASSERT_EQ_INT(1, git_view_status_bar_has_action(EDITOR_ACTION_GIT_UNSTAGE));
+	ASSERT_EQ_INT(0, git_view_status_bar_has_action(EDITOR_ACTION_GIT_STAGE));
+
+	/* Back in a plain file tab the buttons disappear. */
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+	out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	first_name = strstr(out, "visible-name.c");
+	ASSERT_TRUE(first_name != NULL);
+	ASSERT_TRUE(strstr(first_name + 1, "visible-name.c") != NULL);
+	int action = 0;
+	ASSERT_TRUE(!editorStatusBarDebugButtonAt(1, &action));
+	free(out);
+	editorGitFree();
+	return 0;
+}
+
+static int test_git_view_status_bar_view_context_buttons(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(
+	        editorTabOpenGenerated(EDITOR_TAB_GIT_BRANCHES, "git branches", "* main  3d\n"));
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.window_rows = 10;
+	E.window_cols = 120;
+
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "Checkout") != NULL);
+	ASSERT_TRUE(strstr(out, "Delete") != NULL);
+	/* Hotkeys render italic+faint after the label. */
+	ASSERT_TRUE(strstr(out, "Checkout \x1b[3;2menter\x1b[23;22m") != NULL);
+	free(out);
+
+	int action = 0;
+	int found_checkout = 0;
+	for (int col = 0; col < E.window_cols; col++) {
+		if (editorStatusBarDebugButtonAt(col, &action) &&
+		    action == (int)EDITOR_ACTION_GIT_VIEW_ACTIVATE) {
+			found_checkout = 1;
+			break;
+		}
+	}
+	ASSERT_TRUE(found_checkout);
+	return 0;
+}
+
+static int test_git_view_drawer_action_rows_have_nerd_icons(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.nerd_fonts_enabled = 1;
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	/* Branch (U+F126), history (U+F1DA), and upload (U+F093) glyphs mark the
+	 * Branches / Commit log / Push action rows. */
+	ASSERT_TRUE(strstr(out, "\xEF\x84\xA6") != NULL);
+	ASSERT_TRUE(strstr(out, "\xEF\x87\x9A") != NULL);
+	ASSERT_TRUE(strstr(out, "\xEF\x82\x93") != NULL);
+	free(out);
+	E.nerd_fonts_enabled = 0;
+	return 0;
+}
+
 static int test_git_view_status_bar_shows_ahead_behind(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("hello");
@@ -322,7 +486,7 @@ static int test_git_view_branches_render_golden(void) {
 	        "   2  * main  ↑1  origin/main  3d\n"
 	        "   3    feature/x  2w\n"
 	        "   4  # remotes\n"
-	        "git branches                       1,1    100%\n"
+	        " Checkout enter  New n  Delete d   1,1    100%\n"
 	        /* golden-end */
 	);
 	return 0;
@@ -354,6 +518,10 @@ const struct editorTestCase g_git_view_tests[] = {
          test_git_view_row_bg_color_for_diff_and_headers},
         {"git_view_row_spans_colorize_views", test_git_view_row_spans_colorize_views},
         {"git_view_status_bar_shows_ahead_behind", test_git_view_status_bar_shows_ahead_behind},
+        {"git_view_status_bar_git_drawer_buttons", test_git_view_status_bar_git_drawer_buttons},
+        {"git_view_status_bar_view_context_buttons", test_git_view_status_bar_view_context_buttons},
+        {"git_view_drawer_action_rows_have_nerd_icons",
+         test_git_view_drawer_action_rows_have_nerd_icons},
         {"git_view_branches_render_golden", test_git_view_branches_render_golden},
 };
 

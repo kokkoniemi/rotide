@@ -163,12 +163,24 @@ with their output in a task tab.
 
 On a file row, Enter or right-click opens a small menu (Open Diff /
 Stage-or-Unstage / Discard…) that is navigable with the arrow keys; a plain
-mouse click opens the file's diff directly. Single-letter shortcuts work the
-same in Vim and CUA while the drawer has focus:
+mouse click opens the file's diff directly. Right-clicking a group header
+offers Stage all / Unstage all for that group.
 
-- `s`: stage the selected file (unstages it when selected under Staged)
-- `u`: unstage the selected file
-- `a`: stage all changes
+While a Git surface has focus (the drawer or any git tab), the status bar
+replaces the tab name with the actions that currently apply as clickable
+buttons — in the drawer, stage/unstage/discard appear only when a file row is
+selected (stage or unstage matching the selected group), "Stage all" /
+"Unstage all" when a group header is selected, and commit only when something
+is staged —
+with nerd-font icons when enabled, like the debug controls — and each label
+starts with the key that runs it, so the shortcuts teach themselves.
+Single-letter shortcuts work the same in Vim and CUA while the drawer has
+focus:
+
+- `s`: stage the selected file (unstages it when selected under Staged); on a
+  group header (Staged / Changes / Untracked / Conflicts) it applies to every
+  file in that group
+- `u`: unstage the selected file, or the whole group on the Staged header
 - `d`: discard the selected file's changes (asks for confirmation)
 - `c` / `A`: open the commit / amend message tab
 - `B` / `L` / `S`: open the branches / commits / stash view
@@ -181,7 +193,7 @@ Diff tabs open as preview tabs (one shared slot, like drawer file previews), so
 browsing diffs does not accumulate tabs. The `+`/`-` patch prefixes are
 stripped: added lines get a green-tinted background, removed lines a red one,
 and single-file diffs are syntax highlighted with the file's own language.
-Inside a diff tab `z` toggles between the changed chunks and the whole file,
+Inside a diff tab `z` toggles between the changed hunks and the whole file,
 and `R` regenerates the diff. Custom themes can override the tint colors with
 the `diff_added_bg` / `diff_removed_bg` UI roles.
 
@@ -189,8 +201,9 @@ The branches, commits, and stash views are read-only tabs; move with the usual
 navigation keys (search works too), then:
 
 - Branches: Enter or double-click checks out the selected branch; `n` creates a
-  branch (prompt); `d` deletes it (confirm); `R` refreshes; `P`/`p`/`f`
-  push/pull/fetch
+  branch (prompt); `d` deletes it (confirm); `R` refreshes. Push/pull/fetch
+  intentionally have no single-letter keys (accident-prone); run them from the
+  drawer's Actions rows, the status-bar buttons, or bound chords
 - Commits: Enter or double-click shows the commit as a diff tab; `c`
   cherry-picks; `r` reverts; `t` tags (prompt); `R` refreshes
 - Stash: Enter or double-click shows the stash as a diff tab; `a` applies; `p`

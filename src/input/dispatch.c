@@ -3231,9 +3231,6 @@ static int dispatchTryGitDrawerKey(int c, int *effects) {
 		case 'u':
 			action = EDITOR_ACTION_GIT_UNSTAGE;
 			break;
-		case 'a':
-			action = EDITOR_ACTION_GIT_STAGE_ALL;
-			break;
 		case 'd':
 			action = EDITOR_ACTION_GIT_DISCARD;
 			break;
@@ -3268,6 +3265,8 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 	enum editorAction action;
 	switch (E.tab_kind) {
 		case EDITOR_TAB_GIT_BRANCHES:
+			/* push/pull/fetch intentionally have no single-letter keys:
+			 * they run from the drawer's Actions rows or bound chords. */
 			switch (c) {
 				case '\r':
 					action = EDITOR_ACTION_GIT_VIEW_ACTIVATE;
@@ -3280,15 +3279,6 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 					break;
 				case 'R':
 					action = EDITOR_ACTION_GIT_REFRESH;
-					break;
-				case 'P':
-					action = EDITOR_ACTION_GIT_PUSH;
-					break;
-				case 'p':
-					action = EDITOR_ACTION_GIT_PULL;
-					break;
-				case 'f':
-					action = EDITOR_ACTION_GIT_FETCH;
 					break;
 				default:
 					return 0;

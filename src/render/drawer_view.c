@@ -64,6 +64,13 @@
 #define DRAWER_NERD_EYE_UTF8 "\xEF\x81\xAE"
 #define DRAWER_NERD_LINE_CHART_UTF8 "\xEF\x88\x81"
 #define DRAWER_NERD_PLAY_UTF8 "\xEF\x81\x8B"
+#define DRAWER_NERD_CHECK_UTF8 "\xEF\x80\x8C"          /* U+F00C check */
+#define DRAWER_NERD_HISTORY_UTF8 "\xEF\x87\x9A"        /* U+F1DA history */
+#define DRAWER_NERD_ARCHIVE_BOX_UTF8 "\xEF\x86\x87"    /* U+F187 archive */
+#define DRAWER_NERD_UPLOAD_UTF8 "\xEF\x82\x93"         /* U+F093 upload */
+#define DRAWER_NERD_DOWNLOAD_UTF8 "\xEF\x80\x99"       /* U+F019 download */
+#define DRAWER_NERD_CLOUD_DOWNLOAD_UTF8 "\xEF\x83\xAD" /* U+F0ED cloud-download */
+#define DRAWER_NERD_REFRESH_UTF8 "\xEF\x80\xA1"        /* U+F021 refresh */
 #define DRAWER_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
 #define DRAWER_HEADER_MODE_BUTTON_COUNT 7
@@ -418,6 +425,32 @@ static const char *drawerViewNerdIconForFileName(const char *name) {
 	return DRAWER_NERD_FILE_UTF8;
 }
 
+static const char *drawerViewNerdIconForGitActionLabel(const char *label) {
+	static const struct {
+		const char *label;
+		const char *icon;
+	} k_action_icons[] = {
+	        {"Commit staged…", DRAWER_NERD_CHECK_UTF8},
+	        {"Amend last commit…", DRAWER_NERD_EDIT_UTF8},
+	        {"Branches", DRAWER_NERD_BRANCH_UTF8},
+	        {"Commit log", DRAWER_NERD_HISTORY_UTF8},
+	        {"Stashes", DRAWER_NERD_ARCHIVE_BOX_UTF8},
+	        {"Push", DRAWER_NERD_UPLOAD_UTF8},
+	        {"Pull", DRAWER_NERD_DOWNLOAD_UTF8},
+	        {"Fetch", DRAWER_NERD_CLOUD_DOWNLOAD_UTF8},
+	        {"Refresh", DRAWER_NERD_REFRESH_UTF8},
+	};
+	if (label == NULL) {
+		return NULL;
+	}
+	for (size_t i = 0; i < sizeof(k_action_icons) / sizeof(k_action_icons[0]); i++) {
+		if (strcmp(label, k_action_icons[i].label) == 0) {
+			return k_action_icons[i].icon;
+		}
+	}
+	return NULL;
+}
+
 static const char *drawerViewNerdIconForEntry(const struct editorDrawerEntryView *entry,
                                               const char *entry_name) {
 	if (entry == NULL || entry->is_search_header || entry->is_placeholder ||
@@ -441,8 +474,14 @@ static const char *drawerViewNerdIconForEntry(const struct editorDrawerEntryView
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
 		return drawerViewNerdIconForMenuLabel(entry_name);
 	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT && entry->is_root) {
-		return NULL;
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+		if (entry->is_root) {
+			return NULL;
+		}
+		const char *action_icon = drawerViewNerdIconForGitActionLabel(entry_name);
+		if (action_icon != NULL) {
+			return action_icon;
+		}
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP && entry->is_root) {
 		return NULL;

@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 /* What a git patch tab shows; carried per tab so its content can be
- * regenerated (refresh, chunks-only vs whole-file toggle). */
+ * regenerated (refresh, hunks-only vs whole-file toggle). */
 enum editorGitOpsPatchKind {
 	EDITOR_GIT_OPS_PATCH_NONE = 0,
 	EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE,

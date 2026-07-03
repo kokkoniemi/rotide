@@ -2,8 +2,10 @@
 #include "editing/text_source.h"
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
+#include "input/actions_workspace.h"
 #include "input/input_system.h"
 #include "render/popup.h"
+#include "render/status_bar.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -130,6 +132,23 @@ static int git_input_select_file_row(const char *rel_path) {
 	return 0;
 }
 
+/* Selects the git drawer group header row with the given name. */
+static int git_input_select_group_row(const char *name) {
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		struct editorDrawerEntryView view;
+		if (!editorDrawerVisibleEntryView(idx, &view)) {
+			continue;
+		}
+		if (view.is_dir && strcmp(view.name, name) == 0) {
+			E.drawer_selected_index = idx;
+			return 1;
+		}
+	}
+	E.drawer_selected_index = -1;
+	return 0;
+}
+
 /* Feeds decoded keys straight to the active input system: raw ESC bytes in a
  * stdin buffer would be decoded as escape-sequence prefixes, not Esc. */
 static int git_input_feed_keys(const char *keys) {
@@ -193,7 +212,7 @@ static int test_git_input_stage_toggle_cua(void) {
 	return git_input_stage_toggle_with_system("cua");
 }
 
-static int test_git_input_unstage_and_stage_all_keys(void) {
+static int test_git_input_group_header_stage_and_unstage(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
 	ASSERT_TRUE(git_input_setup("vim", &repo));
@@ -201,19 +220,59 @@ static int test_git_input_unstage_and_stage_all_keys(void) {
 	ASSERT_TRUE(git_input_write_file(repo, "b.txt", "new\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
-	ASSERT_TRUE(editor_process_keypress_with_input("a", 1) == 0);
+	/* Stage on the Changes header stages that group only. */
+	ASSERT_TRUE(git_input_select_group_row("Changes"));
+	ASSERT_TRUE(editor_process_keypress_with_input("s", 1) == 0);
 	const struct editorGitEntry *entry = git_input_find_entry("a.txt");
 	ASSERT_TRUE(entry != NULL);
 	ASSERT_EQ_INT('M', entry->index_status);
 	entry = git_input_find_entry("b.txt");
 	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_UNTRACKED, entry->status);
+
+	/* Stage on the Untracked header stages the untracked file too. */
+	ASSERT_TRUE(git_input_select_group_row("Untracked"));
+	ASSERT_TRUE(editor_process_keypress_with_input("s", 1) == 0);
+	entry = git_input_find_entry("b.txt");
+	ASSERT_TRUE(entry != NULL);
 	ASSERT_EQ_INT('A', entry->index_status);
 
-	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+	/* Unstage on the Staged header unstages everything in it. */
+	ASSERT_TRUE(git_input_select_group_row("Staged"));
 	ASSERT_TRUE(editor_process_keypress_with_input("u", 1) == 0);
 	entry = git_input_find_entry("a.txt");
 	ASSERT_TRUE(entry != NULL);
 	ASSERT_EQ_INT('M', entry->worktree_status);
+	entry = git_input_find_entry("b.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_UNTRACKED, entry->status);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_group_header_menu_stages_group(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	ASSERT_TRUE(git_input_select_group_row("Changes"));
+	ASSERT_TRUE(editorDrawerGitOpenSelectionMenu(2, 2));
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_STR("Stage all", editorPopupSelectedLabel());
+	editorDrawerContextMenuActivate();
+	ASSERT_TRUE(!editorPopupIsVisible());
+	const struct editorGitEntry *entry = git_input_find_entry("a.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT('M', entry->index_status);
+
+	/* Empty groups and Actions rows offer no menu. */
+	ASSERT_TRUE(git_input_select_group_row("Conflicts"));
+	ASSERT_TRUE(!editorDrawerGitOpenSelectionMenu(2, 2));
+	ASSERT_TRUE(git_input_select_group_row("Actions"));
+	ASSERT_TRUE(!editorDrawerGitOpenSelectionMenu(2, 2));
 
 	git_input_repo_destroy(repo);
 	return 0;
@@ -426,8 +485,9 @@ static int test_git_input_view_readonly_and_header_noop(void) {
 	ASSERT_TRUE(git_input_setup("vim", &repo));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
-	ASSERT_TRUE(editor_process_keypress_with_input("B", 1) == 0);
-	ASSERT_EQ_INT(EDITOR_TAB_GIT_BRANCHES, E.tab_kind);
+	/* The stash view's placeholder row has no actionable entity. */
+	ASSERT_TRUE(editor_process_keypress_with_input("S", 1) == 0);
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_STASH, E.tab_kind);
 	E.cy = 0;
 	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
 	ASSERT_EQ_STR("No entry on this line", E.statusmsg);
@@ -477,7 +537,7 @@ static int test_git_input_diff_toggle_whole_file(void) {
 	editorGitRefresh();
 
 	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
-	/* Chunks-only: line2 is outside the -U3 context radius. */
+	/* Hunks-only: line2 is outside the -U3 context radius. */
 	ASSERT_TRUE(git_input_view_row_containing("line2") == -1);
 	ASSERT_TRUE(git_input_view_contains("CHANGED"));
 
@@ -561,6 +621,44 @@ static int test_git_input_actions_row_opens_commit_tab(void) {
 	E.drawer_selected_index = commit_row;
 	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_COMMIT, E.tab_kind);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_status_bar_button_click_stages_file(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+
+	/* Render once so the button spans are recorded, then click Stage. */
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	free(out);
+	int stage_col = -1;
+	for (int col = 0; col < E.window_cols; col++) {
+		int action = 0;
+		if (editorStatusBarDebugButtonAt(col, &action) &&
+		    action == (int)EDITOR_ACTION_GIT_STAGE) {
+			stage_col = col;
+			break;
+		}
+	}
+	ASSERT_TRUE(stage_col >= 0);
+
+	char click[32];
+	int written =
+	        snprintf(click, sizeof(click), "\x1b[<0;%d;%dM", stage_col + 1, E.window_rows + 2);
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(click));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+
+	const struct editorGitEntry *entry = git_input_find_entry("a.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT('M', entry->index_status);
 
 	git_input_repo_destroy(repo);
 	return 0;
@@ -792,7 +890,8 @@ static int test_git_input_mouse_double_click_checks_out_branch(void) {
 const struct editorTestCase g_git_input_tests[] = {
         {"git_input_stage_toggle_vim", test_git_input_stage_toggle_vim},
         {"git_input_stage_toggle_cua", test_git_input_stage_toggle_cua},
-        {"git_input_unstage_and_stage_all_keys", test_git_input_unstage_and_stage_all_keys},
+        {"git_input_group_header_stage_and_unstage", test_git_input_group_header_stage_and_unstage},
+        {"git_input_group_header_menu_stages_group", test_git_input_group_header_menu_stages_group},
         {"git_input_discard_confirm_and_cancel", test_git_input_discard_confirm_and_cancel},
         {"git_input_keys_inert_in_tree_mode", test_git_input_keys_inert_in_tree_mode},
         {"git_input_push_key_runs_task_to_bare_remote",
@@ -816,6 +915,8 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_enter_on_file_row_opens_menu", test_git_input_enter_on_file_row_opens_menu},
         {"git_input_menu_stage_and_unstage", test_git_input_menu_stage_and_unstage},
         {"git_input_actions_row_opens_commit_tab", test_git_input_actions_row_opens_commit_tab},
+        {"git_input_status_bar_button_click_stages_file",
+         test_git_input_status_bar_button_click_stages_file},
         {"git_input_leader_and_ex_open_views", test_git_input_leader_and_ex_open_views},
         {"git_input_keymap_cua_accepts_git_names", test_git_input_keymap_cua_accepts_git_names},
         {"git_input_mouse_double_click_checks_out_branch",
