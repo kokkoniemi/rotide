@@ -9,13 +9,9 @@ make docs-media DOCS_MEDIA_FLAGS=--skip-lsp
 
 ## Features
 
-### Editor Source
+### Editor Source (CUA input)
 
-![Editor source](editor-source.png)
-
-### Editor Source (no Nerd Font)
-
-![Editor source without Nerd Font icons](editor-source-plain.png)
+![Editor source with the CUA input system](editor-source-cua.png)
 
 ### Editor Source (drawer hidden)
 
@@ -48,6 +44,18 @@ make docs-media DOCS_MEDIA_FLAGS=--skip-lsp
 ### Git Changes
 
 ![Git changes](git-changes.png)
+
+### Git History
+
+![Git history](git-history.png)
+
+### Split Panes and Terminal
+
+![Split panes with a terminal](split-panes-terminal.png)
+
+### Paused Debug Session
+
+![Paused DAP debug session](dap-paused-session.png)
 
 ## Themes
 
