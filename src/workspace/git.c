@@ -278,7 +278,7 @@ static char *gitRefreshReadStatus(FILE *fp, size_t *buf_len_out) {
 
 /* Advances past `count` space-separated fields; returns the next field or
  * NULL when the record is shorter than expected. */
-static const char *gitStatusV2SkipFields(const char *cursor, int count) {
+static const char *gitStatusSkipFields(const char *cursor, int count) {
 	for (int i = 0; i < count; i++) {
 		cursor = strchr(cursor, ' ');
 		if (cursor == NULL) {
@@ -290,11 +290,11 @@ static const char *gitStatusV2SkipFields(const char *cursor, int count) {
 }
 
 /* Porcelain v2 uses '.' for "unchanged"; v1 (and the drawer logic) use ' '. */
-static char gitStatusV2Char(char c) {
+static char gitStatusChar(char c) {
 	return c == '.' ? ' ' : c;
 }
 
-static void gitStatusV2ParseAheadBehind(const char *header, int *ahead_out, int *behind_out) {
+static void gitStatusParseAheadBehind(const char *header, int *ahead_out, int *behind_out) {
 	const char *plus = strchr(header, '+');
 	const char *minus = strchr(header, '-');
 	if (ahead_out != NULL && plus != NULL) {
@@ -308,8 +308,8 @@ static void gitStatusV2ParseAheadBehind(const char *header, int *ahead_out, int 
 /* Parses `git status --porcelain=v2 --branch -z` output: NUL-terminated
  * records; `# branch.ab +A -B` carries ahead/behind; `2` (rename) records are
  * followed by one extra NUL-terminated original-path field. */
-static void gitRefreshParseStatusV2(char *buf, size_t buf_len, struct gitEntryCache *cache,
-                                    int *ahead_out, int *behind_out) {
+static void gitRefreshParseStatus(char *buf, size_t buf_len, struct gitEntryCache *cache,
+                                  int *ahead_out, int *behind_out) {
 	size_t p = 0;
 	while (p < buf_len) {
 		char *rec = buf + p;
@@ -329,8 +329,7 @@ static void gitRefreshParseStatusV2(char *buf, size_t buf_len, struct gitEntryCa
 		switch (rec[0]) {
 			case '#':
 				if (strncmp(rec, "# branch.ab ", 12) == 0) {
-					gitStatusV2ParseAheadBehind(rec + 12, ahead_out,
-					                            behind_out);
+					gitStatusParseAheadBehind(rec + 12, ahead_out, behind_out);
 				}
 				continue;
 			case '1':
@@ -339,10 +338,10 @@ static void gitRefreshParseStatusV2(char *buf, size_t buf_len, struct gitEntryCa
 				if (rec_len < 4) {
 					continue;
 				}
-				x = gitStatusV2Char(rec[2]);
-				y = gitStatusV2Char(rec[3]);
+				x = gitStatusChar(rec[2]);
+				y = gitStatusChar(rec[3]);
 				int skip = rec[0] == '1' ? 7 : (rec[0] == '2' ? 8 : 9);
-				rel_path = gitStatusV2SkipFields(rec + 2, skip);
+				rel_path = gitStatusSkipFields(rec + 2, skip);
 				if (rec[0] == '2') {
 					/* Consume the original-path record. */
 					while (p < buf_len && buf[p] != '\0') {
@@ -415,7 +414,7 @@ void editorGitRefresh(void) {
 	}
 
 	struct gitEntryCache cache = {0};
-	gitRefreshParseStatusV2(buf, buf_len, &cache, &E.git_ahead, &E.git_behind);
+	gitRefreshParseStatus(buf, buf_len, &cache, &E.git_ahead, &E.git_behind);
 	free(buf);
 	gitRefreshSortCache(&cache);
 	gitRefreshSwapCache(&cache);
@@ -424,7 +423,7 @@ void editorGitRefresh(void) {
 
 /* Test hook: runs the porcelain-v2 parser on a fixture buffer and swaps the
  * result into E.git_entries / E.git_ahead / E.git_behind. */
-int editorGitTestParseStatusV2(const char *data, size_t len, int *ahead_out, int *behind_out) {
+int editorGitTestParseStatus(const char *data, size_t len, int *ahead_out, int *behind_out) {
 	char *buf = editorMalloc(len + 1);
 	if (buf == NULL) {
 		return 0;
@@ -435,7 +434,7 @@ int editorGitTestParseStatusV2(const char *data, size_t len, int *ahead_out, int
 	E.git_ahead = 0;
 	E.git_behind = 0;
 	struct gitEntryCache cache = {0};
-	gitRefreshParseStatusV2(buf, len, &cache, &E.git_ahead, &E.git_behind);
+	gitRefreshParseStatus(buf, len, &cache, &E.git_ahead, &E.git_behind);
 	free(buf);
 	gitRefreshSortCache(&cache);
 	gitRefreshSwapCache(&cache);

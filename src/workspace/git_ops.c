@@ -224,6 +224,10 @@ static char *gitOpsRunQueryDup(char *const tail[], size_t *len_out) {
 	return gitOpsRunQueryMaxExitDup(tail, len_out, 0);
 }
 
+static int gitOpsRefNameOk(const char *name) {
+	return name != NULL && name[0] != '\0' && name[0] != '-';
+}
+
 int editorGitOpsStageFile(const char *rel_path) {
 	if (rel_path == NULL) {
 		return 0;
@@ -302,7 +306,7 @@ char *editorGitOpsBranchListRawDup(size_t *len_out) {
 }
 
 int editorGitOpsBranchCreate(const char *name) {
-	if (name == NULL || name[0] == '\0') {
+	if (!gitOpsRefNameOk(name)) {
 		return 0;
 	}
 	char *tail[] = {"checkout", "-b", (char *)name, NULL};
@@ -310,7 +314,7 @@ int editorGitOpsBranchCreate(const char *name) {
 }
 
 int editorGitOpsCheckout(const char *name) {
-	if (name == NULL || name[0] == '\0') {
+	if (!gitOpsRefNameOk(name)) {
 		return 0;
 	}
 	char *tail[] = {"checkout", (char *)name, NULL};
@@ -318,10 +322,10 @@ int editorGitOpsCheckout(const char *name) {
 }
 
 int editorGitOpsBranchDelete(const char *name) {
-	if (name == NULL || name[0] == '\0') {
+	if (!gitOpsRefNameOk(name)) {
 		return 0;
 	}
-	char *tail[] = {"branch", "-d", (char *)name, NULL};
+	char *tail[] = {"branch", "-d", "--", (char *)name, NULL};
 	return gitOpsRunMutation(tail, "branch delete failed");
 }
 
@@ -381,7 +385,7 @@ int editorGitOpsRevert(const char *sha) {
 }
 
 int editorGitOpsTag(const char *name, const char *sha) {
-	if (name == NULL || name[0] == '\0' || sha == NULL || sha[0] == '\0') {
+	if (!gitOpsRefNameOk(name) || sha == NULL || sha[0] == '\0') {
 		return 0;
 	}
 	char *tail[] = {"tag", (char *)name, (char *)sha, NULL};

@@ -345,7 +345,7 @@ static int test_git_view_status_bar_git_drawer_buttons(void) {
 	/* One staged and one unstaged entry (porcelain v2 fixture). */
 	static const char status[] = "1 M. N... 100644 100644 100644 aaa bbb staged.c\0"
 	                             "1 .M N... 100644 100644 100644 aaa bbb dirty.c\0";
-	ASSERT_TRUE(editorGitTestParseStatusV2(status, sizeof(status) - 1, NULL, NULL));
+	ASSERT_TRUE(editorGitTestParseStatus(status, sizeof(status) - 1, NULL, NULL));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
 	size_t out_len = 0;

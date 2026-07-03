@@ -242,6 +242,33 @@ static int test_git_ops_branch_round_trip(void) {
 	return 0;
 }
 
+/* Ref/tag names git would parse as options must be refused before reaching argv
+ * (these subcommands take the name positionally, so "--" cannot shield it). A
+ * regression would let e.g. checkout "-f" through and mutate the working tree. */
+static int test_git_ops_rejects_option_like_names(void) {
+	SKIP_WITHOUT_GIT();
+	reset_editor_state();
+	char *repo = git_ops_test_repo_create();
+	ASSERT_TRUE(repo != NULL);
+
+	ASSERT_TRUE(!editorGitOpsBranchCreate("-b"));
+	ASSERT_TRUE(!editorGitOpsCheckout("-f"));
+	ASSERT_TRUE(!editorGitOpsBranchDelete("-D"));
+	ASSERT_TRUE(!editorGitOpsTag("-d", "HEAD"));
+
+	/* Nothing ran: still exactly branch main, HEAD unmoved. */
+	editorGitRefresh();
+	ASSERT_EQ_STR("main", editorGitBranch());
+	size_t raw_len = 0;
+	char *raw = editorGitOpsBranchListRawDup(&raw_len);
+	ASSERT_TRUE(raw != NULL);
+	ASSERT_TRUE(strstr(raw, "main") != NULL);
+	free(raw);
+
+	git_ops_test_repo_destroy(repo);
+	return 0;
+}
+
 static int test_git_ops_branch_delete_unmerged_fails(void) {
 	SKIP_WITHOUT_GIT();
 	reset_editor_state();
@@ -401,7 +428,7 @@ static int test_git_ops_parse_status_v2_fixture(void) {
 	                           "! ignored.txt\0";
 	int ahead = 0;
 	int behind = 0;
-	ASSERT_TRUE(editorGitTestParseStatusV2(data, sizeof(data) - 1, &ahead, &behind));
+	ASSERT_TRUE(editorGitTestParseStatus(data, sizeof(data) - 1, &ahead, &behind));
 	ASSERT_EQ_INT(3, ahead);
 	ASSERT_EQ_INT(1, behind);
 	ASSERT_EQ_INT(5, E.git_entry_count);
@@ -442,7 +469,7 @@ static int test_git_ops_parse_status_v2_no_upstream(void) {
 	                           "? untracked.txt\0";
 	int ahead = -1;
 	int behind = -1;
-	ASSERT_TRUE(editorGitTestParseStatusV2(data, sizeof(data) - 1, &ahead, &behind));
+	ASSERT_TRUE(editorGitTestParseStatus(data, sizeof(data) - 1, &ahead, &behind));
 	ASSERT_EQ_INT(0, ahead);
 	ASSERT_EQ_INT(0, behind);
 	ASSERT_EQ_INT(1, E.git_entry_count);
@@ -473,6 +500,7 @@ const struct editorTestCase g_git_ops_tests[] = {
         {"git_ops_commit_and_amend", test_git_ops_commit_and_amend},
         {"git_ops_commit_nothing_staged_fails", test_git_ops_commit_nothing_staged_fails},
         {"git_ops_branch_round_trip", test_git_ops_branch_round_trip},
+        {"git_ops_rejects_option_like_names", test_git_ops_rejects_option_like_names},
         {"git_ops_branch_delete_unmerged_fails", test_git_ops_branch_delete_unmerged_fails},
         {"git_ops_stash_round_trip", test_git_ops_stash_round_trip},
         {"git_ops_discard_tracked_and_untracked", test_git_ops_discard_tracked_and_untracked},

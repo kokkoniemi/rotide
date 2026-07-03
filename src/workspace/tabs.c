@@ -131,6 +131,7 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	buffer->git_view_regen_arg = NULL;
 	buffer->git_view_regen_kind = 0;
 	buffer->git_view_whole_file = 0;
+	buffer->git_view_commit_amend = 0;
 	editorSyntaxStateDestroy(buffer->syntax_state);
 	buffer->syntax_state = NULL;
 	buffer->syntax_language = EDITOR_SYNTAX_NONE;
@@ -1629,10 +1630,11 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 		return 0;
 	}
 
-	/* Git diff tabs coexist per title; the other generated kinds are
-	 * singletons. Content regenerates on reopen except for the commit tab,
-	 * which must never clobber a typed message. */
-	int dedupe_by_title = kind == EDITOR_TAB_GIT_DIFF;
+	/* Diff and commit tabs are keyed by title (per-file diffs coexist; a
+	 * commit and its amend variant are distinct surfaces); the list views are
+	 * singletons whose content regenerates on reopen. A matched commit tab is
+	 * reused as-is so a typed message is never clobbered. */
+	int dedupe_by_title = kind == EDITOR_TAB_GIT_DIFF || kind == EDITOR_TAB_GIT_COMMIT;
 	for (int idx = 0; idx < E.tab_count; idx++) {
 		const char *existing_title =
 		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
@@ -1670,10 +1672,6 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 		return 0;
 	}
 	return tabsLoadGeneratedIntoActive(kind, title, text);
-}
-
-int editorTabOpenGitDiff(const char *title, const char *diff_text) {
-	return editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, title, diff_text);
 }
 
 int editorTaskPoll(void) {

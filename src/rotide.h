@@ -488,6 +488,7 @@ struct editorHistory {
 	X(char *, git_view_regen_arg)                                                              \
 	X(int, git_view_regen_kind)                                                                \
 	X(int, git_view_whole_file)                                                                \
+	X(int, git_view_commit_amend)                                                              \
 	X(char *, git_blame_filename)                                                              \
 	X(char *, git_blame_repo_root)                                                             \
 	X(char *, git_blame_branch)                                                                \

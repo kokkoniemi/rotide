@@ -74,7 +74,6 @@ int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *targ
 int editorTabOpenFileAsNew(const char *filename);
 int editorTabOpenOrSwitchToFile(const char *filename);
 int editorTabOpenOrSwitchToPreviewFile(const char *filename);
-int editorTabOpenGitDiff(const char *title, const char *diff_text);
 int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text);
 int editorTabSwitchToIndex(int idx);
 int editorTabSwitchByDelta(int delta);

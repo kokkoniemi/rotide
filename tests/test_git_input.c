@@ -351,7 +351,11 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	}
 	ASSERT_TRUE(!editorTaskIsRunning());
 	ASSERT_EQ_STR("Push finished", E.statusmsg);
-	ASSERT_TRUE(git_input_run_cmd("git -C '%s' rev-parse -q --verify main >/dev/null", bare));
+	/* -c safe.bareRepository=all so the check works even where the host git
+	 * config refuses direct operations on a bare repo. */
+	ASSERT_TRUE(git_input_run_cmd(
+	        "git -c safe.bareRepository=all -C '%s' rev-parse -q --verify main >/dev/null",
+	        bare));
 
 	ASSERT_TRUE(git_input_run_cmd("rm -rf '%s'", bare));
 	git_input_repo_destroy(repo);
@@ -767,6 +771,43 @@ static int test_git_input_commit_amend_prefills_last_message(void) {
 	return 0;
 }
 
+/* Regression: invoking a normal commit while an amend commit tab is already
+ * open must produce a normal-mode commit tab, not silently reuse the amend tab.
+ * Otherwise the save path would amend when the user asked for a new commit. */
+static int test_git_input_commit_mode_tracks_last_invocation(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	/* Amend: prefilled with the last message; amend flag set. */
+	ASSERT_TRUE(editor_process_keypress_with_input("A", 1) == 0);
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_COMMIT, E.tab_kind);
+	ASSERT_EQ_INT(1, E.git_view_commit_amend);
+	size_t amend_len = 0;
+	char *amend_text = editorDupActiveTextSource(&amend_len);
+	ASSERT_TRUE(amend_text != NULL);
+	ASSERT_TRUE(strstr(amend_text, "initial") != NULL);
+	free(amend_text);
+
+	/* Normal commit while the amend tab is open: a distinct normal-mode tab
+	 * whose message body is empty (no amend prefill). */
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	ASSERT_TRUE(editor_process_keypress_with_input("c", 1) == 0);
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_COMMIT, E.tab_kind);
+	ASSERT_EQ_INT(0, E.git_view_commit_amend);
+	size_t normal_len = 0;
+	char *normal_text = editorDupActiveTextSource(&normal_len);
+	ASSERT_TRUE(normal_text != NULL);
+	ASSERT_TRUE(strstr(normal_text, "initial") == NULL);
+	free(normal_text);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
 static int test_git_input_commit_empty_message_keeps_tab(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
@@ -952,6 +993,8 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_commit_via_cua_ctrl_s", test_git_input_commit_via_cua_ctrl_s},
         {"git_input_commit_amend_prefills_last_message",
          test_git_input_commit_amend_prefills_last_message},
+        {"git_input_commit_mode_tracks_last_invocation",
+         test_git_input_commit_mode_tracks_last_invocation},
         {"git_input_commit_empty_message_keeps_tab", test_git_input_commit_empty_message_keeps_tab},
         {"git_input_commit_close_without_save_aborts",
          test_git_input_commit_close_without_save_aborts},

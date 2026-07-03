@@ -1152,6 +1152,7 @@ void editorGitViewOpenCommit(int amend) {
 	}
 	const char *title = amend ? "git commit --amend" : "git commit";
 	if (editorTabOpenGenerated(EDITOR_TAB_GIT_COMMIT, title, text)) {
+		E.git_view_commit_amend = amend;
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		editorSetStatusMsg("Type the commit message; save to commit, close tab to abort");
 	}
@@ -1162,7 +1163,7 @@ void editorGitViewCommitFromActiveTab(void) {
 	if (E.tab_kind != EDITOR_TAB_GIT_COMMIT) {
 		return;
 	}
-	int amend = E.tab_title != NULL && strstr(E.tab_title, "--amend") != NULL;
+	int amend = E.git_view_commit_amend;
 	size_t text_len = 0;
 	char *text = editorDupActiveTextSource(&text_len);
 	char *message = editorGitViewCleanCommitMessageDup(text);
