@@ -1,3 +1,4 @@
+#include "editing/edit.h"
 #include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
@@ -237,6 +238,8 @@ int editorDrawerGitToggle(void) {
 	E.drawer_resize_active = 0;
 	(void)editorDrawerSetCollapsed(0);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	editorSetStatusMsg("s stage  a all  d discard  c commit  A amend  "
+	                   "B branches  L log  S stash  P push  p pull  f fetch");
 	return 1;
 }
 
@@ -372,5 +375,23 @@ int editorDrawerSelectedGitEntry(int *entry_idx_out) {
 		return 0;
 	}
 	*entry_idx_out = lookup.entry_idx;
+	return 1;
+}
+
+/* A partially staged file appears under both Staged and Changes; the selected
+ * row's group decides whether a stage toggle stages or unstages. */
+int editorDrawerGitSelectedFile(int *entry_idx_out, int *staged_group_out) {
+	if (entry_idx_out == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_GIT) {
+		return 0;
+	}
+	struct drawerModeGitLookup lookup;
+	if (!drawerModeGitLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	    lookup.kind != EDITOR_DRAWER_GIT_ENTRY_FILE) {
+		return 0;
+	}
+	*entry_idx_out = lookup.entry_idx;
+	if (staged_group_out != NULL) {
+		*staged_group_out = lookup.group_idx == EDITOR_DRAWER_GIT_GROUP_STAGED;
+	}
 	return 1;
 }

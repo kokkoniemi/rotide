@@ -43,6 +43,10 @@ by one key:
 - `<leader>f`: search text across the project
 - `<leader>e`: toggle the drawer (explorer)
 - `<leader>m`: open the main menu
+- `<leader>g`: open the Git drawer
+- `<leader>b`: open the Git branches view
+- `<leader>c`: open the Git commits (log) view
+- `<leader>s`: open the Git stash view
 - `leader.git_blame_details`: configurable Git blame details action; unbound by
   default because Normal mode already uses `gb`
 
@@ -78,6 +82,8 @@ The `:` prompt accepts these Vim-style aliases:
 - `:tabnew`: create an empty tab
 - `:term` / `:terminal`: open a terminal in a horizontal split
 - `:vterm`: open a terminal in a vertical split
+- `:git`: open the Git drawer; `:git branches` / `log` / `stash` / `commit` /
+  `amend` / `push` / `pull` / `fetch` run the matching Git view or action
 
 Press Tab in the `:` prompt to complete and cycle command names. File-path
 arguments are not completed yet. `:q` keeps RotIDE's quit-app behavior.
@@ -149,3 +155,39 @@ configurable actions without default bindings in the built-in CUA keymap.
 ## Vim Git
 
 - `gb`: show Git blame details for the current line
+
+## Git drawer and views
+
+The Git drawer (`Ctrl-Alt-G`, `<leader>g`, or `:git`) lists Staged / Changes /
+Untracked / Conflicts. While it has focus, single-letter keys work the same in
+Vim and CUA (navigation stays on arrows / `j`/`k`, Enter opens the file's diff):
+
+- `s`: stage the selected file (unstages it when selected under Staged)
+- `u`: unstage the selected file
+- `a`: stage all changes
+- `d`: discard the selected file's changes (asks for confirmation)
+- `c` / `A`: open the commit / amend message tab
+- `R`: refresh the Git status
+- `P` / `p` / `f`: push / pull / fetch (runs as a task; output in a task tab)
+- `B` / `L` / `S`: open the branches / commits / stash view
+
+Committing opens an editable `git commit` message tab: type the message and
+save (`Ctrl-S` / `:w`) to commit; lines starting with `#` are ignored; closing
+the tab without saving aborts the commit.
+
+The branches, commits, and stash views are read-only tabs; move with the usual
+navigation keys (search works too), then:
+
+- Branches: Enter or double-click checks out the selected branch; `n` creates a
+  branch (prompt); `d` deletes it (confirm); `R` refreshes; `P`/`p`/`f`
+  push/pull/fetch
+- Commits: Enter or double-click shows the commit as a diff tab; `c`
+  cherry-picks; `r` reverts; `t` tags (prompt); `R` refreshes
+- Stash: Enter or double-click shows the stash as a diff tab; `a` applies; `p`
+  pops; `d` drops (confirm); `R` refreshes
+
+The status bar shows the current branch, a `+` when the tree is dirty, and
+`↑N↓M` ahead/behind counts when the branch has an upstream. If a cherry-pick or
+revert hits conflicts, the conflicted files appear in the Git drawer's
+Conflicts group; resolve them in the editor and use a terminal pane for
+`git cherry-pick --continue` / `--abort`.

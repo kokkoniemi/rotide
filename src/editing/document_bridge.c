@@ -13,7 +13,9 @@ static int g_document_bridge_text_tree_incremental_update_count = 0;
 
 int editorTabKindSupportsDocument(enum editorTabKind tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_TASK_LOG ||
-	       tab_kind == EDITOR_TAB_UNSUPPORTED_FILE || tab_kind == EDITOR_TAB_GIT_DIFF;
+	       tab_kind == EDITOR_TAB_UNSUPPORTED_FILE || tab_kind == EDITOR_TAB_GIT_DIFF ||
+	       tab_kind == EDITOR_TAB_GIT_COMMIT || tab_kind == EDITOR_TAB_GIT_BRANCHES ||
+	       tab_kind == EDITOR_TAB_GIT_LOG || tab_kind == EDITOR_TAB_GIT_STASH;
 }
 
 void editorDocumentFreePtr(struct editorDocument **document_in_out) {

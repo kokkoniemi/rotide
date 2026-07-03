@@ -101,6 +101,8 @@ src/workspace/drawer_modes.c	drawerModes
 src/workspace/drawer_tree.c	drawerTree
 src/workspace/file_search.c	fileSearch
 src/workspace/git.c	git
+src/workspace/git_ops.c	gitOps
+src/workspace/git_view.c	gitView
 src/workspace/layout.c	layout
 src/workspace/project_search.c	projectSearch
 src/workspace/recovery.c	recovery

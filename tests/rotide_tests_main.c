@@ -36,6 +36,9 @@ SUITE_EXTERN(workspace_io);
 SUITE_EXTERN(dap);
 SUITE_EXTERN(dap_framing);
 SUITE_EXTERN(file_watch);
+SUITE_EXTERN(git_ops);
+SUITE_EXTERN(git_input);
+SUITE_EXTERN(git_view);
 SUITE_EXTERN(lsp_framing);
 SUITE_EXTERN(lsp_protocol);
 SUITE_EXTERN(lsp_lifecycle);
@@ -89,6 +92,9 @@ static const struct editorTestSuite k_suites[] = {
         SUITE("dap", "dap slow", dap),
         SUITE("dap_framing", "dap", dap_framing),
         SUITE("file_watch", "file_watch slow", file_watch),
+        SUITE("git_ops", "git slow", git_ops),
+        SUITE("git_input", "git input slow", git_input),
+        SUITE("git_view", "git", git_view),
         SUITE("lsp_framing", "lsp", lsp_framing),
         SUITE("lsp_protocol", "lsp", lsp_protocol),
         SUITE("lsp_lifecycle", "lsp", lsp_lifecycle),

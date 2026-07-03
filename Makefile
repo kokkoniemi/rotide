@@ -97,7 +97,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 		tabs.c drawer.c drawer_modes.c drawer_mode_menu.c \
 		drawer_mode_git.c drawer_mode_lsp.c drawer_mode_dap.c \
 		drawer_tree.c drawer_file_ops.c drawer_layout.c \
-		file_search.c git.c watch.c project_search.c \
+		file_search.c git.c git_ops.c git_view.c watch.c project_search.c \
 		recovery.c workspace_state.c layout.c) \
 	$(addprefix $(SRC_DIR)/input/, \
 		actions_edit.c actions_file_tab.c actions_language.c \
@@ -132,6 +132,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_workspace_theme_config.c test_workspace_keymap_view.c \
 	test_config_scan.c \
 	test_workspace_io.c test_dap.c test_dap_framing.c test_file_watch.c \
+	test_git_ops.c test_git_input.c test_git_view.c \
 	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
 	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \
 	test_input_system.c test_input_vim.c test_input_actions.c test_input_selection.c test_input_mouse.c \

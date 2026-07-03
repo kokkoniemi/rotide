@@ -1155,6 +1155,12 @@ const char *editorTabFilenameAt(int idx) {
 	return E.tabs[idx].filename;
 }
 
+static int tabsKindUsesTitle(enum editorTabKind kind) {
+	return kind == EDITOR_TAB_TASK_LOG || kind == EDITOR_TAB_GIT_DIFF ||
+	       kind == EDITOR_TAB_GIT_COMMIT || kind == EDITOR_TAB_GIT_BRANCHES ||
+	       kind == EDITOR_TAB_GIT_LOG || kind == EDITOR_TAB_GIT_STASH;
+}
+
 const char *editorTabDisplayNameAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return "[No Name]";
@@ -1166,23 +1172,21 @@ const char *editorTabDisplayNameAt(int idx) {
 		return "Debug Console";
 	}
 	if (idx == E.active_tab) {
-		if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
-		    E.tab_title != NULL && E.tab_title[0] != '\0') {
+		if (tabsKindUsesTitle(E.tab_kind) && E.tab_title != NULL &&
+		    E.tab_title[0] != '\0') {
 			return E.tab_title;
 		}
 		return E.filename != NULL ? E.filename : "[No Name]";
 	}
-	if ((E.tabs[idx].tab_kind == EDITOR_TAB_TASK_LOG ||
-	     E.tabs[idx].tab_kind == EDITOR_TAB_GIT_DIFF) &&
-	    E.tabs[idx].tab_title != NULL && E.tabs[idx].tab_title[0] != '\0') {
+	if (tabsKindUsesTitle(E.tabs[idx].tab_kind) && E.tabs[idx].tab_title != NULL &&
+	    E.tabs[idx].tab_title[0] != '\0') {
 		return E.tabs[idx].tab_title;
 	}
 	return E.tabs[idx].filename != NULL ? E.tabs[idx].filename : "[No Name]";
 }
 
 const char *editorActiveBufferDisplayName(void) {
-	if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
-	    E.tab_title != NULL && E.tab_title[0] != '\0') {
+	if (tabsKindUsesTitle(E.tab_kind) && E.tab_title != NULL && E.tab_title[0] != '\0') {
 		return E.tab_title;
 	}
 	return E.filename != NULL ? E.filename : "[No Name]";
@@ -1208,7 +1212,8 @@ int editorActiveTabIsUnsupportedFile(void) {
 
 int editorActiveTabIsReadOnly(void) {
 	return E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
-	       E.tab_kind == EDITOR_TAB_GIT_DIFF;
+	       E.tab_kind == EDITOR_TAB_GIT_DIFF || E.tab_kind == EDITOR_TAB_GIT_BRANCHES ||
+	       E.tab_kind == EDITOR_TAB_GIT_LOG || E.tab_kind == EDITOR_TAB_GIT_STASH;
 }
 
 int editorActiveTaskTabIsRunning(void) {
@@ -1542,27 +1547,63 @@ static int tabsTaskPrepareLogTab(const char *title, const char *text) {
 	return 1;
 }
 
-int editorTabOpenGitDiff(const char *title, const char *diff_text) {
-	if (title == NULL || title[0] == '\0' || diff_text == NULL) {
+/* Replaces the active buffer's document with `text` (generated-tab reload). */
+static int tabsResetActiveDocumentText(const char *text) {
+	if (!editorDocumentResetActiveFromText(text, strlen(text))) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorRestoreActiveFromDocument(E.document, 0, 0, 0, 0)) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.dirty = 0;
+	if (E.cy >= E.numrows) {
+		E.cy = E.numrows > 0 ? E.numrows - 1 : 0;
+	}
+	E.cx = 0;
+	(void)editorSyntaxParseFullActive();
+	editorViewportEnsureCursorVisible();
+	tabsStoreActiveTab();
+	tabsLoadActiveTab(E.active_tab);
+	return 1;
+}
+
+int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text) {
+	if (title == NULL || title[0] == '\0' || text == NULL) {
 		return 0;
 	}
 
+	/* Git diff tabs coexist per title; the other generated kinds are
+	 * singletons whose content is regenerated on reopen (except the commit
+	 * tab, which must never clobber a typed message). */
+	int dedupe_by_title = kind == EDITOR_TAB_GIT_DIFF;
 	for (int idx = 0; idx < E.tab_count; idx++) {
 		const char *existing_title =
 		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
 		enum editorTabKind existing_kind =
 		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
-		if (existing_kind == EDITOR_TAB_GIT_DIFF && existing_title != NULL &&
-		    strcmp(existing_title, title) == 0) {
-			return editorTabSwitchToIndex(idx);
+		if (existing_kind != kind) {
+			continue;
 		}
+		if (dedupe_by_title &&
+		    (existing_title == NULL || strcmp(existing_title, title) != 0)) {
+			continue;
+		}
+		if (!editorTabSwitchToIndex(idx)) {
+			return 0;
+		}
+		if (kind == EDITOR_TAB_GIT_DIFF || kind == EDITOR_TAB_GIT_COMMIT) {
+			return 1;
+		}
+		return tabsResetActiveDocumentText(text);
 	}
 
 	if (!editorTabNewEmpty()) {
 		return 0;
 	}
 
-	E.tab_kind = EDITOR_TAB_GIT_DIFF;
+	E.tab_kind = kind;
 	E.tab_title = strdup(title);
 	if (E.tab_title == NULL) {
 		editorSetAllocFailureStatus();
@@ -1580,21 +1621,13 @@ int editorTabOpenGitDiff(const char *title, const char *diff_text) {
 	E.lsp_eslint_doc_version = 0;
 	memset(&E.disk_state, 0, sizeof(E.disk_state));
 	E.disk_conflict = 0;
-	if (!editorDocumentResetActiveFromText(diff_text, strlen(diff_text))) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-	if (!editorRestoreActiveFromDocument(E.document, 0, 0, 0, 0)) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
 	E.cy = 0;
 	E.cx = 0;
-	(void)editorSyntaxParseFullActive();
-	editorViewportEnsureCursorVisible();
-	tabsStoreActiveTab();
-	tabsLoadActiveTab(E.active_tab);
-	return 1;
+	return tabsResetActiveDocumentText(text);
+}
+
+int editorTabOpenGitDiff(const char *title, const char *diff_text) {
+	return editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, title, diff_text);
 }
 
 int editorTaskPoll(void) {

@@ -35,5 +35,6 @@ int editorGitLoadBlameLine(const char *abs_path, int one_based_line,
 const struct editorGitBlameLine *editorGitBlameActiveLine(int one_based_line);
 int editorGitBlameActiveInlineLabel(int one_based_line, time_t now, char *buf, size_t buf_size);
 int editorGitFormatRelativeTime(time_t then, time_t now, char *buf, size_t buf_size);
+int editorGitBuildRepoCommand(char *cmd, size_t cmd_size, const char *args_literal);
 
 #endif

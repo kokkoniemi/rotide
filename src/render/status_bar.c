@@ -275,8 +275,17 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		char branch_trunc[25];
 		(void)snprintf(branch_trunc, sizeof(branch_trunc), "%s", git_branch);
 		const char *dirty_marker = E.git_entry_count > 0 ? "+" : "";
-		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s  %d,%d    %d%%", branch_trunc,
-		                dirty_marker, E.cy + 1, cursor_col, progress);
+		char ahead_behind[24] = "";
+		if (E.git_ahead > 0 && E.git_behind > 0) {
+			(void)snprintf(ahead_behind, sizeof(ahead_behind), " ↑%d↓%d", E.git_ahead,
+			               E.git_behind);
+		} else if (E.git_ahead > 0) {
+			(void)snprintf(ahead_behind, sizeof(ahead_behind), " ↑%d", E.git_ahead);
+		} else if (E.git_behind > 0) {
+			(void)snprintf(ahead_behind, sizeof(ahead_behind), " ↓%d", E.git_behind);
+		}
+		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s%s  %d,%d    %d%%", branch_trunc,
+		                dirty_marker, ahead_behind, E.cy + 1, cursor_col, progress);
 	} else {
 		rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%", E.cy + 1, cursor_col,
 		                progress);

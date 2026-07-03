@@ -224,7 +224,8 @@ static int gitRefreshBuildStatusCommand(char *cmd, size_t cmd_size) {
 			cmd[pos++] = *p;
 		}
 	}
-	const char *suffix = "' status --porcelain=v1 -z --untracked-files=normal 2>/dev/null";
+	const char *suffix = "' status --porcelain=v2 --branch -z --untracked-files=normal"
+	                     " 2>/dev/null";
 	size_t suffix_len = strlen(suffix);
 	if (pos + suffix_len + 1 >= cmd_size) {
 		return 0;
@@ -275,38 +276,96 @@ static char *gitRefreshReadStatus(FILE *fp, size_t *buf_len_out) {
 	return buf;
 }
 
-static void gitRefreshParseStatus(char *buf, size_t buf_len, struct gitEntryCache *cache) {
+/* Advances past `count` space-separated fields; returns the next field or
+ * NULL when the record is shorter than expected. */
+static const char *gitStatusV2SkipFields(const char *cursor, int count) {
+	for (int i = 0; i < count; i++) {
+		cursor = strchr(cursor, ' ');
+		if (cursor == NULL) {
+			return NULL;
+		}
+		cursor++;
+	}
+	return cursor;
+}
+
+/* Porcelain v2 uses '.' for "unchanged"; v1 (and the drawer logic) use ' '. */
+static char gitStatusV2Char(char c) {
+	return c == '.' ? ' ' : c;
+}
+
+static void gitStatusV2ParseAheadBehind(const char *header, int *ahead_out, int *behind_out) {
+	const char *plus = strchr(header, '+');
+	const char *minus = strchr(header, '-');
+	if (ahead_out != NULL && plus != NULL) {
+		*ahead_out = (int)strtol(plus + 1, NULL, 10);
+	}
+	if (behind_out != NULL && minus != NULL) {
+		*behind_out = (int)strtol(minus + 1, NULL, 10);
+	}
+}
+
+/* Parses `git status --porcelain=v2 --branch -z` output: NUL-terminated
+ * records; `# branch.ab +A -B` carries ahead/behind; `2` (rename) records are
+ * followed by one extra NUL-terminated original-path field. */
+static void gitRefreshParseStatusV2(char *buf, size_t buf_len, struct gitEntryCache *cache,
+                                    int *ahead_out, int *behind_out) {
 	size_t p = 0;
 	while (p < buf_len) {
-		if (p + 3 > buf_len) {
-			break;
+		char *rec = buf + p;
+		size_t rec_len = 0;
+		while (p + rec_len < buf_len && rec[rec_len] != '\0') {
+			rec_len++;
 		}
-		char x = buf[p];
-		char y = buf[p + 1];
-		if (buf[p + 2] != ' ') {
-			break;
+		rec[rec_len] = '\0';
+		p += rec_len + 1;
+		if (rec_len == 0) {
+			continue;
 		}
-		p += 3;
 
-		size_t path_start = p;
-		while (p < buf_len && buf[p] != '\0') {
-			p++;
-		}
-		if (p >= buf_len) {
-			break;
-		}
-		buf[p] = '\0';
-		const char *rel_path = buf + path_start;
-		p++;
-
-		// Renames/copies have an extra NUL-terminated original path
-		if (x == 'R' || x == 'C' || y == 'R' || y == 'C') {
-			while (p < buf_len && buf[p] != '\0') {
-				p++;
+		char x = ' ';
+		char y = ' ';
+		const char *rel_path = NULL;
+		switch (rec[0]) {
+			case '#':
+				if (strncmp(rec, "# branch.ab ", 12) == 0) {
+					gitStatusV2ParseAheadBehind(rec + 12, ahead_out,
+					                            behind_out);
+				}
+				continue;
+			case '1':
+			case '2':
+			case 'u': {
+				if (rec_len < 4) {
+					continue;
+				}
+				x = gitStatusV2Char(rec[2]);
+				y = gitStatusV2Char(rec[3]);
+				int skip = rec[0] == '1' ? 7 : (rec[0] == '2' ? 8 : 9);
+				rel_path = gitStatusV2SkipFields(rec + 2, skip);
+				if (rec[0] == '2') {
+					/* Consume the original-path record. */
+					while (p < buf_len && buf[p] != '\0') {
+						p++;
+					}
+					p++;
+				}
+				break;
 			}
-			p++;
+			case '?':
+				if (rec_len < 3) {
+					continue;
+				}
+				x = '?';
+				y = '?';
+				rel_path = rec + 2;
+				break;
+			default:
+				continue;
 		}
-
+		if (rel_path == NULL || rel_path[0] == '\0') {
+			continue;
+		}
 		enum editorGitStatus status = gitStatusFromXY(x, y);
 		if (status != EDITOR_GIT_STATUS_CLEAN) {
 			(void)gitEntryCacheAdd(cache, rel_path, status, x, y);
@@ -340,6 +399,8 @@ void editorGitRefresh(void) {
 	gitRefreshBranch();
 	gitRefreshHead();
 	gitFreeEntries();
+	E.git_ahead = 0;
+	E.git_behind = 0;
 
 	FILE *fp = gitRefreshSpawnStatus();
 	if (fp == NULL) {
@@ -354,11 +415,38 @@ void editorGitRefresh(void) {
 	}
 
 	struct gitEntryCache cache = {0};
-	gitRefreshParseStatus(buf, buf_len, &cache);
+	gitRefreshParseStatusV2(buf, buf_len, &cache, &E.git_ahead, &E.git_behind);
 	free(buf);
 	gitRefreshSortCache(&cache);
 	gitRefreshSwapCache(&cache);
 	gitEntryCacheFree(&cache);
+}
+
+/* Test hook: runs the porcelain-v2 parser on a fixture buffer and swaps the
+ * result into E.git_entries / E.git_ahead / E.git_behind. */
+int editorGitTestParseStatusV2(const char *data, size_t len, int *ahead_out, int *behind_out) {
+	char *buf = editorMalloc(len + 1);
+	if (buf == NULL) {
+		return 0;
+	}
+	memcpy(buf, data, len);
+	buf[len] = '\0';
+
+	E.git_ahead = 0;
+	E.git_behind = 0;
+	struct gitEntryCache cache = {0};
+	gitRefreshParseStatusV2(buf, len, &cache, &E.git_ahead, &E.git_behind);
+	free(buf);
+	gitRefreshSortCache(&cache);
+	gitRefreshSwapCache(&cache);
+	gitEntryCacheFree(&cache);
+	if (ahead_out != NULL) {
+		*ahead_out = E.git_ahead;
+	}
+	if (behind_out != NULL) {
+		*behind_out = E.git_behind;
+	}
+	return 1;
 }
 
 void editorGitFree(void) {
@@ -451,6 +539,17 @@ static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char 
 	*pos += literal_len;
 	cmd[*pos] = '\0';
 	return 1;
+}
+
+int editorGitBuildRepoCommand(char *cmd, size_t cmd_size, const char *args_literal) {
+	if (cmd == NULL || args_literal == NULL || E.git_repo_root == NULL) {
+		return 0;
+	}
+	size_t pos = 0;
+	return gitAppendLiteral(cmd, cmd_size, &pos, "git -C ") &&
+	       gitAppendShellQuotedArg(cmd, cmd_size, &pos, E.git_repo_root) &&
+	       gitAppendLiteral(cmd, cmd_size, &pos, " ") &&
+	       gitAppendLiteral(cmd, cmd_size, &pos, args_literal);
 }
 
 static void gitBlameLineClear(struct editorGitBlameLine *line) {

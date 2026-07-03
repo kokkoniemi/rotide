@@ -35,6 +35,7 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/git_view.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
@@ -2538,6 +2539,9 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	        .toggle_comment_lines = dispatchToggleCommentLines,
 	};
 
+	if (editorGitViewHandleMappedAction(action)) {
+		return 1;
+	}
 	if (editorHandleFileTabMappedAction(action)) {
 		return 1;
 	}
@@ -3211,6 +3215,146 @@ void editorDispatchHandleTextByte(int c, int *effects) {
 	dispatchInsertTextByte(c, effects);
 }
 
+/* Single-letter git shortcuts while the Git drawer is focused; runs before the
+ * input systems so the same keys work in vim and CUA. Navigation keys
+ * (j/k/h/l/arrows/Enter/Esc) are left to the existing drawer-focus paths. */
+static int dispatchTryGitDrawerKey(int c, int *effects) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER ||
+	    E.drawer_mode != EDITOR_DRAWER_MODE_GIT || editorDrawerIsCollapsed()) {
+		return 0;
+	}
+	enum editorAction action;
+	switch (c) {
+		case 's':
+			action = EDITOR_ACTION_GIT_STAGE;
+			break;
+		case 'u':
+			action = EDITOR_ACTION_GIT_UNSTAGE;
+			break;
+		case 'a':
+			action = EDITOR_ACTION_GIT_STAGE_ALL;
+			break;
+		case 'd':
+			action = EDITOR_ACTION_GIT_DISCARD;
+			break;
+		case 'c':
+			action = EDITOR_ACTION_GIT_COMMIT;
+			break;
+		case 'A':
+			action = EDITOR_ACTION_GIT_COMMIT_AMEND;
+			break;
+		case 'R':
+			action = EDITOR_ACTION_GIT_REFRESH;
+			break;
+		case 'P':
+			action = EDITOR_ACTION_GIT_PUSH;
+			break;
+		case 'p':
+			action = EDITOR_ACTION_GIT_PULL;
+			break;
+		case 'f':
+			action = EDITOR_ACTION_GIT_FETCH;
+			break;
+		case 'B':
+			action = EDITOR_ACTION_GIT_BRANCHES;
+			break;
+		case 'L':
+			action = EDITOR_ACTION_GIT_LOG;
+			break;
+		case 'S':
+			action = EDITOR_ACTION_GIT_STASHES;
+			break;
+		default:
+			return 0;
+	}
+	(void)editorDispatchProcessMappedAction(action, effects);
+	return 1;
+}
+
+/* Single-letter shortcuts inside the git view tabs (branches/log/stash);
+ * unclaimed keys fall through so navigation and search keep working. */
+static int dispatchTryGitViewKey(int c, int *effects) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+		return 0;
+	}
+	enum editorAction action;
+	switch (E.tab_kind) {
+		case EDITOR_TAB_GIT_BRANCHES:
+			switch (c) {
+				case '\r':
+					action = EDITOR_ACTION_GIT_VIEW_ACTIVATE;
+					break;
+				case 'n':
+					action = EDITOR_ACTION_GIT_BRANCH_NEW;
+					break;
+				case 'd':
+					action = EDITOR_ACTION_GIT_BRANCH_DELETE;
+					break;
+				case 'R':
+					action = EDITOR_ACTION_GIT_REFRESH;
+					break;
+				case 'P':
+					action = EDITOR_ACTION_GIT_PUSH;
+					break;
+				case 'p':
+					action = EDITOR_ACTION_GIT_PULL;
+					break;
+				case 'f':
+					action = EDITOR_ACTION_GIT_FETCH;
+					break;
+				default:
+					return 0;
+			}
+			break;
+		case EDITOR_TAB_GIT_LOG:
+			switch (c) {
+				case '\r':
+					action = EDITOR_ACTION_GIT_VIEW_ACTIVATE;
+					break;
+				case 'c':
+					action = EDITOR_ACTION_GIT_CHERRY_PICK;
+					break;
+				case 'r':
+					action = EDITOR_ACTION_GIT_REVERT;
+					break;
+				case 't':
+					action = EDITOR_ACTION_GIT_TAG;
+					break;
+				case 'R':
+					action = EDITOR_ACTION_GIT_REFRESH;
+					break;
+				default:
+					return 0;
+			}
+			break;
+		case EDITOR_TAB_GIT_STASH:
+			switch (c) {
+				case '\r':
+					action = EDITOR_ACTION_GIT_VIEW_ACTIVATE;
+					break;
+				case 'a':
+					action = EDITOR_ACTION_GIT_STASH_APPLY;
+					break;
+				case 'p':
+					action = EDITOR_ACTION_GIT_STASH_POP;
+					break;
+				case 'd':
+					action = EDITOR_ACTION_GIT_STASH_DROP;
+					break;
+				case 'R':
+					action = EDITOR_ACTION_GIT_REFRESH;
+					break;
+				default:
+					return 0;
+			}
+			break;
+		default:
+			return 0;
+	}
+	(void)editorDispatchProcessMappedAction(action, effects);
+	return 1;
+}
+
 /* Returns 1 when the key was fully handled and caller must return immediately. */
 static int dispatchHandleKeyboardKey(int c, int *effects) {
 	if (editorClearHoverLinkState()) {
@@ -3220,6 +3364,12 @@ static int dispatchHandleKeyboardKey(int c, int *effects) {
 		return 1;
 	}
 	if (dispatchTryTerminalPaneKey(c)) {
+		return 1;
+	}
+	if (dispatchTryGitDrawerKey(c, effects)) {
+		return 1;
+	}
+	if (dispatchTryGitViewKey(c, effects)) {
 		return 1;
 	}
 	const struct editorInputSystem *system = editorInputSystemActive();

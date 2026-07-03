@@ -18,6 +18,7 @@ long editorGitBlameTestLoadCount(void);
 int editorGitBlameTestIncrementalLookup(const char *incremental, int one_based_line,
                                         char *author_out, size_t author_size, char *filename_out,
                                         size_t filename_size, int *unique_commits_out);
+int editorGitTestParseStatusV2(const char *data, size_t len, int *ahead_out, int *behind_out);
 const char *editorInputSystemActiveId(void);
 const char *editorVimModeLabel(void);
 void editorVimRegistersClear(void);

@@ -795,7 +795,16 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	E.text_last_click_ms = now_ms;
 
 	if (click_count == 2) {
-		mouseSelectWordAtCursor();
+		/* In git views double-click activates the row (checkout / show)
+		 * instead of selecting a word. */
+		if (E.tab_kind == EDITOR_TAB_GIT_BRANCHES || E.tab_kind == EDITOR_TAB_GIT_LOG ||
+		    E.tab_kind == EDITOR_TAB_GIT_STASH) {
+			int mapped = 0;
+			(void)editorDispatchProcessMappedAction(EDITOR_ACTION_GIT_VIEW_ACTIVATE,
+			                                        &mapped);
+		} else {
+			mouseSelectWordAtCursor();
+		}
 		apply_mouse_state = 1;
 		left_button_down = 0;
 		drag_started = 0;
