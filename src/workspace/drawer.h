@@ -15,6 +15,7 @@ int editorDrawerDapToggle(void);
 int editorDrawerSelectedMenuAction(enum editorAction *action_out);
 int editorDrawerSelectedGitEntry(int *entry_idx_out);
 int editorDrawerGitSelectedFile(int *entry_idx_out, int *staged_group_out);
+int editorDrawerGitSelectedAction(enum editorAction *action_out);
 int editorDrawerSelectedLspLocation(const char **path_out, int *line_out, int *character_out);
 int editorDrawerSelectedDapLaunch(int *launch_idx_out);
 int editorDrawerSelectedDapDefault(int *default_idx_out);

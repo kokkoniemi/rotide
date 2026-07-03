@@ -3243,18 +3243,6 @@ static int dispatchTryGitDrawerKey(int c, int *effects) {
 		case 'A':
 			action = EDITOR_ACTION_GIT_COMMIT_AMEND;
 			break;
-		case 'R':
-			action = EDITOR_ACTION_GIT_REFRESH;
-			break;
-		case 'P':
-			action = EDITOR_ACTION_GIT_PUSH;
-			break;
-		case 'p':
-			action = EDITOR_ACTION_GIT_PULL;
-			break;
-		case 'f':
-			action = EDITOR_ACTION_GIT_FETCH;
-			break;
 		case 'B':
 			action = EDITOR_ACTION_GIT_BRANCHES;
 			break;
@@ -3340,6 +3328,18 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 					break;
 				case 'd':
 					action = EDITOR_ACTION_GIT_STASH_DROP;
+					break;
+				case 'R':
+					action = EDITOR_ACTION_GIT_REFRESH;
+					break;
+				default:
+					return 0;
+			}
+			break;
+		case EDITOR_TAB_GIT_DIFF:
+			switch (c) {
+				case 'z':
+					action = EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT;
 					break;
 				case 'R':
 					action = EDITOR_ACTION_GIT_REFRESH;

@@ -3,6 +3,17 @@
 
 #include <stddef.h>
 
+/* What a git patch tab shows; carried per tab so its content can be
+ * regenerated (refresh, chunks-only vs whole-file toggle). */
+enum editorGitOpsPatchKind {
+	EDITOR_GIT_OPS_PATCH_NONE = 0,
+	EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE,
+	EDITOR_GIT_OPS_PATCH_DIFF_CACHED,
+	EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED,
+	EDITOR_GIT_OPS_PATCH_SHOW_COMMIT,
+	EDITOR_GIT_OPS_PATCH_SHOW_STASH
+};
+
 /* Mutating git commands (argv-based, no shell). Every mutator returns 1 on
  * success and 0 on failure; failures set a status message from git's stderr.
  * Query helpers return malloc'd output (caller frees) or NULL. */
@@ -25,7 +36,7 @@ int editorGitOpsStashDrop(const char *ref);
 int editorGitOpsCherryPick(const char *sha);
 int editorGitOpsRevert(const char *sha);
 int editorGitOpsTag(const char *name, const char *sha);
-char *editorGitOpsShowCommitDup(const char *sha, size_t *len_out);
-char *editorGitOpsStashShowDup(const char *ref, size_t *len_out);
+char *editorGitOpsPatchDup(enum editorGitOpsPatchKind kind, const char *arg, int whole_file,
+                           size_t *len_out);
 
 #endif

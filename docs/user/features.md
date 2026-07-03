@@ -13,12 +13,14 @@ are implemented and tested.
 - Multi-tab workflow with preview tabs from drawer clicks.
 - Project drawer with expand/collapse, mouse resize, file search, project text
   search, Git changes, and LSP Problems/Symbols views.
-- Git workflows: stage/unstage/discard from the Git drawer, commit and amend
-  via an editable message tab, branches/commits/stash views (checkout, create
-  and delete branches, cherry-pick, revert, tag, stash apply/pop/drop),
-  push/pull/fetch as background tasks, blame, per-file diffs, and ahead/behind
-  counts in the status bar. See "Git drawer and views" in
-  [keybindings](keybindings.md).
+- Git workflows: stage/unstage/discard from the Git drawer (single letters or
+  a per-file menu on Enter/right-click), an Actions section for commit/amend,
+  views, push/pull/fetch and refresh, commit and amend via an editable message
+  tab, branches/commits/stash views (checkout, create and delete branches,
+  cherry-pick, revert, tag, stash apply/pop/drop), blame, and ahead/behind
+  counts in the status bar. Diffs open in a shared preview tab with green/red
+  line tints, the file's own syntax highlighting, and a chunks/whole-file
+  toggle. See "Git drawer and views" in [keybindings](keybindings.md).
 - Search, go to line, matching bracket jump, selection/copy/cut/paste.
 - Undo/redo with edit grouping.
 - Selectable editing-input systems via `[input] system`: Vim (default — modal

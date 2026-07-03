@@ -1,8 +1,11 @@
 #include "workspace/git_view.h"
 
+#include "config/theme_config.h"
+#include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/text_source.h"
 #include "input/prompt.h"
+#include "language/syntax.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "text/document.h"
@@ -402,6 +405,244 @@ int editorGitViewLineEntity(enum editorTabKind kind, const char *line, char *ent
 	return 1;
 }
 
+static int gitViewKindsAppend(unsigned char **kinds, int *count, int *cap, unsigned char kind) {
+	if (*count + 1 > *cap) {
+		int new_cap = *cap == 0 ? 64 : *cap * 2;
+		unsigned char *grown = editorRealloc(*kinds, (size_t)new_cap);
+		if (grown == NULL) {
+			return 0;
+		}
+		*kinds = grown;
+		*cap = new_cap;
+	}
+	(*kinds)[(*count)++] = kind;
+	return 1;
+}
+
+/* Strips a diff header path ("a/foo", "b/foo", or a bare path) to the file
+ * path, or NULL for /dev/null. The returned pointer aliases `field`. */
+static const char *gitViewDiffHeaderPath(const char *field) {
+	if (field == NULL || strcmp(field, "/dev/null") == 0) {
+		return NULL;
+	}
+	if ((field[0] == 'a' || field[0] == 'b') && field[1] == '/') {
+		return field + 2;
+	}
+	return field;
+}
+
+/* Rebuilds a unified diff for display: +/-/space prefixes are stripped (their
+ * kind moves into line_kinds_out), per-file metadata collapses into the
+ * "diff --git" header line, and hunk headers stay as separators. When the
+ * patch touches exactly one file its path lands in source_path_out so the tab
+ * can be highlighted with the file's language. */
+char *editorGitViewBuildDiffDup(const char *patch, size_t patch_len, unsigned char **line_kinds_out,
+                                int *line_kind_count_out, char **source_path_out) {
+	if (line_kinds_out != NULL) {
+		*line_kinds_out = NULL;
+	}
+	if (line_kind_count_out != NULL) {
+		*line_kind_count_out = 0;
+	}
+	if (source_path_out != NULL) {
+		*source_path_out = NULL;
+	}
+	if (patch == NULL || line_kinds_out == NULL || line_kind_count_out == NULL) {
+		return NULL;
+	}
+
+	char *buf = NULL;
+	size_t len = 0;
+	size_t cap = 0;
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	int kind_cap = 0;
+	int in_hunk = 0;
+	int file_count = 0;
+	char first_path[PATH_MAX] = "";
+	char minus_path[PATH_MAX] = "";
+
+	size_t pos = 0;
+	while (pos < patch_len) {
+		size_t line_end = pos;
+		while (line_end < patch_len && patch[line_end] != '\n') {
+			line_end++;
+		}
+		size_t line_len = line_end - pos;
+		const char *line = patch + pos;
+		pos = line_end + 1;
+		if (line_len > 0 && line[line_len - 1] == '\r') {
+			line_len--;
+		}
+
+		char line_copy[4096];
+		size_t copy_len =
+		        line_len < sizeof(line_copy) - 1 ? line_len : sizeof(line_copy) - 1;
+		memcpy(line_copy, line, copy_len);
+		line_copy[copy_len] = '\0';
+
+		unsigned char kind = EDITOR_GIT_VIEW_LINE_TEXT;
+		const char *emit = line_copy;
+		int skip = 0;
+		if (strncmp(line_copy, "diff --git ", 11) == 0 ||
+		    strncmp(line_copy, "diff --no-index", 15) == 0) {
+			in_hunk = 0;
+			file_count++;
+			kind = EDITOR_GIT_VIEW_LINE_HEADER;
+		} else if (in_hunk &&
+		           (line_copy[0] == ' ' || line_copy[0] == '+' || line_copy[0] == '-')) {
+			kind = line_copy[0] == '+'
+			               ? EDITOR_GIT_VIEW_LINE_ADDED
+			               : (line_copy[0] == '-' ? EDITOR_GIT_VIEW_LINE_REMOVED
+			                                      : EDITOR_GIT_VIEW_LINE_TEXT);
+			emit = line_copy + 1;
+		} else if (in_hunk && line_copy[0] == '\\') {
+			skip = 1; /* "\ No newline at end of file" */
+		} else if (strncmp(line_copy, "@@", 2) == 0) {
+			in_hunk = 1;
+			kind = EDITOR_GIT_VIEW_LINE_HEADER;
+		} else if (strncmp(line_copy, "--- ", 4) == 0) {
+			(void)snprintf(minus_path, sizeof(minus_path), "%s", line_copy + 4);
+			skip = 1;
+		} else if (strncmp(line_copy, "+++ ", 4) == 0) {
+			const char *path = gitViewDiffHeaderPath(line_copy + 4);
+			if (path == NULL) {
+				path = gitViewDiffHeaderPath(minus_path);
+			}
+			if (path != NULL && file_count == 1 && first_path[0] == '\0') {
+				(void)snprintf(first_path, sizeof(first_path), "%s", path);
+			}
+			skip = 1;
+		} else if (strncmp(line_copy, "index ", 6) == 0 ||
+		           strncmp(line_copy, "old mode", 8) == 0 ||
+		           strncmp(line_copy, "new mode", 8) == 0 ||
+		           strncmp(line_copy, "deleted file mode", 17) == 0 ||
+		           strncmp(line_copy, "new file mode", 13) == 0 ||
+		           strncmp(line_copy, "similarity index", 16) == 0 ||
+		           strncmp(line_copy, "dissimilarity index", 19) == 0 ||
+		           strncmp(line_copy, "rename from", 11) == 0 ||
+		           strncmp(line_copy, "rename to", 9) == 0 ||
+		           strncmp(line_copy, "copy from", 9) == 0 ||
+		           strncmp(line_copy, "copy to", 7) == 0) {
+			skip = file_count > 0;
+		} else if (strncmp(line_copy, "Binary files", 12) == 0) {
+			kind = EDITOR_GIT_VIEW_LINE_HEADER;
+		}
+
+		if (skip) {
+			continue;
+		}
+		if (!gitViewAppend(&buf, &len, &cap, emit) ||
+		    !gitViewAppend(&buf, &len, &cap, "\n") ||
+		    !gitViewKindsAppend(&kinds, &kind_count, &kind_cap, kind)) {
+			free(buf);
+			free(kinds);
+			return NULL;
+		}
+	}
+
+	if (buf == NULL && !gitViewAppend(&buf, &len, &cap, "")) {
+		free(kinds);
+		return NULL;
+	}
+	if (source_path_out != NULL && file_count == 1 && first_path[0] != '\0') {
+		*source_path_out = strdup(first_path);
+	}
+	*line_kinds_out = kinds;
+	*line_kind_count_out = kind_count;
+	return buf;
+}
+
+/* Installs regenerable-patch state on the active (git diff) tab. Takes
+ * ownership of every pointer and re-runs syntax setup so the source file's
+ * language applies. */
+static void gitViewApplyPatchState(unsigned char *kinds, int kind_count, char *source_path,
+                                   int regen_kind, char *regen_arg, int whole_file) {
+	free(E.git_view_line_kinds);
+	E.git_view_line_kinds = kinds;
+	E.git_view_line_kind_count = kind_count;
+	free(E.git_view_source_path);
+	E.git_view_source_path = source_path;
+	free(E.git_view_regen_arg);
+	E.git_view_regen_arg = regen_arg;
+	E.git_view_regen_kind = regen_kind;
+	E.git_view_whole_file = whole_file;
+	(void)editorSyntaxParseFullActive();
+}
+
+static int gitViewOpenPatchTab(enum editorGitOpsPatchKind patch_kind, const char *arg,
+                               const char *title, int whole_file) {
+	size_t patch_len = 0;
+	char *patch = editorGitOpsPatchDup(patch_kind, arg, whole_file, &patch_len);
+	if (patch == NULL) {
+		editorSetStatusMsg("git: nothing to show for %s", arg);
+		return 0;
+	}
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text = editorGitViewBuildDiffDup(patch, patch_len, &kinds, &kind_count, &source_path);
+	free(patch);
+	if (text == NULL) {
+		editorSetStatusMsg("git: out of memory");
+		return 0;
+	}
+	char *arg_copy = strdup(arg);
+	int ok = arg_copy != NULL && editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, title, text);
+	free(text);
+	if (!ok) {
+		free(kinds);
+		free(source_path);
+		free(arg_copy);
+		return 0;
+	}
+	gitViewApplyPatchState(kinds, kind_count, source_path, (int)patch_kind, arg_copy,
+	                       whole_file);
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	return 1;
+}
+
+int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status) {
+	if (rel_path == NULL || rel_path[0] == '\0') {
+		return 0;
+	}
+	int untracked = index_status == '?' && worktree_status == '?';
+	int staged = !untracked && index_status != ' ' && index_status != '?';
+	enum editorGitOpsPatchKind patch_kind =
+	        untracked ? EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED
+	                  : (staged ? EDITOR_GIT_OPS_PATCH_DIFF_CACHED
+	                            : EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE);
+	char title[PATH_MAX + 16];
+	(void)snprintf(title, sizeof(title), "git diff: %s", rel_path);
+	return gitViewOpenPatchTab(patch_kind, rel_path, title, 0);
+}
+
+static void gitViewRebuildActivePatch(void) {
+	if (E.tab_kind != EDITOR_TAB_GIT_DIFF ||
+	    E.git_view_regen_kind == EDITOR_GIT_OPS_PATCH_NONE || E.git_view_regen_arg == NULL ||
+	    E.tab_title == NULL) {
+		return;
+	}
+	char arg[PATH_MAX];
+	char title[PATH_MAX + 16];
+	(void)snprintf(arg, sizeof(arg), "%s", E.git_view_regen_arg);
+	(void)snprintf(title, sizeof(title), "%s", E.tab_title);
+	(void)gitViewOpenPatchTab((enum editorGitOpsPatchKind)E.git_view_regen_kind, arg, title,
+	                          E.git_view_whole_file);
+}
+
+void editorGitViewToggleDiffContext(void) {
+	if (E.tab_kind != EDITOR_TAB_GIT_DIFF ||
+	    E.git_view_regen_kind == EDITOR_GIT_OPS_PATCH_NONE) {
+		editorSetStatusMsg("Not a regenerable git diff tab");
+		return;
+	}
+	E.git_view_whole_file = !E.git_view_whole_file;
+	int whole = E.git_view_whole_file;
+	gitViewRebuildActivePatch();
+	editorSetStatusMsg(whole ? "Showing whole file" : "Showing changed chunks");
+}
+
 static int gitViewActiveLineEntity(char *entity_out, size_t entity_size) {
 	size_t line_len = 0;
 	char *line = editorDocumentLineDup(E.document, E.cy, &line_len);
@@ -482,6 +723,9 @@ static void gitViewRefreshActiveView(void) {
 		case EDITOR_TAB_GIT_STASH:
 			editorGitViewOpenStashes();
 			break;
+		case EDITOR_TAB_GIT_DIFF:
+			gitViewRebuildActivePatch();
+			break;
 		default:
 			break;
 	}
@@ -518,17 +762,12 @@ static void gitViewActivateSelection(void) {
 		}
 		return;
 	}
-	size_t text_len = 0;
-	char *text = E.tab_kind == EDITOR_TAB_GIT_LOG ? editorGitOpsShowCommitDup(entity, &text_len)
-	                                              : editorGitOpsStashShowDup(entity, &text_len);
-	if (text == NULL) {
-		editorSetStatusMsg("git: nothing to show for %s", entity);
-		return;
-	}
 	char title[560];
 	(void)snprintf(title, sizeof(title), "git show %s", entity);
-	(void)editorTabOpenGitDiff(title, text);
-	free(text);
+	(void)gitViewOpenPatchTab(E.tab_kind == EDITOR_TAB_GIT_LOG
+	                                  ? EDITOR_GIT_OPS_PATCH_SHOW_COMMIT
+	                                  : EDITOR_GIT_OPS_PATCH_SHOW_STASH,
+	                          entity, title, 0);
 }
 
 static void gitViewBranchNew(void) {
@@ -626,6 +865,165 @@ static void gitViewStashOp(enum editorAction action) {
 		gitViewRefreshActiveView();
 		editorSetStatusMsg("%s %s", verb, entity);
 	}
+}
+
+int editorGitViewRowBgColor(int row_idx, struct editorThemeColor *color_out) {
+	if (color_out == NULL || row_idx < 0 || row_idx >= E.numrows) {
+		return 0;
+	}
+	switch (E.tab_kind) {
+		case EDITOR_TAB_GIT_DIFF:
+			if (E.git_view_line_kinds == NULL ||
+			    row_idx >= E.git_view_line_kind_count) {
+				return 0;
+			}
+			switch (E.git_view_line_kinds[row_idx]) {
+				case EDITOR_GIT_VIEW_LINE_ADDED:
+					*color_out = editorThemeGitDiffBgColor(&E.theme, 1);
+					return 1;
+				case EDITOR_GIT_VIEW_LINE_REMOVED:
+					*color_out = editorThemeGitDiffBgColor(&E.theme, 0);
+					return 1;
+				case EDITOR_GIT_VIEW_LINE_HEADER:
+					*color_out = E.theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG];
+					return 1;
+				default:
+					return 0;
+			}
+		case EDITOR_TAB_GIT_BRANCHES:
+		case EDITOR_TAB_GIT_LOG:
+		case EDITOR_TAB_GIT_STASH:
+		case EDITOR_TAB_GIT_COMMIT: {
+			struct editorLineView line = {0};
+			if (!editorDocumentLineView(E.document, row_idx, &line)) {
+				return 0;
+			}
+			int is_header = line.size > 0 && line.data[0] == '#';
+			editorLineViewRelease(&line);
+			if (!is_header) {
+				return 0;
+			}
+			*color_out = E.theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG];
+			return 1;
+		}
+		default:
+			return 0;
+	}
+}
+
+static void gitViewSpanAdd(struct editorRowSyntaxSpan *spans, int max_spans, int *count, int start,
+                           int end, enum editorSyntaxHighlightClass highlight_class) {
+	if (end <= start || *count >= max_spans) {
+		return;
+	}
+	spans[*count].start_render_idx = start;
+	spans[*count].end_render_idx = end;
+	spans[*count].highlight_class = highlight_class;
+	(*count)++;
+}
+
+/* Synthetic highlight spans for git list views so shas, names, decorations,
+ * and metadata read apart without a grammar; header/action-bar rows dim like
+ * comments. Spans use render byte indices (view content has no tabs). */
+int editorGitViewRowSyntaxSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
+                                int *count_out) {
+	if (count_out != NULL) {
+		*count_out = 0;
+	}
+	if (spans == NULL || count_out == NULL || max_spans <= 0 || row_idx < 0 ||
+	    row_idx >= E.numrows) {
+		return 0;
+	}
+	const char *text = E.rows[row_idx].render;
+	int size = E.rows[row_idx].rsize;
+	if (text == NULL || size <= 0) {
+		return 0;
+	}
+
+	if (E.tab_kind == EDITOR_TAB_GIT_DIFF) {
+		if (E.git_view_line_kinds == NULL || row_idx >= E.git_view_line_kind_count ||
+		    E.git_view_line_kinds[row_idx] != EDITOR_GIT_VIEW_LINE_HEADER) {
+			return 0;
+		}
+		gitViewSpanAdd(spans, max_spans, count_out, 0, size, EDITOR_SYNTAX_HL_COMMENT);
+		return *count_out > 0;
+	}
+
+	if (E.tab_kind != EDITOR_TAB_GIT_BRANCHES && E.tab_kind != EDITOR_TAB_GIT_LOG &&
+	    E.tab_kind != EDITOR_TAB_GIT_STASH && E.tab_kind != EDITOR_TAB_GIT_COMMIT) {
+		return 0;
+	}
+	if (text[0] == '#' || text[0] == '(') {
+		gitViewSpanAdd(spans, max_spans, count_out, 0, size, EDITOR_SYNTAX_HL_COMMENT);
+		return *count_out > 0;
+	}
+	switch (E.tab_kind) {
+		case EDITOR_TAB_GIT_BRANCHES: {
+			if (size < 3) {
+				return 0;
+			}
+			int name_end = 2;
+			while (name_end < size && text[name_end] != ' ') {
+				name_end++;
+			}
+			gitViewSpanAdd(spans, max_spans, count_out, 0, 2,
+			               EDITOR_SYNTAX_HL_CONSTANT);
+			gitViewSpanAdd(spans, max_spans, count_out, 2, name_end,
+			               text[0] == '*' ? EDITOR_SYNTAX_HL_KEYWORD
+			                              : EDITOR_SYNTAX_HL_FUNCTION);
+			gitViewSpanAdd(spans, max_spans, count_out, name_end, size,
+			               EDITOR_SYNTAX_HL_COMMENT);
+			break;
+		}
+		case EDITOR_TAB_GIT_LOG: {
+			int sha_end = 0;
+			while (sha_end < size && ((text[sha_end] >= '0' && text[sha_end] <= '9') ||
+			                          (text[sha_end] >= 'a' && text[sha_end] <= 'f'))) {
+				sha_end++;
+			}
+			if (sha_end == 0) {
+				return 0;
+			}
+			gitViewSpanAdd(spans, max_spans, count_out, 0, sha_end,
+			               EDITOR_SYNTAX_HL_NUMBER);
+			int pos = sha_end;
+			while (pos < size && text[pos] == ' ') {
+				pos++;
+			}
+			if (pos < size && text[pos] == '(') {
+				int deco_end = pos;
+				while (deco_end < size && text[deco_end] != ')') {
+					deco_end++;
+				}
+				if (deco_end < size) {
+					deco_end++;
+				}
+				gitViewSpanAdd(spans, max_spans, count_out, pos, deco_end,
+				               EDITOR_SYNTAX_HL_STRING);
+			}
+			/* " — author, age" suffix (em dash is 3 UTF-8 bytes). */
+			for (int i = size - 3; i > sha_end; i--) {
+				if (memcmp(text + i, "\xE2\x80\x94", 3) == 0) {
+					gitViewSpanAdd(spans, max_spans, count_out, i, size,
+					               EDITOR_SYNTAX_HL_COMMENT);
+					break;
+				}
+			}
+			break;
+		}
+		case EDITOR_TAB_GIT_STASH: {
+			const char *colon = memchr(text, ':', (size_t)size);
+			if (colon == NULL) {
+				return 0;
+			}
+			gitViewSpanAdd(spans, max_spans, count_out, 0, (int)(colon - text),
+			               EDITOR_SYNTAX_HL_NUMBER);
+			break;
+		}
+		default:
+			return 0;
+	}
+	return *count_out > 0;
 }
 
 static int gitViewHasStagedEntry(void) {
@@ -829,6 +1227,9 @@ int editorGitViewHandleMappedAction(enum editorAction action) {
 		case EDITOR_ACTION_GIT_STASH_POP:
 		case EDITOR_ACTION_GIT_STASH_DROP:
 			gitViewStashOp(action);
+			return 1;
+		case EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT:
+			editorGitViewToggleDiffContext();
 			return 1;
 		case EDITOR_ACTION_GIT_PUSH:
 			gitViewStartNetworkTask("push", "git push", "Push finished", "Push failed");

@@ -269,9 +269,14 @@ static int bufferCoreReconfigureSyntaxForFilename(void) {
 		first_line_copy = editorDocumentLineDup(E.document, 0, NULL);
 	}
 
+	/* Git diff tabs highlight with the diffed file's language (prefixes are
+	 * stripped from the content); multi-file patches stay plain. */
 	enum editorSyntaxLanguage wanted =
 	        E.tab_kind == EDITOR_TAB_GIT_DIFF
-	                ? EDITOR_SYNTAX_DIFF
+	                ? (E.git_view_source_path != NULL
+	                           ? editorSyntaxDetectLanguageFromFilenameAndFirstLine(
+	                                     E.git_view_source_path, NULL)
+	                           : EDITOR_SYNTAX_NONE)
 	                : editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename,
 	                                                                     first_line_copy);
 	free(first_line_copy);

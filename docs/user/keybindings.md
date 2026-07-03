@@ -43,10 +43,7 @@ by one key:
 - `<leader>f`: search text across the project
 - `<leader>e`: toggle the drawer (explorer)
 - `<leader>m`: open the main menu
-- `<leader>g`: open the Git drawer
-- `<leader>b`: open the Git branches view
-- `<leader>c`: open the Git commits (log) view
-- `<leader>s`: open the Git stash view
+- `<leader>g`: open the Git drawer (`B`/`L`/`S` inside it open the Git views)
 - `leader.git_blame_details`: configurable Git blame details action; unbound by
   default because Normal mode already uses `gb`
 
@@ -158,22 +155,35 @@ configurable actions without default bindings in the built-in CUA keymap.
 
 ## Git drawer and views
 
-The Git drawer (`Ctrl-Alt-G`, `<leader>g`, or `:git`) lists Staged / Changes /
-Untracked / Conflicts. While it has focus, single-letter keys work the same in
-Vim and CUA (navigation stays on arrows / `j`/`k`, Enter opens the file's diff):
+The Git drawer (`Ctrl-Alt-G`, `<leader>g`, or `:git`) lists an Actions section
+followed by Staged / Changes / Untracked / Conflicts. The Actions rows (Commit
+staged…, Amend last commit…, Branches, Commit log, Stashes, Push, Pull, Fetch,
+Refresh) run on Enter or a mouse click; push/pull/fetch run as background tasks
+with their output in a task tab.
+
+On a file row, Enter or right-click opens a small menu (Open Diff /
+Stage-or-Unstage / Discard…) that is navigable with the arrow keys; a plain
+mouse click opens the file's diff directly. Single-letter shortcuts work the
+same in Vim and CUA while the drawer has focus:
 
 - `s`: stage the selected file (unstages it when selected under Staged)
 - `u`: unstage the selected file
 - `a`: stage all changes
 - `d`: discard the selected file's changes (asks for confirmation)
 - `c` / `A`: open the commit / amend message tab
-- `R`: refresh the Git status
-- `P` / `p` / `f`: push / pull / fetch (runs as a task; output in a task tab)
 - `B` / `L` / `S`: open the branches / commits / stash view
 
 Committing opens an editable `git commit` message tab: type the message and
 save (`Ctrl-S` / `:w`) to commit; lines starting with `#` are ignored; closing
 the tab without saving aborts the commit.
+
+Diff tabs open as preview tabs (one shared slot, like drawer file previews), so
+browsing diffs does not accumulate tabs. The `+`/`-` patch prefixes are
+stripped: added lines get a green-tinted background, removed lines a red one,
+and single-file diffs are syntax highlighted with the file's own language.
+Inside a diff tab `z` toggles between the changed chunks and the whole file,
+and `R` regenerates the diff. Custom themes can override the tint colors with
+the `diff_added_bg` / `diff_removed_bg` UI roles.
 
 The branches, commits, and stash views are read-only tabs; move with the usual
 navigation keys (search works too), then:

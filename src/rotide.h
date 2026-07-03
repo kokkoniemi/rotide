@@ -399,6 +399,7 @@ enum editorAction {
 	EDITOR_ACTION_GIT_STASH_APPLY,
 	EDITOR_ACTION_GIT_STASH_POP,
 	EDITOR_ACTION_GIT_STASH_DROP,
+	EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT,
 	EDITOR_ACTION_COUNT
 };
 
@@ -481,6 +482,12 @@ struct editorHistory {
 	X(struct editorGitBlameLine *, git_blame_line)                                             \
 	X(int, git_blame_line_number)                                                              \
 	X(int, git_blame_line_miss)                                                                \
+	X(unsigned char *, git_view_line_kinds)                                                    \
+	X(int, git_view_line_kind_count)                                                           \
+	X(char *, git_view_source_path)                                                            \
+	X(char *, git_view_regen_arg)                                                              \
+	X(int, git_view_regen_kind)                                                                \
+	X(int, git_view_whole_file)                                                                \
 	X(char *, git_blame_filename)                                                              \
 	X(char *, git_blame_repo_root)                                                             \
 	X(char *, git_blame_branch)                                                                \

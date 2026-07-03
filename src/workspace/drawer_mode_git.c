@@ -11,7 +11,8 @@
 #include <string.h>
 
 enum drawerModeGitGroup {
-	EDITOR_DRAWER_GIT_GROUP_STAGED = 0,
+	EDITOR_DRAWER_GIT_GROUP_ACTIONS = 0,
+	EDITOR_DRAWER_GIT_GROUP_STAGED,
 	EDITOR_DRAWER_GIT_GROUP_CHANGES,
 	EDITOR_DRAWER_GIT_GROUP_UNTRACKED,
 	EDITOR_DRAWER_GIT_GROUP_CONFLICTS,
@@ -22,6 +23,7 @@ enum drawerModeGitEntryKind {
 	EDITOR_DRAWER_GIT_ENTRY_ROOT = 0,
 	EDITOR_DRAWER_GIT_ENTRY_GROUP,
 	EDITOR_DRAWER_GIT_ENTRY_FILE,
+	EDITOR_DRAWER_GIT_ENTRY_ACTION,
 	EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER
 };
 
@@ -38,7 +40,27 @@ struct drawerModeGitLookup {
 };
 
 static const char *g_drawer_mode_git_group_names[EDITOR_DRAWER_GIT_GROUP_COUNT] = {
-        "Staged", "Changes", "Untracked", "Conflicts"};
+        "Actions", "Staged", "Changes", "Untracked", "Conflicts"};
+
+struct drawerModeGitAction {
+	const char *label;
+	enum editorAction action;
+};
+
+static const struct drawerModeGitAction g_drawer_mode_git_actions[] = {
+        {"Commit staged…", EDITOR_ACTION_GIT_COMMIT},
+        {"Amend last commit…", EDITOR_ACTION_GIT_COMMIT_AMEND},
+        {"Branches", EDITOR_ACTION_GIT_BRANCHES},
+        {"Commit log", EDITOR_ACTION_GIT_LOG},
+        {"Stashes", EDITOR_ACTION_GIT_STASHES},
+        {"Push", EDITOR_ACTION_GIT_PUSH},
+        {"Pull", EDITOR_ACTION_GIT_PULL},
+        {"Fetch", EDITOR_ACTION_GIT_FETCH},
+        {"Refresh", EDITOR_ACTION_GIT_REFRESH},
+};
+
+static const int g_drawer_mode_git_action_count =
+        (int)(sizeof(g_drawer_mode_git_actions) / sizeof(g_drawer_mode_git_actions[0]));
 
 static int drawerModeGitEntryIsConflict(const struct editorGitEntry *entry) {
 	char x = entry->index_status;
@@ -77,6 +99,9 @@ static int drawerModeGitEntryInGroup(const struct editorGitEntry *entry, int gro
 }
 
 static int drawerModeGitGroupItemCount(int group_idx) {
+	if (group_idx == EDITOR_DRAWER_GIT_GROUP_ACTIONS) {
+		return g_drawer_mode_git_action_count;
+	}
 	int count = 0;
 	for (int i = 0; i < E.git_entry_count; i++) {
 		if (drawerModeGitEntryInGroup(&E.git_entries[i], group_idx)) {
@@ -188,6 +213,22 @@ static int drawerModeGitLookupByVisibleIndex(int visible_idx,
 			continue;
 		}
 
+		if (group_idx == EDITOR_DRAWER_GIT_GROUP_ACTIONS) {
+			for (int i = 0; i < g_drawer_mode_git_action_count; i++) {
+				if (visible_idx == cursor) {
+					lookup_out->kind = EDITOR_DRAWER_GIT_ENTRY_ACTION;
+					lookup_out->group_idx = group_idx;
+					lookup_out->item_idx = i;
+					lookup_out->item_count = item_count;
+					lookup_out->parent_visible_idx = group_visible_idx;
+					lookup_out->group_visible_idx = group_visible_idx;
+					return 1;
+				}
+				cursor++;
+			}
+			continue;
+		}
+
 		int item_idx = 0;
 		for (int i = 0; i < E.git_entry_count; i++) {
 			if (!drawerModeGitEntryInGroup(&E.git_entries[i], group_idx)) {
@@ -238,8 +279,8 @@ int editorDrawerGitToggle(void) {
 	E.drawer_resize_active = 0;
 	(void)editorDrawerSetCollapsed(0);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-	editorSetStatusMsg("s stage  a all  d discard  c commit  A amend  "
-	                   "B branches  L log  S stash  P push  p pull  f fetch");
+	editorSetStatusMsg("Enter menu/run  s stage  a all  d discard  c commit  A amend  "
+	                   "B branches  L log  S stash");
 	return 1;
 }
 
@@ -288,6 +329,11 @@ int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->git_status = entry->status;
 			return 1;
 		}
+		case EDITOR_DRAWER_GIT_ENTRY_ACTION:
+			view_out->name = g_drawer_mode_git_actions[lookup.item_idx].label;
+			view_out->depth = 2;
+			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			return 1;
 		case EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER:
 			view_out->name = "(empty)";
 			view_out->depth = 2;
@@ -375,6 +421,19 @@ int editorDrawerSelectedGitEntry(int *entry_idx_out) {
 		return 0;
 	}
 	*entry_idx_out = lookup.entry_idx;
+	return 1;
+}
+
+int editorDrawerGitSelectedAction(enum editorAction *action_out) {
+	if (action_out == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_GIT) {
+		return 0;
+	}
+	struct drawerModeGitLookup lookup;
+	if (!drawerModeGitLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	    lookup.kind != EDITOR_DRAWER_GIT_ENTRY_ACTION) {
+		return 0;
+	}
+	*action_out = g_drawer_mode_git_actions[lookup.item_idx].action;
 	return 1;
 }
 

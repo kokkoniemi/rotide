@@ -178,9 +178,6 @@ static struct vimLeaderBinding g_vim_leader_map[] = {
         {"lsp_drawer", EDITOR_ACTION_LSP_DRAWER, 'l', 'l'},
         {"dap_drawer", EDITOR_ACTION_DAP_DRAWER, 'd', 'd'},
         {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
-        {"git_branches", EDITOR_ACTION_GIT_BRANCHES, 'b', 'b'},
-        {"git_log", EDITOR_ACTION_GIT_LOG, 'c', 'c'},
-        {"git_stashes", EDITOR_ACTION_GIT_STASHES, 's', 's'},
 };
 
 static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);

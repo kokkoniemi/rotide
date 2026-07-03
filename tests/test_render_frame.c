@@ -11,6 +11,7 @@
 #include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
+#include "workspace/git_view.h"
 #include "workspace/tabs.h"
 
 #include <stdio.h>
@@ -1305,18 +1306,31 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_make_token
 	return 0;
 }
 
-static int test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab(void) {
-	const char *diff_text = "diff --git a/src/app.c b/src/app.c\n"
-	                        "index 1111111..2222222 100644\n"
-	                        "--- a/src/app.c\n"
-	                        "+++ b/src/app.c\n"
-	                        "@@ -1,3 +1,3 @@\n"
-	                        "-old line\n"
-	                        "+new line\n"
-	                        " context line\n";
+static int test_editor_refresh_screen_tints_and_highlights_git_diff_tab(void) {
+	const char *patch = "diff --git a/src/app.c b/src/app.c\n"
+	                    "index 1111111..2222222 100644\n"
+	                    "--- a/src/app.c\n"
+	                    "+++ b/src/app.c\n"
+	                    "@@ -1,3 +1,3 @@\n"
+	                    "-int old_value = 1;\n"
+	                    "+int new_value = 2;\n"
+	                    " int kept_value = 3;\n";
 
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text =
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorTabOpenGitDiff("git diff: src/app.c", diff_text));
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: src/app.c", text));
+	free(text);
+	free(E.git_view_line_kinds);
+	E.git_view_line_kinds = kinds;
+	E.git_view_line_kind_count = kind_count;
+	free(E.git_view_source_path);
+	E.git_view_source_path = source_path;
+	ASSERT_TRUE(editorSyntaxParseFullActive());
 	E.window_rows = 10;
 	E.window_cols = 100;
 	E.cy = 0;
@@ -1325,9 +1339,12 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_t
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[93mdiff\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[32mnew line") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[91mold line") != NULL);
+	/* Added/removed lines carry the default theme's 256-color tints, and the
+	 * stripped content is highlighted as C (primitive type `int`). */
+	ASSERT_TRUE(strstr(output, "\x1b[48;5;22m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;5;52m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mint") != NULL);
+	ASSERT_TRUE(strstr(output, "old line") == NULL);
 	free(output);
 	return 0;
 }
@@ -2532,8 +2549,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_make_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens},
-        {"editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab",
-         test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab},
+        {"editor_refresh_screen_tints_and_highlights_git_diff_tab",
+         test_editor_refresh_screen_tints_and_highlights_git_diff_tab},
         {"editor_refresh_screen_markdown_list_code_spans_stay_highlighted",
          test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted},
         {"editor_refresh_screen_applies_markdown_code_fence_injection",

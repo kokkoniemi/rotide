@@ -204,6 +204,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"git_stash_apply", EDITOR_ACTION_GIT_STASH_APPLY},
         {"git_stash_pop", EDITOR_ACTION_GIT_STASH_POP},
         {"git_stash_drop", EDITOR_ACTION_GIT_STASH_DROP},
+        {"git_diff_toggle_context", EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT},
 };
 
 static const struct keymapNamedKey g_keymap_named_keys[] = {

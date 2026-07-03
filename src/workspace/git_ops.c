@@ -186,8 +186,10 @@ static int gitOpsRunMutation(char *const tail[], const char *fallback_msg) {
 	return 1;
 }
 
-/* Runs a repo-scoped query returning malloc'd stdout (stderr discarded). */
-static char *gitOpsRunQueryDup(char *const tail[], size_t *len_out) {
+/* Runs a repo-scoped query returning malloc'd stdout (stderr discarded).
+ * Exit codes up to max_exit_code are accepted (`git diff --no-index` reports
+ * "files differ" as 1). */
+static char *gitOpsRunQueryMaxExitDup(char *const tail[], size_t *len_out, int max_exit_code) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
@@ -208,7 +210,7 @@ static char *gitOpsRunQueryDup(char *const tail[], size_t *len_out) {
 	if (!gitOpsRun(argv, 0, &result)) {
 		return NULL;
 	}
-	if (result.exit_code != 0) {
+	if (result.exit_code > max_exit_code) {
 		gitOpsResultClear(&result);
 		return NULL;
 	}
@@ -216,6 +218,10 @@ static char *gitOpsRunQueryDup(char *const tail[], size_t *len_out) {
 		*len_out = result.len;
 	}
 	return result.output;
+}
+
+static char *gitOpsRunQueryDup(char *const tail[], size_t *len_out) {
+	return gitOpsRunQueryMaxExitDup(tail, len_out, 0);
 }
 
 int editorGitOpsStageFile(const char *rel_path) {
@@ -382,24 +388,42 @@ int editorGitOpsTag(const char *name, const char *sha) {
 	return gitOpsRunMutation(tail, "tag failed");
 }
 
-char *editorGitOpsShowCommitDup(const char *sha, size_t *len_out) {
-	if (sha == NULL || sha[0] == '\0') {
-		if (len_out != NULL) {
-			*len_out = 0;
-		}
+char *editorGitOpsPatchDup(enum editorGitOpsPatchKind kind, const char *arg, int whole_file,
+                           size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	if (arg == NULL || arg[0] == '\0') {
 		return NULL;
 	}
-	char *tail[] = {"show", "--stat", "-p", (char *)sha, NULL};
-	return gitOpsRunQueryDup(tail, len_out);
-}
-
-char *editorGitOpsStashShowDup(const char *ref, size_t *len_out) {
-	if (ref == NULL || ref[0] == '\0') {
-		if (len_out != NULL) {
-			*len_out = 0;
+	/* A huge context radius turns "changed chunks" into "the whole file". */
+	char *context_arg = whole_file ? "-U100000" : "-U3";
+	switch (kind) {
+		case EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE: {
+			char *tail[] = {"diff", "--no-color", context_arg, "--", (char *)arg, NULL};
+			return gitOpsRunQueryDup(tail, len_out);
 		}
-		return NULL;
+		case EDITOR_GIT_OPS_PATCH_DIFF_CACHED: {
+			char *tail[] = {"diff", "--no-color", "--cached", context_arg,
+			                "--",   (char *)arg,  NULL};
+			return gitOpsRunQueryDup(tail, len_out);
+		}
+		case EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED: {
+			char *tail[] = {"diff", "--no-color", "--no-index", context_arg,
+			                "--",   "/dev/null",  (char *)arg,  NULL};
+			return gitOpsRunQueryMaxExitDup(tail, len_out, 1);
+		}
+		case EDITOR_GIT_OPS_PATCH_SHOW_COMMIT: {
+			char *tail[] = {"show",      "--no-color", "--stat", "-p",
+			                context_arg, (char *)arg,  NULL};
+			return gitOpsRunQueryDup(tail, len_out);
+		}
+		case EDITOR_GIT_OPS_PATCH_SHOW_STASH: {
+			char *tail[] = {"stash",     "show",      "-p", "--no-color",
+			                context_arg, (char *)arg, NULL};
+			return gitOpsRunQueryDup(tail, len_out);
+		}
+		default:
+			return NULL;
 	}
-	char *tail[] = {"stash", "show", "-p", (char *)ref, NULL};
-	return gitOpsRunQueryDup(tail, len_out);
 }

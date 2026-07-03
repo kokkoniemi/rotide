@@ -3,6 +3,7 @@
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
 #include "input/input_system.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -11,6 +12,7 @@
 #include "workspace/drawer.h"
 #include "workspace/git.h"
 #include "workspace/git_ops.h"
+#include "workspace/git_view.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 
@@ -269,7 +271,19 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	ASSERT_TRUE(git_input_run_cmd("git -C '%s' config push.default current", repo));
 
 	ASSERT_TRUE(editorDrawerGitToggle());
-	ASSERT_TRUE(editor_process_keypress_with_input("P", 1) == 0);
+	int push_row = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
+		if (strcmp(view.name, "Push") == 0) {
+			push_row = i;
+			break;
+		}
+	}
+	ASSERT_TRUE(push_row > 0);
+	E.drawer_selected_index = push_row;
+	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 
 	for (int i = 0; i < 1000 && editorTaskIsRunning(); i++) {
@@ -421,6 +435,132 @@ static int test_git_input_view_readonly_and_header_noop(void) {
 	/* Mutating keys are rejected in the read-only view. */
 	ASSERT_TRUE(editor_process_keypress_with_input("x", 1) == 0);
 	ASSERT_EQ_INT(0, E.dirty);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_diff_tabs_reuse_preview_slot(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(git_input_write_file(repo, "b.txt", "new\n"));
+	editorGitRefresh();
+
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	int tabs_after_first = editorTabCount();
+
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("b.txt", '?', '?'));
+	ASSERT_EQ_INT(tabs_after_first, editorTabCount());
+	ASSERT_TRUE(strstr(E.tab_title, "b.txt") != NULL);
+	ASSERT_TRUE(git_input_view_contains("new"));
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_diff_toggle_whole_file(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt",
+	                                 "line1\nline2\nline3\nline4\nline5\nline6\nline7\n"
+	                                 "line8\nline9\nline10\nline11\nline12\n"));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' add a.txt", repo));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' commit -q -m lines", repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt",
+	                                 "line1\nline2\nline3\nline4\nline5\nline6\nline7\n"
+	                                 "line8\nline9\nline10\nline11\nCHANGED\n"));
+	editorGitRefresh();
+
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
+	/* Chunks-only: line2 is outside the -U3 context radius. */
+	ASSERT_TRUE(git_input_view_row_containing("line2") == -1);
+	ASSERT_TRUE(git_input_view_contains("CHANGED"));
+
+	ASSERT_TRUE(editor_process_keypress_with_input("z", 1) == 0);
+	ASSERT_TRUE(git_input_view_row_containing("line2") >= 0);
+	ASSERT_TRUE(git_input_view_contains("CHANGED"));
+
+	ASSERT_TRUE(editor_process_keypress_with_input("z", 1) == 0);
+	ASSERT_TRUE(git_input_view_row_containing("line2") == -1);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_enter_on_file_row_opens_menu(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+
+	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_STR("Open Diff", editorPopupSelectedLabel());
+
+	/* Accepting the first item opens the diff preview tab. */
+	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_menu_stage_and_unstage(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+
+	/* Enter opens the menu; second item is Stage for an unstaged file. */
+	const char down_enter[] = "\r\x1b[B\r";
+	ASSERT_TRUE(editor_process_keypress_with_input(down_enter, sizeof(down_enter) - 1) == 0);
+	const struct editorGitEntry *entry = git_input_find_entry("a.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT('M', entry->index_status);
+
+	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+	ASSERT_TRUE(editor_process_keypress_with_input(down_enter, sizeof(down_enter) - 1) == 0);
+	entry = git_input_find_entry("a.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT('M', entry->worktree_status);
+	ASSERT_TRUE(entry->index_status != 'M');
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_actions_row_opens_commit_tab(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	int commit_row = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
+		if (strstr(view.name, "Commit staged") != NULL) {
+			commit_row = i;
+			break;
+		}
+	}
+	ASSERT_TRUE(commit_row > 0);
+	E.drawer_selected_index = commit_row;
+	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_COMMIT, E.tab_kind);
 
 	git_input_repo_destroy(repo);
 	return 0;
@@ -580,7 +720,8 @@ static int test_git_input_leader_and_ex_open_views(void) {
 	char *repo = NULL;
 	ASSERT_TRUE(git_input_setup("vim", &repo));
 
-	ASSERT_TRUE(editor_process_keypress_with_input(" b", 2) == 0);
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(editor_process_keypress_with_input("B", 1) == 0);
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_BRANCHES, E.tab_kind);
 
 	ASSERT_TRUE(editor_process_keypress_with_input(":git log\r", 9) == 0);
@@ -624,7 +765,8 @@ static int test_git_input_mouse_double_click_checks_out_branch(void) {
 	ASSERT_TRUE(git_input_setup("vim", &repo));
 	ASSERT_TRUE(editorGitOpsBranchCreate("feat"));
 
-	ASSERT_TRUE(editor_process_keypress_with_input(" b", 2) == 0);
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(editor_process_keypress_with_input("B", 1) == 0);
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_BRANCHES, E.tab_kind);
 	int main_row = git_input_view_row_containing("  main");
 	ASSERT_TRUE(main_row >= 0);
@@ -669,6 +811,11 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_log_view_tag_and_show", test_git_input_log_view_tag_and_show},
         {"git_input_stash_view_apply_and_drop", test_git_input_stash_view_apply_and_drop},
         {"git_input_view_readonly_and_header_noop", test_git_input_view_readonly_and_header_noop},
+        {"git_input_diff_tabs_reuse_preview_slot", test_git_input_diff_tabs_reuse_preview_slot},
+        {"git_input_diff_toggle_whole_file", test_git_input_diff_toggle_whole_file},
+        {"git_input_enter_on_file_row_opens_menu", test_git_input_enter_on_file_row_opens_menu},
+        {"git_input_menu_stage_and_unstage", test_git_input_menu_stage_and_unstage},
+        {"git_input_actions_row_opens_commit_tab", test_git_input_actions_row_opens_commit_tab},
         {"git_input_leader_and_ex_open_views", test_git_input_leader_and_ex_open_views},
         {"git_input_keymap_cua_accepts_git_names", test_git_input_keymap_cua_accepts_git_names},
         {"git_input_mouse_double_click_checks_out_branch",

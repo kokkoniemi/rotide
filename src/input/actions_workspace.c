@@ -13,6 +13,7 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/git_view.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
@@ -426,7 +427,11 @@ enum actionsWorkspaceCtxOp {
 	ACTIONS_WORKSPACE_CTX_MOVE,
 	ACTIONS_WORKSPACE_CTX_DELETE,
 	ACTIONS_WORKSPACE_CTX_NEW_FILE,
-	ACTIONS_WORKSPACE_CTX_NEW_FOLDER
+	ACTIONS_WORKSPACE_CTX_NEW_FOLDER,
+	ACTIONS_WORKSPACE_CTX_GIT_OPEN_DIFF,
+	ACTIONS_WORKSPACE_CTX_GIT_STAGE,
+	ACTIONS_WORKSPACE_CTX_GIT_UNSTAGE,
+	ACTIONS_WORKSPACE_CTX_GIT_DISCARD
 };
 
 #define ACTIONS_WORKSPACE_CTX_MAX_ITEMS 5
@@ -446,14 +451,42 @@ static void actionsWorkspaceCtxAppend(struct editorPopupItem *items, int *count_
 	*count_io = idx + 1;
 }
 
+/* VSCode-style menu for the selected Git drawer file row (Enter or right
+ * click): open diff, stage/unstage by the selected group, discard. */
+int editorDrawerGitOpenSelectionMenu(int anchor_row, int anchor_col) {
+	int entry_idx = 0;
+	int staged_group = 0;
+	if (!editorDrawerGitSelectedFile(&entry_idx, &staged_group)) {
+		return 0;
+	}
+
+	struct editorPopupItem items[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
+	int count = 0;
+	actionsWorkspaceCtxAppend(items, &count, "Open Diff", ACTIONS_WORKSPACE_CTX_GIT_OPEN_DIFF);
+	actionsWorkspaceCtxAppend(items, &count, staged_group ? "Unstage" : "Stage",
+	                          staged_group ? ACTIONS_WORKSPACE_CTX_GIT_UNSTAGE
+	                                       : ACTIONS_WORKSPACE_CTX_GIT_STAGE);
+	actionsWorkspaceCtxAppend(items, &count, "Discard…", ACTIONS_WORKSPACE_CTX_GIT_DISCARD);
+	g_actionsWorkspace_ctx_op_count = count;
+	if (!editorPopupOpenMenu(items, count, anchor_row, anchor_col)) {
+		g_actionsWorkspace_ctx_op_count = 0;
+		return 0;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	return 1;
+}
+
 int editorDrawerOpenContextMenuAt(const struct editorMouseEvent *event, int viewport_rows) {
 	if (event == NULL) {
 		return 0;
 	}
-	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+	if (editorDrawerIsCollapsed()) {
 		return 0;
 	}
-	if (E.drawer_mode != EDITOR_DRAWER_MODE_TREE) {
+	if (E.drawer_mode != EDITOR_DRAWER_MODE_TREE && E.drawer_mode != EDITOR_DRAWER_MODE_GIT) {
+		return 0;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_TREE && E.drawer_root == NULL) {
 		return 0;
 	}
 	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
@@ -473,6 +506,10 @@ int editorDrawerOpenContextMenuAt(const struct editorMouseEvent *event, int view
 	int visible_idx = E.drawer_rowoff + drawer_row - 1;
 	if (!editorDrawerSelectVisibleIndex(visible_idx, viewport_rows)) {
 		return 0;
+	}
+
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+		return editorDrawerGitOpenSelectionMenu(event->y, event->x);
 	}
 
 	struct editorPopupItem items[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
@@ -529,6 +566,20 @@ void editorDrawerContextMenuActivate(void) {
 		case ACTIONS_WORKSPACE_CTX_NEW_FOLDER:
 			editorDrawerPromptCreateFolder();
 			break;
+		case ACTIONS_WORKSPACE_CTX_GIT_OPEN_DIFF:
+			if (editorOpenSelectedGitDiff()) {
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+			}
+			break;
+		case ACTIONS_WORKSPACE_CTX_GIT_STAGE:
+			(void)editorGitViewHandleMappedAction(EDITOR_ACTION_GIT_STAGE);
+			break;
+		case ACTIONS_WORKSPACE_CTX_GIT_UNSTAGE:
+			(void)editorGitViewHandleMappedAction(EDITOR_ACTION_GIT_UNSTAGE);
+			break;
+		case ACTIONS_WORKSPACE_CTX_GIT_DISCARD:
+			(void)editorGitViewHandleMappedAction(EDITOR_ACTION_GIT_DISCARD);
+			break;
 	}
 }
 
@@ -541,18 +592,8 @@ int editorOpenSelectedGitDiff(void) {
 		return 0;
 	}
 	const struct editorGitEntry *entry = &E.git_entries[entry_idx];
-	size_t diff_len = 0;
-	char *diff_text = editorGitGenerateDiff(entry->rel_path, entry->index_status,
-	                                        entry->worktree_status, &diff_len);
-	if (diff_text == NULL) {
-		editorSetStatusMsg("Failed to generate git diff");
-		return 0;
-	}
-	char title[PATH_MAX + 16];
-	(void)snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
-	int ok = editorTabOpenGitDiff(title, diff_text);
-	free(diff_text);
-	return ok;
+	return editorGitViewOpenDiffForEntry(entry->rel_path, entry->index_status,
+	                                     entry->worktree_status);
 }
 
 int editorJumpToSelectedLspDrawerLocation(int preview, editorJumpToPathLocationFn jump_fn) {
@@ -1005,10 +1046,13 @@ actionsWorkspaceDrawerNewlineActivate(editorWorkspaceProcessMappedActionFn proce
 		return;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
-		if (editorOpenSelectedGitDiff()) {
-			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-			*effects |= cursor_or_edit_effect_bit;
+		enum editorAction git_action = EDITOR_ACTION_COUNT;
+		if (editorDrawerGitSelectedAction(&git_action)) {
+			(void)process_mapped_action(git_action, effects);
+			return;
 		}
+		int anchor_row = E.drawer_selected_index - E.drawer_rowoff + 2;
+		(void)editorDrawerGitOpenSelectionMenu(anchor_row, 3);
 		return;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {

@@ -1,4 +1,5 @@
 #include "rotide.h"
+#include "support/alloc.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
 #include "test_helpers.h"
@@ -146,6 +147,144 @@ static int test_git_view_line_entity_log_and_stash(void) {
 	return 0;
 }
 
+static int test_git_view_build_diff_strips_prefixes_and_tracks_kinds(void) {
+	const char *patch = "diff --git a/src/app.c b/src/app.c\n"
+	                    "index 1111111..2222222 100644\n"
+	                    "--- a/src/app.c\n"
+	                    "+++ b/src/app.c\n"
+	                    "@@ -1,3 +1,3 @@\n"
+	                    "-int old_value = 1;\n"
+	                    "+int new_value = 2;\n"
+	                    " int kept_value = 3;\n"
+	                    "\\ No newline at end of file\n";
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text =
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_STR("diff --git a/src/app.c b/src/app.c\n"
+	              "@@ -1,3 +1,3 @@\n"
+	              "int old_value = 1;\n"
+	              "int new_value = 2;\n"
+	              "int kept_value = 3;\n",
+	              text);
+	ASSERT_EQ_INT(5, kind_count);
+	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_HEADER, kinds[0]);
+	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_HEADER, kinds[1]);
+	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_REMOVED, kinds[2]);
+	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_ADDED, kinds[3]);
+	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_TEXT, kinds[4]);
+	ASSERT_TRUE(source_path != NULL);
+	ASSERT_EQ_STR("src/app.c", source_path);
+	free(text);
+	free(kinds);
+	free(source_path);
+	return 0;
+}
+
+static int test_git_view_build_diff_multi_file_has_no_source_path(void) {
+	const char *patch = "diff --git a/one.c b/one.c\n"
+	                    "--- a/one.c\n"
+	                    "+++ b/one.c\n"
+	                    "@@ -1 +1 @@\n"
+	                    "-a\n"
+	                    "+b\n"
+	                    "diff --git a/two.c b/two.c\n"
+	                    "--- a/two.c\n"
+	                    "+++ b/two.c\n"
+	                    "@@ -1 +1 @@\n"
+	                    "-c\n"
+	                    "+d\n";
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text =
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(source_path == NULL);
+	ASSERT_EQ_INT(8, kind_count);
+	ASSERT_TRUE(strstr(text, "diff --git a/two.c b/two.c") != NULL);
+	free(text);
+	free(kinds);
+	return 0;
+}
+
+static int test_git_view_build_diff_untracked_uses_new_side_path(void) {
+	const char *patch = "diff --git a/new.py b/new.py\n"
+	                    "new file mode 100644\n"
+	                    "index 0000000..1111111\n"
+	                    "--- /dev/null\n"
+	                    "+++ b/new.py\n"
+	                    "@@ -0,0 +1 @@\n"
+	                    "+print(\"hi\")\n";
+	unsigned char *kinds = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text =
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(source_path != NULL);
+	ASSERT_EQ_STR("new.py", source_path);
+	ASSERT_TRUE(strstr(text, "print(\"hi\")") != NULL);
+	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_ADDED, kinds[kind_count - 1]);
+	free(text);
+	free(kinds);
+	free(source_path);
+	return 0;
+}
+
+static int test_git_view_row_bg_color_for_diff_and_headers(void) {
+	ASSERT_TRUE(editorTabsInit());
+	const char *text = "diff --git a/x.c b/x.c\n"
+	                   "old\n"
+	                   "new\n"
+	                   "kept\n";
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: x.c", text));
+	static unsigned char kinds[] = {EDITOR_GIT_VIEW_LINE_HEADER, EDITOR_GIT_VIEW_LINE_REMOVED,
+	                                EDITOR_GIT_VIEW_LINE_ADDED, EDITOR_GIT_VIEW_LINE_TEXT};
+	E.git_view_line_kinds = editorRealloc(NULL, sizeof(kinds));
+	ASSERT_TRUE(E.git_view_line_kinds != NULL);
+	memcpy(E.git_view_line_kinds, kinds, sizeof(kinds));
+	E.git_view_line_kind_count = 4;
+
+	struct editorThemeColor color;
+	ASSERT_TRUE(editorGitViewRowBgColor(0, &color));
+	ASSERT_TRUE(editorGitViewRowBgColor(1, &color));
+	struct editorThemeColor removed = editorThemeGitDiffBgColor(&E.theme, 0);
+	ASSERT_EQ_INT(removed.kind, color.kind);
+	ASSERT_EQ_INT(removed.value, color.value);
+	ASSERT_TRUE(editorGitViewRowBgColor(2, &color));
+	struct editorThemeColor added = editorThemeGitDiffBgColor(&E.theme, 1);
+	ASSERT_EQ_INT(added.kind, color.kind);
+	ASSERT_EQ_INT(added.value, color.value);
+	ASSERT_TRUE(!editorGitViewRowBgColor(3, &color));
+	return 0;
+}
+
+static int test_git_view_row_spans_colorize_views(void) {
+	ASSERT_TRUE(editorTabsInit());
+	const char *text = "# branches · Enter checkout\n"
+	                   "* main  ↑1  origin/main  3d\n"
+	                   "  feature/x  2w\n";
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_BRANCHES, "git branches", text));
+
+	struct editorRowSyntaxSpan spans[8];
+	int count = 0;
+	ASSERT_TRUE(editorGitViewRowSyntaxSpans(0, spans, 8, &count));
+	ASSERT_EQ_INT(1, count);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_COMMENT, spans[0].highlight_class);
+
+	ASSERT_TRUE(editorGitViewRowSyntaxSpans(1, spans, 8, &count));
+	ASSERT_TRUE(count >= 2);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_KEYWORD, spans[1].highlight_class);
+
+	ASSERT_TRUE(editorGitViewRowSyntaxSpans(2, spans, 8, &count));
+	ASSERT_TRUE(count >= 2);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_FUNCTION, spans[1].highlight_class);
+	return 0;
+}
+
 static int test_git_view_status_bar_shows_ahead_behind(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("hello");
@@ -205,6 +344,15 @@ const struct editorTestCase g_git_view_tests[] = {
         {"git_view_format_stash_lists_and_empty", test_git_view_format_stash_lists_and_empty},
         {"git_view_line_entity_branches", test_git_view_line_entity_branches},
         {"git_view_line_entity_log_and_stash", test_git_view_line_entity_log_and_stash},
+        {"git_view_build_diff_strips_prefixes_and_tracks_kinds",
+         test_git_view_build_diff_strips_prefixes_and_tracks_kinds},
+        {"git_view_build_diff_multi_file_has_no_source_path",
+         test_git_view_build_diff_multi_file_has_no_source_path},
+        {"git_view_build_diff_untracked_uses_new_side_path",
+         test_git_view_build_diff_untracked_uses_new_side_path},
+        {"git_view_row_bg_color_for_diff_and_headers",
+         test_git_view_row_bg_color_for_diff_and_headers},
+        {"git_view_row_spans_colorize_views", test_git_view_row_spans_colorize_views},
         {"git_view_status_bar_shows_ahead_behind", test_git_view_status_bar_shows_ahead_behind},
         {"git_view_branches_render_golden", test_git_view_branches_render_golden},
 };

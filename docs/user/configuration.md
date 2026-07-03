@@ -20,8 +20,9 @@ list. Common sections:
   `git_branches`, `git_push`, …) are bindable here; they have no default
   chords because the Git drawer and views expose them as single letters.
 - `[keymap.vim]`: mode-qualified Vim bindings (`normal.*`, `insert.*`,
-  `visual.*`) plus leader sub-keys (`leader.*`, including `leader.git_drawer`,
-  `leader.git_branches`, `leader.git_log`, `leader.git_stashes`).
+  `visual.*`) plus leader sub-keys (`leader.*`, including `leader.git_drawer`).
+- Custom themes can set `diff_added_bg` / `diff_removed_bg` under `[theme.ui]`
+  to override the derived green/red diff line tints.
 
 Built-in themes include `terminal`, `a11y-dark`, `a11y-light`, `acme`,
 `silentium`, `256noir`, `github-light`, `github-dark`, `modus-operandi`,

@@ -278,7 +278,8 @@ static int test_git_ops_stash_round_trip(void) {
 	ASSERT_TRUE(strstr(raw, "wip") != NULL);
 	free(raw);
 
-	char *shown = editorGitOpsStashShowDup("stash@{0}", &raw_len);
+	char *shown =
+	        editorGitOpsPatchDup(EDITOR_GIT_OPS_PATCH_SHOW_STASH, "stash@{0}", 0, &raw_len);
 	ASSERT_TRUE(shown != NULL);
 	ASSERT_TRUE(strstr(shown, "a.txt") != NULL);
 	free(shown);
@@ -357,7 +358,7 @@ static int test_git_ops_history_operations(void) {
 	ASSERT_TRUE(strstr(log, "tag: v1") != NULL);
 	free(log);
 
-	char *shown = editorGitOpsShowCommitDup(sha, &log_len);
+	char *shown = editorGitOpsPatchDup(EDITOR_GIT_OPS_PATCH_SHOW_COMMIT, sha, 0, &log_len);
 	ASSERT_TRUE(shown != NULL);
 	ASSERT_TRUE(strstr(shown, "initial") != NULL);
 	free(shown);

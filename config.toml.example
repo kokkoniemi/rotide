@@ -369,7 +369,8 @@ git_drawer = "ctrl+alt+g"
 # Other bindable names: git_stage, git_unstage, git_stage_all, git_discard,
 # git_commit_amend, git_refresh, git_push, git_pull, git_fetch,
 # git_view_activate, git_branch_new, git_branch_delete, git_cherry_pick,
-# git_revert, git_tag, git_stash_apply, git_stash_pop, git_stash_drop.
+# git_revert, git_tag, git_stash_apply, git_stash_pop, git_stash_drop,
+# git_diff_toggle_context.
 dap_drawer = "ctrl+alt+b"
 # DAP control actions have no default binding; uncomment/remap as needed.
 # dap_start = "ctrl+alt+s"
@@ -450,9 +451,9 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # Set the leader key with "normal.leader" (default "space"; "space" and a literal
 # " " both work). Bind sub-keys with "leader.<command>". Built-in leader commands:
 #   find_file (default "p"), project_search ("f"), toggle_drawer ("e"),
-#   main_menu ("m"), git_drawer ("g"), git_branches ("b"), git_log ("c"),
-#   git_stashes ("s"), git_blame_details (unbound by default; Normal mode uses
-#   "gb"). Sub-keys relocate like other commands.
+#   main_menu ("m"), git_drawer ("g"), git_blame_details (unbound by default;
+#   Normal mode uses "gb"). Sub-keys relocate like other commands. The Git
+#   views open from inside the Git drawer (B/L/S or the Actions rows).
 #
 # Built-in Vim window commands are not configurable yet: Ctrl-W s/v splits,
 # Ctrl-W c/q closes the focused pane, Ctrl-W o closes other panes, Ctrl-W w and
@@ -475,4 +476,4 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # normal.leader = "space"
 # leader.find_file = "p"
 # leader.project_search = "f"
-# leader.git_blame_details = "B"
+# leader.git_blame_details = "b"
