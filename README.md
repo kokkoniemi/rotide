@@ -8,7 +8,9 @@ drawer with file/text search and Git changes, undo/redo, Tree-sitter syntax
 highlighting, crash recovery, and LSP-backed definitions/problems/symbols are
 implemented and tested.
 
-![RotIDE editing its own source](docs/media/screenshots/editor-source.png)
+![RotIDE editing its own source](docs/media/screenshots/theme-github-dark.png)
+
+[➡️ More screenshots here](docs/media/screenshots/README.md)
 
 ## Highlights
 
