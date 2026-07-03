@@ -68,16 +68,25 @@ struct statusDebugButton {
 };
 static struct statusDebugButton g_status_debug_buttons[STATUS_DEBUG_MAX_BUTTONS];
 static int g_status_debug_button_count;
+/*
+ * Column offset added to every recorded button span. The segment renders with
+ * a local column that starts at 0, but the segment itself may sit further right
+ * (e.g. after the input-system badge); this offset keeps the clickable spans in
+ * absolute status-row columns so the mouse layer resolves hits correctly.
+ */
+static int g_status_debug_button_col_offset;
 
-static void statusDebugButtonsReset(void) {
+static void statusDebugButtonsReset(int col_offset) {
 	g_status_debug_button_count = 0;
+	g_status_debug_button_col_offset = col_offset;
 }
 
 /*
  * Appends a control button at *col (capped at max_col), records the clickable
  * span, and advances *col. `icon` (a one-column nerd glyph), `label`, and
  * `hotkey` are each optional; single spaces separate the present parts, and
- * the hotkey renders italic + faint so it reads as a hint, not a label.
+ * the hotkey renders italic so it reads as a hint without overriding the
+ * theme's status foreground.
  * `icon_color`, if non-NULL, tints the icon glyph, restoring the status style
  * afterward. A button with no room is silently dropped. Returns 0 only on a
  * write failure. Labels and hotkeys must be ASCII (measured in bytes).
@@ -117,22 +126,27 @@ static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const c
 		if (hotkey_sep && !wbAppend(wb, " ", 1)) {
 			return 0;
 		}
-		if (!wbAppend(wb, "\x1b[3;2m", 6) || !wbAppend(wb, hotkey, (size_t)hotkey_cols) ||
-		    !wbAppend(wb, "\x1b[23;22m", 8)) {
+		if (!wbAppend(wb, "\x1b[3m", 4) || !wbAppend(wb, hotkey, (size_t)hotkey_cols) ||
+		    !wbAppend(wb, "\x1b[23m", 5)) {
 			return 0;
 		}
 	}
 	if (g_status_debug_button_count < STATUS_DEBUG_MAX_BUTTONS) {
-		g_status_debug_buttons[g_status_debug_button_count].start_col = start_col;
-		g_status_debug_buttons[g_status_debug_button_count].end_col = start_col + cols;
+		g_status_debug_buttons[g_status_debug_button_count].start_col =
+		        g_status_debug_button_col_offset + start_col;
+		g_status_debug_buttons[g_status_debug_button_count].end_col =
+		        g_status_debug_button_col_offset + start_col + cols;
 		g_status_debug_buttons[g_status_debug_button_count].action = action;
 		g_status_debug_button_count++;
 	}
 	*col += cols;
-	if (*col + 2 <= max_col && !wbAppend(wb, "  ", 2)) {
+	/* Three trailing spaces between buttons: a wider gap than the single space
+	 * separating a label from its hotkey, so each hotkey groups visually with
+	 * the button it belongs to. */
+	if (*col + 3 <= max_col && !wbAppend(wb, "   ", 3)) {
 		return 0;
 	}
-	*col += (*col + 2 <= max_col) ? 2 : 0;
+	*col += (*col + 3 <= max_col) ? 3 : 0;
 	return 1;
 }
 
@@ -140,11 +154,13 @@ static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const c
  * Renders the debug control segment at the left of the status bar when a DAP
  * session is active: a PAUSED/RUNNING badge then context-appropriate buttons.
  * Stopped → Cont/Over/Into/Out/Restart/Stop; running → Pause/Restart/Stop.
- * Records button spans for the mouse layer; writes the columns consumed to
- * *col_io. `max_col` bounds the segment so it never overruns the right side.
+ * Records button spans for the mouse layer (offset by `col_offset`, the segment's
+ * absolute start column); writes the columns consumed to *col_io. `max_col`
+ * bounds the segment width so it never overruns the right side.
  */
-static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *col_io) {
-	statusDebugButtonsReset();
+static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *col_io,
+                                       int col_offset) {
+	statusDebugButtonsReset(col_offset);
 	int col = 0;
 	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -318,7 +334,7 @@ static int statusBarGitDrawerButtons(struct statusBarGitButton *buttons, int max
  * themselves; buttons that do not fit are dropped from the right.
  */
 static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitContext context,
-                                     int max_col, int *col_io) {
+                                     int max_col, int *col_io, int col_offset) {
 	static const struct statusBarGitButton k_branches[] = {
 	        {STATUS_GIT_ICON_CHECKOUT, "Checkout", "enter", EDITOR_ACTION_GIT_VIEW_ACTIVATE},
 	        {STATUS_GIT_ICON_STAGE, "New", "n", EDITOR_ACTION_GIT_BRANCH_NEW},
@@ -385,7 +401,7 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 			return 1;
 	}
 
-	statusDebugButtonsReset();
+	statusDebugButtonsReset(col_offset);
 	int col = 0;
 	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -534,60 +550,20 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		right_start_col = 0;
 	}
 
-	/* The far-left segment is context-sensitive: debug controls while a DAP
-	 * session runs, git action buttons while a git surface has focus. The
-	 * git segment replaces the tab name to leave room for its buttons. */
-	int debug_cols = 0;
-	enum statusBarGitContext git_context = statusBarGitContext();
-	if (editorDapIsRunning()) {
-		if (!statusBarAppendDebugSegment(wb, right_start_col, &debug_cols)) {
-			return 0;
-		}
-	} else if (git_context != STATUS_GIT_CONTEXT_NONE) {
-		if (!statusBarAppendGitSegment(wb, git_context, right_start_col, &debug_cols)) {
-			return 0;
-		}
-		filename = "";
-	} else {
-		statusDebugButtonsReset();
-	}
-
+	/* The input-system badge (e.g. the Vim mode label) is always the far-left
+	 * element of the status bar, ahead of any debug or git action buttons. */
 	const struct editorInputSystem *active_system = editorInputSystemActive();
 	char *input_segment = NULL;
 	int input_segment_cols = 0;
 	int input_segment_total_cols = 0;
 	if (!statusBarPrepareInputSegment(&input_segment, &input_segment_cols,
-	                                  &input_segment_total_cols,
-	                                  right_start_col - debug_cols)) {
+	                                  &input_segment_total_cols, right_start_col)) {
 		return 0;
 	}
 
 	int ok = 0;
-	int dirty_cols = (int)strlen(dirtyflag);
-	int diag_cols = (int)strlen(diagbuf);
-	int left_budget = right_start_col - debug_cols - input_segment_total_cols;
-	if (left_budget < 0) {
-		left_budget = 0;
-	}
-	int reserved_for_dirty = 0;
-	int include_dirty_sep = 0;
-	if (dirty_cols > 0) {
-		if (left_budget >= dirty_cols + 1) {
-			reserved_for_dirty = dirty_cols + 1;
-			include_dirty_sep = 1;
-		} else if (left_budget >= dirty_cols) {
-			reserved_for_dirty = dirty_cols;
-		}
-	}
 
-	int path_budget = left_budget - reserved_for_dirty;
-	if (path_budget < 0) {
-		path_budget = 0;
-	}
-	if (diag_cols > 0 && path_budget >= diag_cols) {
-		path_budget -= diag_cols;
-	}
-
+	/* Render the input badge first so it occupies the leftmost columns. */
 	if (input_segment_total_cols > 0) {
 		int color_idx = -1;
 		int colored = 0;
@@ -628,6 +604,57 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		                !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS))) {
 			goto cleanup;
 		}
+	}
+
+	/* The next segment is context-sensitive: debug controls while a DAP session
+	 * runs, git action buttons while a git surface has focus. Both sit just to
+	 * the right of the input badge, so their clickable spans are recorded with
+	 * that column offset. The git segment replaces the tab name to leave room
+	 * for its buttons. */
+	int debug_cols = 0;
+	enum statusBarGitContext git_context = statusBarGitContext();
+	int segment_max = right_start_col - input_segment_total_cols;
+	if (segment_max < 0) {
+		segment_max = 0;
+	}
+	if (editorDapIsRunning()) {
+		if (!statusBarAppendDebugSegment(wb, segment_max, &debug_cols,
+		                                 input_segment_total_cols)) {
+			goto cleanup;
+		}
+	} else if (git_context != STATUS_GIT_CONTEXT_NONE) {
+		if (!statusBarAppendGitSegment(wb, git_context, segment_max, &debug_cols,
+		                               input_segment_total_cols)) {
+			goto cleanup;
+		}
+		filename = "";
+	} else {
+		statusDebugButtonsReset(0);
+	}
+
+	int dirty_cols = (int)strlen(dirtyflag);
+	int diag_cols = (int)strlen(diagbuf);
+	int left_budget = right_start_col - input_segment_total_cols - debug_cols;
+	if (left_budget < 0) {
+		left_budget = 0;
+	}
+	int reserved_for_dirty = 0;
+	int include_dirty_sep = 0;
+	if (dirty_cols > 0) {
+		if (left_budget >= dirty_cols + 1) {
+			reserved_for_dirty = dirty_cols + 1;
+			include_dirty_sep = 1;
+		} else if (left_budget >= dirty_cols) {
+			reserved_for_dirty = dirty_cols;
+		}
+	}
+
+	int path_budget = left_budget - reserved_for_dirty;
+	if (path_budget < 0) {
+		path_budget = 0;
+	}
+	if (diag_cols > 0 && path_budget >= diag_cols) {
+		path_budget -= diag_cols;
 	}
 
 	int left_cols = 0;

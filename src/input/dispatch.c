@@ -3347,6 +3347,10 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 
 /* Returns 1 when the key was fully handled and caller must return immediately. */
 static int dispatchHandleKeyboardKey(int c, int *effects) {
+	const struct editorInputSystem *system = editorInputSystemActive();
+	int input_sequence_pending = system != NULL && system->key_sequence_pending != NULL &&
+	                             system->key_sequence_pending();
+
 	if (editorClearHoverLinkState()) {
 		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 	}
@@ -3356,13 +3360,16 @@ static int dispatchHandleKeyboardKey(int c, int *effects) {
 	if (dispatchTryTerminalPaneKey(c)) {
 		return 1;
 	}
-	if (dispatchTryGitDrawerKey(c, effects)) {
-		return 1;
+	/* Contextual one-key actions yield to the second key of an input-system
+	 * sequence (for example Vim <leader>d or gd). */
+	if (!input_sequence_pending) {
+		if (dispatchTryGitDrawerKey(c, effects)) {
+			return 1;
+		}
+		if (dispatchTryGitViewKey(c, effects)) {
+			return 1;
+		}
 	}
-	if (dispatchTryGitViewKey(c, effects)) {
-		return 1;
-	}
-	const struct editorInputSystem *system = editorInputSystemActive();
 	/* The find-file / project-search drawer fields are plain text inputs: route
 	 * keys through CUA so typing filters regardless of a modal system's state
 	 * (e.g. Vim Normal mode would otherwise treat the keys as commands). */

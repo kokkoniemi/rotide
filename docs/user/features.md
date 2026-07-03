@@ -14,7 +14,7 @@ are implemented and tested.
 - Project drawer with expand/collapse, mouse resize, file search, project text
   search, Git changes, and LSP Problems/Symbols views.
 - Git workflows: stage/unstage/discard from the Git drawer (single letters or
-  a per-file menu on Enter/right-click), an Actions section for commit/amend,
+  a per-file right-click menu), an Actions section for commit/amend,
   views, push/pull/fetch and refresh, commit and amend via an editable message
   tab, branches/commits/stash views (checkout, create and delete branches,
   cherry-pick, revert, tag, stash apply/pop/drop), blame, and ahead/behind

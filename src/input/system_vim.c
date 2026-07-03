@@ -4184,6 +4184,15 @@ static int vimSystemIsIdleNormal(void) {
 	       E.input_vim_count == 0;
 }
 
+static int vimSystemKeySequencePending(void) {
+	return E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE ||
+	       E.input_vim_pending_g != 0 || E.input_vim_pending_find != 0 ||
+	       E.input_vim_pending_replace != 0 || E.input_vim_pending_z != 0 ||
+	       E.input_vim_pending_mark != 0 || E.input_vim_pending_register != 0 ||
+	       E.input_vim_pending_text_object != 0 || E.input_vim_pending_leader != 0 ||
+	       E.input_vim_pending_ctrl_w != 0 || E.input_vim_pending_bracket != 0;
+}
+
 static int vimSystemDotReplay(int *effects_out) {
 	int last = 0;
 
@@ -4395,6 +4404,7 @@ const struct editorInputSystem editorVimInputSystem = {
         .on_activate = vimSystemOnActivate,
         .on_deactivate = NULL,
         .handle_key = vimSystemHandleKey,
+        .key_sequence_pending = vimSystemKeySequencePending,
         .resolve_command = vimSystemResolveCommand,
         .bind_key = vimSystemBindKey,
         .status_segment = vimSystemStatusSegment,

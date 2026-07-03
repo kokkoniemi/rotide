@@ -552,28 +552,35 @@ static int test_git_input_diff_toggle_whole_file(void) {
 	return 0;
 }
 
-static int test_git_input_enter_on_file_row_opens_menu(void) {
+static int test_git_input_enter_on_file_row_opens_diff(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
 	ASSERT_TRUE(git_input_setup("vim", &repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	E.window_rows = 20;
+	E.window_cols = 120;
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
 
-	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
+	/* The mouse context-menu path remains available on the same row. */
+	struct editorMouseEvent event = {.x = 2,
+	                                 .y = E.drawer_selected_index - E.drawer_rowoff + 2};
+	ASSERT_TRUE(editorDrawerOpenContextMenuAt(&event, E.window_rows));
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_STR("Open Diff", editorPopupSelectedLabel());
+	editorPopupClose();
 
-	/* Accepting the first item opens the diff preview tab. */
 	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
 	ASSERT_TRUE(!editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_TRUE(git_input_view_contains("two"));
 
 	git_input_repo_destroy(repo);
 	return 0;
 }
 
-static int test_git_input_menu_stage_and_unstage(void) {
+static int test_git_input_context_menu_stage_and_unstage(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
 	ASSERT_TRUE(git_input_setup("vim", &repo));
@@ -581,14 +588,16 @@ static int test_git_input_menu_stage_and_unstage(void) {
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
 
-	/* Enter opens the menu; second item is Stage for an unstaged file. */
-	const char down_enter[] = "\r\x1b[B\r";
+	/* The right-click menu's second item is Stage for an unstaged file. */
+	const char down_enter[] = "\x1b[B\r";
+	ASSERT_TRUE(editorDrawerGitOpenSelectionMenu(2, 2));
 	ASSERT_TRUE(editor_process_keypress_with_input(down_enter, sizeof(down_enter) - 1) == 0);
 	const struct editorGitEntry *entry = git_input_find_entry("a.txt");
 	ASSERT_TRUE(entry != NULL);
 	ASSERT_EQ_INT('M', entry->index_status);
 
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+	ASSERT_TRUE(editorDrawerGitOpenSelectionMenu(2, 2));
 	ASSERT_TRUE(editor_process_keypress_with_input(down_enter, sizeof(down_enter) - 1) == 0);
 	entry = git_input_find_entry("a.txt");
 	ASSERT_TRUE(entry != NULL);
@@ -638,6 +647,11 @@ static int test_git_input_status_bar_button_click_stages_file(void) {
 	size_t out_len = 0;
 	char *out = refresh_screen_and_capture(&out_len);
 	ASSERT_TRUE(out != NULL);
+	const char *mode = strstr(out, "NORMAL");
+	const char *stage = strstr(out, "Stage");
+	ASSERT_TRUE(mode != NULL);
+	ASSERT_TRUE(stage != NULL);
+	ASSERT_TRUE(mode < stage);
 	free(out);
 	int stage_col = -1;
 	for (int col = 0; col < E.window_cols; col++) {
@@ -648,7 +662,10 @@ static int test_git_input_status_bar_button_click_stages_file(void) {
 			break;
 		}
 	}
-	ASSERT_TRUE(stage_col >= 0);
+	/* " NORMAL " occupies the first eight columns; the Git segment's leading
+	 * space puts Stage at column 9. Its clickable span must use that absolute
+	 * position rather than the segment-local column 1. */
+	ASSERT_EQ_INT(9, stage_col);
 
 	char click[32];
 	int written =
@@ -834,6 +851,41 @@ static int test_git_input_leader_and_ex_open_views(void) {
 	return 0;
 }
 
+static int test_git_input_pending_vim_sequence_precedes_drawer_hotkey(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+
+	/* The d belongs to <leader>d; it must not become the Git discard hotkey. */
+	ASSERT_TRUE(editor_process_keypress_with_input(" d", 2) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_DAP, E.drawer_mode);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	const struct editorGitEntry *entry = git_input_find_entry("a.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT('M', entry->worktree_status);
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_file_row("a.txt"));
+	/* A register name is also owned by Vim, even when it matches a Git key. */
+	ASSERT_TRUE(editor_process_keypress_with_input("\"d", 2) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	entry = git_input_find_entry("a.txt");
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT('M', entry->worktree_status);
+
+	editorGitViewOpenBranches();
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_BRANCHES, E.tab_kind);
+	ASSERT_TRUE(editor_process_keypress_with_input(" d", 2) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_DAP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
 static int test_git_input_keymap_cua_accepts_git_names(void) {
 	char dir_template[] = "/tmp/rotide-test-git-keymap-XXXXXX";
 	char *dir = mkdtemp(dir_template);
@@ -912,12 +964,14 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_view_readonly_and_header_noop", test_git_input_view_readonly_and_header_noop},
         {"git_input_diff_tabs_reuse_preview_slot", test_git_input_diff_tabs_reuse_preview_slot},
         {"git_input_diff_toggle_whole_file", test_git_input_diff_toggle_whole_file},
-        {"git_input_enter_on_file_row_opens_menu", test_git_input_enter_on_file_row_opens_menu},
-        {"git_input_menu_stage_and_unstage", test_git_input_menu_stage_and_unstage},
+        {"git_input_enter_on_file_row_opens_diff", test_git_input_enter_on_file_row_opens_diff},
+        {"git_input_context_menu_stage_and_unstage", test_git_input_context_menu_stage_and_unstage},
         {"git_input_actions_row_opens_commit_tab", test_git_input_actions_row_opens_commit_tab},
         {"git_input_status_bar_button_click_stages_file",
          test_git_input_status_bar_button_click_stages_file},
         {"git_input_leader_and_ex_open_views", test_git_input_leader_and_ex_open_views},
+        {"git_input_pending_vim_sequence_precedes_drawer_hotkey",
+         test_git_input_pending_vim_sequence_precedes_drawer_hotkey},
         {"git_input_keymap_cua_accepts_git_names", test_git_input_keymap_cua_accepts_git_names},
         {"git_input_mouse_double_click_checks_out_branch",
          test_git_input_mouse_double_click_checks_out_branch},

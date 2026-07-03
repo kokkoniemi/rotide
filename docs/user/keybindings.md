@@ -161,10 +161,10 @@ staged…, Amend last commit…, Branches, Commit log, Stashes, Push, Pull, Fetc
 Refresh) run on Enter or a mouse click; push/pull/fetch run as background tasks
 with their output in a task tab.
 
-On a file row, Enter or right-click opens a small menu (Open Diff /
-Stage-or-Unstage / Discard…) that is navigable with the arrow keys; a plain
-mouse click opens the file's diff directly. Right-clicking a group header
-offers Stage all / Unstage all for that group.
+On a file row, Enter or a plain mouse click opens the file's diff directly.
+Right-click opens a small menu (Open Diff / Stage-or-Unstage / Discard…) that
+is navigable with the arrow keys. Right-clicking a group header offers Stage
+all / Unstage all for that group.
 
 While a Git surface has focus (the drawer or any git tab), the status bar
 replaces the tab name with the actions that currently apply as clickable

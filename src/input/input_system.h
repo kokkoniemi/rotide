@@ -14,6 +14,8 @@ struct editorInputSystem {
 	int (*on_activate)(void);
 	void (*on_deactivate)(void);
 	int (*handle_key)(int c, int *effects_out);
+	/* Nonzero while the next key belongs to an in-flight multi-key sequence. */
+	int (*key_sequence_pending)(void);
 	int (*resolve_command)(const char *name, int *command_id_out);
 	int (*bind_key)(const char *mode, const char *name, int key);
 	void (*status_segment)(char *buf, size_t bufsize);

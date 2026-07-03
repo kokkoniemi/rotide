@@ -414,8 +414,8 @@ static int test_git_view_status_bar_view_context_buttons(void) {
 	ASSERT_TRUE(out != NULL);
 	ASSERT_TRUE(strstr(out, "Checkout") != NULL);
 	ASSERT_TRUE(strstr(out, "Delete") != NULL);
-	/* Hotkeys render italic+faint after the label. */
-	ASSERT_TRUE(strstr(out, "Checkout \x1b[3;2menter\x1b[23;22m") != NULL);
+	/* Hotkeys inherit the theme's status foreground and use italics for emphasis. */
+	ASSERT_TRUE(strstr(out, "Checkout \x1b[3menter\x1b[23m") != NULL);
 	free(out);
 
 	int action = 0;
@@ -486,7 +486,7 @@ static int test_git_view_branches_render_golden(void) {
 	        "   2  * main  ↑1  origin/main  3d\n"
 	        "   3    feature/x  2w\n"
 	        "   4  # remotes\n"
-	        " Checkout enter  New n  Delete d   1,1    100%\n"
+	        " Checkout enter   New n   Delete d 1,1    100%\n"
 	        /* golden-end */
 	);
 	return 0;

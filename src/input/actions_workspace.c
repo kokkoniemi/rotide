@@ -451,8 +451,8 @@ static void actionsWorkspaceCtxAppend(struct editorPopupItem *items, int *count_
 	*count_io = idx + 1;
 }
 
-/* VSCode-style menu for the selected Git drawer file row (Enter or right
- * click): open diff, stage/unstage by the selected group, discard. */
+/* Right-click menu for the selected Git drawer file row: open diff,
+ * stage/unstage by the selected group, discard. */
 int editorDrawerGitOpenSelectionMenu(int anchor_row, int anchor_col) {
 	struct editorPopupItem items[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
 	int count = 0;
@@ -1060,8 +1060,9 @@ actionsWorkspaceDrawerNewlineActivate(editorWorkspaceProcessMappedActionFn proce
 			(void)process_mapped_action(git_action, effects);
 			return;
 		}
-		int anchor_row = E.drawer_selected_index - E.drawer_rowoff + 2;
-		(void)editorDrawerGitOpenSelectionMenu(anchor_row, 3);
+		if (editorOpenSelectedGitDiff()) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		}
 		return;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
