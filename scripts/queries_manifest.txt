@@ -56,3 +56,4 @@ make_highlight            vendor/tree_sitter/grammars/make/queries/highlights.sc
 diff_highlight            vendor/tree_sitter/grammars/diff/queries/highlights.scm
 latex_highlight           src/language/queries/latex/highlights.scm
 bibtex_highlight          vendor/tree_sitter/grammars/bibtex/queries/highlights.scm
+hcl_highlight             src/language/queries/hcl/highlights.scm

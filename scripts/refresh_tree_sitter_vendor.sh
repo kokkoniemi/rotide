@@ -121,7 +121,11 @@ download_repo_tarball() {
 	echo "Downloading ${repo} source ref: ${ref}" >&2
 	curl -fsSL "https://github.com/${repo}/archive/${ref}.tar.gz" -o "${tarball}"
 	local top
-	top="$(tar -tzf "${tarball}" | awk -F/ 'NR == 1 { print $1; exit }')"
+	# Larger tarballs would SIGPIPE tar when awk exits early; read the whole
+	# listing first, then take the top-level dir from the buffered output.
+	local listing
+	listing="$(tar -tzf "${tarball}")"
+	top="$(printf '%s\n' "${listing}" | awk -F/ 'NR == 1 { print $1; exit }')"
 	tar -xzf "${tarball}" -C "${TMP_DIR}"
 
 	printf -v "${out_var}" '%s' "${TMP_DIR}/${top}"
@@ -184,10 +188,10 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "julia" && \
 		"$2" != "latex" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
 		"$2" != "rust" && "$2" != "scala" && "$2" != "typescript" ) ]]; then
-		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
+		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|haskell|hcl|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -271,6 +275,17 @@ if [[ "${ONLY_GRAMMAR}" == "bibtex" ]]; then
 	sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
 	echo "Tree-sitter BibTeX vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "hcl" ]]; then
+	HCL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-hcl" \
+		"${TREE_SITTER_HCL_GRAMMAR_REF}" HCL_GRAMMAR_SRC
+	regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
+	sync_grammar_vendor "${HCL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/hcl"
+	echo "Tree-sitter HCL vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -432,6 +447,7 @@ MAKE_GRAMMAR_SRC=""
 DIFF_GRAMMAR_SRC=""
 LATEX_GRAMMAR_SRC=""
 BIBTEX_GRAMMAR_SRC=""
+HCL_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -464,6 +480,7 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-make" "${TREE_SITTER_MAK
 download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIFF_GRAMMAR_REF}" DIFF_GRAMMAR_SRC
 download_repo_tarball "latex-lsp/tree-sitter-latex" "${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
 download_repo_tarball "latex-lsp/tree-sitter-bibtex" "${TREE_SITTER_BIBTEX_GRAMMAR_REF}" BIBTEX_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-hcl" "${TREE_SITTER_HCL_GRAMMAR_REF}" HCL_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -543,6 +560,7 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
 regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
 rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
 regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
+regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -642,6 +660,7 @@ sync_grammar_vendor "${MAKE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/diff"
 sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
 sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
+sync_grammar_vendor "${HCL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/hcl"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

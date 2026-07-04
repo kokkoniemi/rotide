@@ -19,6 +19,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`
 - `supported/haskell/` maps to `EDITOR_SYNTAX_HASKELL`
+- `supported/hcl/` maps to `EDITOR_SYNTAX_HCL`
 - `supported/html/` maps to `EDITOR_SYNTAX_HTML`
 - `supported/java/` maps to `EDITOR_SYNTAX_JAVA`
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`

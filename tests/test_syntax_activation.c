@@ -754,6 +754,22 @@ static int test_editor_syntax_activation_for_bibtex_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_hcl_files(void) {
+	char hcl_path[] = "/tmp/rotide-test-syntax-hcl-XXXXXX.hcl";
+	ASSERT_TRUE(write_fixture_to_temp_path(hcl_path, 4,
+	                                       "tests/syntax/supported/hcl/activation.hcl"));
+
+	editorOpen(hcl_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HCL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("config_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(hcl_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(
@@ -1074,6 +1090,7 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_latex_files", test_editor_syntax_activation_for_latex_files},
         {"editor_syntax_activation_for_bibtex_files",
          test_editor_syntax_activation_for_bibtex_files},
+        {"editor_syntax_activation_for_hcl_files", test_editor_syntax_activation_for_hcl_files},
         {"editor_syntax_activation_for_go_and_mod_files",
          test_editor_syntax_activation_for_go_and_mod_files},
         {"editor_syntax_disabled_for_non_c_or_shell_files",
