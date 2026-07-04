@@ -301,13 +301,11 @@ if [[ "${ONLY_GRAMMAR}" == "lua" ]]; then
 fi
 
 if [[ "${ONLY_GRAMMAR}" == "glsl" ]]; then
-	C_GRAMMAR_SRC=""
 	GLSL_GRAMMAR_SRC=""
-	download_repo_tarball "tree-sitter/tree-sitter-c" \
-		"${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
 	download_repo_tarball "tree-sitter-grammars/tree-sitter-glsl" \
 		"${TREE_SITTER_GLSL_GRAMMAR_REF}" GLSL_GRAMMAR_SRC
-	link_grammar_dep "${GLSL_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/glsl/grammar.js" \
+		"${GLSL_GRAMMAR_SRC}/grammar.js"
 	regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
 	sync_grammar_vendor "${GLSL_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/glsl"
@@ -608,7 +606,8 @@ rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
 regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
 regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
 regenerate_parser "${LUA_GRAMMAR_SRC}" "Lua"
-link_grammar_dep "${GLSL_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/glsl/grammar.js" \
+	"${GLSL_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
 cp "${REPO_ROOT}/vendor/tree_sitter/overrides/kotlin/grammar.js" \
 	"${KOTLIN_GRAMMAR_SRC}/grammar.js"

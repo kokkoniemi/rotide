@@ -723,9 +723,9 @@ static int test_editor_syntax_glsl_capture_contract(void) {
 		int count;
 		uint64_t digest;
 	} cases[] = {
-	        {"tests/syntax/supported/glsl/highlight.glsl", 18, UINT64_C(0x0b0dab6c478e8945)},
-	        {"tests/syntax/supported/glsl/contract.glsl", 143, UINT64_C(0x1e1fa4a2eed3023d)},
-	        {"tests/syntax/supported/glsl/incomplete.glsl", 12, UINT64_C(0x885392c1e192871a)},
+	        {"tests/syntax/supported/glsl/highlight.glsl", 17, UINT64_C(0x3f52c80c459cdd56)},
+	        {"tests/syntax/supported/glsl/contract.glsl", 143, UINT64_C(0xcabba11b8558f349)},
+	        {"tests/syntax/supported/glsl/incomplete.glsl", 12, UINT64_C(0x7eedbf1e34477e91)},
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
