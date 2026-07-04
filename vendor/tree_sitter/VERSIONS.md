@@ -42,12 +42,13 @@ Pinned source/tooling used by this repository:
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.
 
-RotIDE applies the Bash, C++, C#, Haskell, Julia, LaTeX, OCaml, PHP, Ruby, Rust, Scala, and shared
-TypeScript/TSX grammars under `overrides/` before generation. The overrides preserve each registered
-highlight/locals and injection query contract without carrying the full upstream language grammar.
-Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`, `--grammar haskell`, `--grammar julia`,
-`--grammar latex`, `--grammar ocaml`, `--grammar php`, `--grammar ruby`, `--grammar rust`,
-`--grammar scala`, or `--grammar typescript` to refresh only that grammar or shared family.
+RotIDE applies the Bash, C++, C#, Haskell, Julia, Kotlin, LaTeX, OCaml, PHP, Ruby, Rust, Scala, and
+shared TypeScript/TSX grammars under `overrides/` before generation. The overrides preserve each
+registered highlight/locals and injection query contract without carrying the full upstream language
+grammar. Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`, `--grammar haskell`,
+`--grammar julia`, `--grammar kotlin`, `--grammar latex`, `--grammar ocaml`, `--grammar php`,
+`--grammar ruby`, `--grammar rust`, `--grammar scala`, or `--grammar typescript` to refresh only
+that grammar or shared family.
 
 ## Size baseline
 

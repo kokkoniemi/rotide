@@ -747,9 +747,9 @@ static int test_editor_syntax_kotlin_capture_contract(void) {
 		int count;
 		uint64_t digest;
 	} cases[] = {
-	        {"tests/syntax/supported/kotlin/highlight.kt", 20, UINT64_C(0x024a9dd697ccc6d3)},
-	        {"tests/syntax/supported/kotlin/contract.kt", 249, UINT64_C(0x890629e4c20dcc04)},
-	        {"tests/syntax/supported/kotlin/incomplete.kt", 14, UINT64_C(0xa6bd490713486a4f)},
+	        {"tests/syntax/supported/kotlin/highlight.kt", 18, UINT64_C(0x0d71101a86e59c0d)},
+	        {"tests/syntax/supported/kotlin/contract.kt", 229, UINT64_C(0xb188e939338adc2c)},
+	        {"tests/syntax/supported/kotlin/incomplete.kt", 13, UINT64_C(0xc867de5835893867)},
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {

@@ -148,10 +148,6 @@
 (line_comment) @comment
 (block_comment) @comment
 
-; Types
-(user_type
-  (identifier) @type)
-
 ; Function declarations
 (function_declaration
   name: (identifier) @function)

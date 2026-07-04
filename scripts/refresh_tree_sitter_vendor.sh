@@ -319,7 +319,10 @@ if [[ "${ONLY_GRAMMAR}" == "kotlin" ]]; then
 	KOTLIN_GRAMMAR_SRC=""
 	download_repo_tarball "tree-sitter-grammars/tree-sitter-kotlin" \
 		"${TREE_SITTER_KOTLIN_GRAMMAR_REF}" KOTLIN_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/kotlin/grammar.js" \
+		"${KOTLIN_GRAMMAR_SRC}/grammar.js"
 	regenerate_parser "${KOTLIN_GRAMMAR_SRC}" "Kotlin"
+	rm -f "${KOTLIN_GRAMMAR_SRC}/src/scanner.c"
 	sync_grammar_vendor "${KOTLIN_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/kotlin"
 	echo "Tree-sitter Kotlin vendor refresh complete." >&2
@@ -607,7 +610,10 @@ regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
 regenerate_parser "${LUA_GRAMMAR_SRC}" "Lua"
 link_grammar_dep "${GLSL_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
 regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/kotlin/grammar.js" \
+	"${KOTLIN_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${KOTLIN_GRAMMAR_SRC}" "Kotlin"
+rm -f "${KOTLIN_GRAMMAR_SRC}/src/scanner.c"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
