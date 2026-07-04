@@ -1509,6 +1509,31 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-bibtex-XXXXXX.bib";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/bibtex/highlight.bib"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m@comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m@string") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mTOG") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m@article") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m1984") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_latex_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-latex-XXXXXX.tex";
 	ASSERT_TRUE(
@@ -2565,6 +2590,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_latex_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_latex_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",

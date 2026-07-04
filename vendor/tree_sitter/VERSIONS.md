@@ -32,6 +32,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Make grammar source ref: `70613f3d812cbabbd7f38d104d60a409c4008b43` (`tree-sitter-make-master-70613f3`)
 - Tree-sitter Diff grammar source ref: `2520c3f934b3179bb540d23e0ef45f75304b5fed` (`tree-sitter-diff-master-2520c3f`)
 - Tree-sitter LaTeX grammar source ref: `7e0ecdc02926c7b9b2e0c76003d4fe7b0944f957` (`tree-sitter-latex-v0.6.0-7e0ecdc`)
+- Tree-sitter BibTeX grammar source ref: `8d04ed27b3bc7929f14b7df9236797dab9f3fa66` (`tree-sitter-bibtex-master-8d04ed2`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

@@ -9,6 +9,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 [`src/rotide.h`](../../src/rotide.h)):
 
 - `supported/bash/` maps to `EDITOR_SYNTAX_SHELL`
+- `supported/bibtex/` maps to `EDITOR_SYNTAX_BIBTEX`
 - `supported/c/` maps to `EDITOR_SYNTAX_C`
 - `supported/cpp/` maps to `EDITOR_SYNTAX_CPP`
 - `supported/csharp/` maps to `EDITOR_SYNTAX_CSHARP`

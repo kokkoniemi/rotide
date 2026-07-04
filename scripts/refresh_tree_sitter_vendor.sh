@@ -184,10 +184,10 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "bash" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
+		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
 		"$2" != "latex" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
 		"$2" != "rust" && "$2" != "scala" && "$2" != "typescript" ) ]]; then
-		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
+		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -260,6 +260,17 @@ if [[ "${ONLY_GRAMMAR}" == "haskell" ]]; then
 	sync_grammar_vendor "${HASKELL_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/haskell"
 	echo "Tree-sitter Haskell vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "bibtex" ]]; then
+	BIBTEX_GRAMMAR_SRC=""
+	download_repo_tarball "latex-lsp/tree-sitter-bibtex" \
+		"${TREE_SITTER_BIBTEX_GRAMMAR_REF}" BIBTEX_GRAMMAR_SRC
+	regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
+	sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
+	echo "Tree-sitter BibTeX vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -420,6 +431,7 @@ XML_GRAMMAR_SRC=""
 MAKE_GRAMMAR_SRC=""
 DIFF_GRAMMAR_SRC=""
 LATEX_GRAMMAR_SRC=""
+BIBTEX_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -451,6 +463,7 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-xml" "${TREE_SITTER_XML_
 download_repo_tarball "tree-sitter-grammars/tree-sitter-make" "${TREE_SITTER_MAKE_GRAMMAR_REF}" MAKE_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIFF_GRAMMAR_REF}" DIFF_GRAMMAR_SRC
 download_repo_tarball "latex-lsp/tree-sitter-latex" "${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
+download_repo_tarball "latex-lsp/tree-sitter-bibtex" "${TREE_SITTER_BIBTEX_GRAMMAR_REF}" BIBTEX_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -529,6 +542,7 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
 	"${LATEX_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
 rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
+regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -627,6 +641,7 @@ git -C "${REPO_ROOT}" apply \
 sync_grammar_vendor "${MAKE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/make"
 sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/diff"
 sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
+sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

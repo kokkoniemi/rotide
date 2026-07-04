@@ -738,6 +738,22 @@ static int test_editor_syntax_activation_for_latex_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_bibtex_files(void) {
+	char bib_path[] = "/tmp/rotide-test-syntax-bibtex-XXXXXX.bib";
+	ASSERT_TRUE(write_fixture_to_temp_path(bib_path, 4,
+	                                       "tests/syntax/supported/bibtex/activation.bib"));
+
+	editorOpen(bib_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_BIBTEX, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(bib_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(
@@ -1056,6 +1072,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_erb_files", test_editor_syntax_activation_for_erb_files},
         {"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
         {"editor_syntax_activation_for_latex_files", test_editor_syntax_activation_for_latex_files},
+        {"editor_syntax_activation_for_bibtex_files",
+         test_editor_syntax_activation_for_bibtex_files},
         {"editor_syntax_activation_for_go_and_mod_files",
          test_editor_syntax_activation_for_go_and_mod_files},
         {"editor_syntax_disabled_for_non_c_or_shell_files",

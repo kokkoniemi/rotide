@@ -40,6 +40,7 @@ extern const TSLanguage *tree_sitter_xml(void);
 extern const TSLanguage *tree_sitter_make(void);
 extern const TSLanguage *tree_sitter_diff(void);
 extern const TSLanguage *tree_sitter_latex(void);
+extern const TSLanguage *tree_sitter_bibtex(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -139,6 +140,7 @@ static const char *const k_make_basenames[] = {"Makefile", "makefile", "GNUmakef
 static const char *const k_diff_extensions[] = {".diff", ".patch", NULL};
 static const char *const k_latex_extensions[] = {".tex", ".ltx", ".sty", ".cls",
                                                  ".dtx", ".ins", NULL};
+static const char *const k_bibtex_extensions[] = {".bib", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -162,6 +164,7 @@ static const char *const k_xml_injection_aliases[] = {"xml", "svg", "xsd", "xslt
 static const char *const k_make_injection_aliases[] = {"make", "makefile", "gnumake", NULL};
 static const char *const k_diff_injection_aliases[] = {"diff", "patch", NULL};
 static const char *const k_latex_injection_aliases[] = {"latex", "tex", NULL};
+static const char *const k_bibtex_injection_aliases[] = {"bibtex", "bib", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -421,7 +424,14 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .highlight_parts = editor_query_latex_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_LATEX_HIGHLIGHT_PART_COUNT,
          .extensions = k_latex_extensions,
-         .injection_aliases = k_latex_injection_aliases}};
+         .injection_aliases = k_latex_injection_aliases},
+        {.id = EDITOR_SYNTAX_BIBTEX,
+         .name = "bibtex",
+         .ts_factory = tree_sitter_bibtex,
+         .highlight_parts = editor_query_bibtex_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_BIBTEX_HIGHLIGHT_PART_COUNT,
+         .extensions = k_bibtex_extensions,
+         .injection_aliases = k_bibtex_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 
