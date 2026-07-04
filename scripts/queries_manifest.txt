@@ -61,3 +61,4 @@ lua_highlight             src/language/queries/lua/highlights.scm
 lua_locals                vendor/tree_sitter/grammars/lua/queries/locals.scm
 lua_injection             vendor/tree_sitter/grammars/lua/queries/injections.scm
 glsl_highlight            src/language/queries/glsl/highlights.scm
+kotlin_highlight          src/language/queries/kotlin/highlights.scm

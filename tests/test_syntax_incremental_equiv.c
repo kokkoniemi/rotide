@@ -150,6 +150,7 @@ static const struct langCase k_lang_cases[] = {
         {"hcl", EDITOR_SYNTAX_HCL, "tests/syntax/supported/hcl/contract.hcl", 20},
         {"lua", EDITOR_SYNTAX_LUA, "tests/syntax/supported/lua/contract.lua", 20},
         {"glsl", EDITOR_SYNTAX_GLSL, "tests/syntax/supported/glsl/contract.glsl", 20},
+        {"kotlin", EDITOR_SYNTAX_KOTLIN, "tests/syntax/supported/kotlin/contract.kt", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -377,6 +378,7 @@ INCR_EQUIV_TEST(bibtex, 17)
 INCR_EQUIV_TEST(hcl, 18)
 INCR_EQUIV_TEST(lua, 19)
 INCR_EQUIV_TEST(glsl, 20)
+INCR_EQUIV_TEST(kotlin, 21)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -400,6 +402,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_hcl", test_syntax_incremental_equiv_hcl},
         {"syntax_incremental_equiv_lua", test_syntax_incremental_equiv_lua},
         {"syntax_incremental_equiv_glsl", test_syntax_incremental_equiv_glsl},
+        {"syntax_incremental_equiv_kotlin", test_syntax_incremental_equiv_kotlin},
 };
 
 const int g_syntax_incremental_equiv_test_count =

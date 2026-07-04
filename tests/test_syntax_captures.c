@@ -741,6 +741,30 @@ static int test_editor_syntax_glsl_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_kotlin_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/kotlin/highlight.kt", 20, UINT64_C(0x024a9dd697ccc6d3)},
+	        {"tests/syntax/supported/kotlin/contract.kt", 249, UINT64_C(0x890629e4c20dcc04)},
+	        {"tests/syntax/supported/kotlin/incomplete.kt", 14, UINT64_C(0xa6bd490713486a4f)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_KOTLIN, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1103,6 +1127,7 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_hcl_capture_contract", test_editor_syntax_hcl_capture_contract},
         {"editor_syntax_lua_capture_contract", test_editor_syntax_lua_capture_contract},
         {"editor_syntax_glsl_capture_contract", test_editor_syntax_glsl_capture_contract},
+        {"editor_syntax_kotlin_capture_contract", test_editor_syntax_kotlin_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

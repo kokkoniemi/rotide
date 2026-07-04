@@ -1509,6 +1509,30 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-kotlin-XXXXXX.kt";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/kotlin/highlight.kt"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m// comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mval") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfun") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"world\"") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-glsl-XXXXXX.glsl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
@@ -2673,6 +2697,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",
