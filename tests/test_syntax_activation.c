@@ -770,6 +770,38 @@ static int test_editor_syntax_activation_for_hcl_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_lua_files(void) {
+	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
+	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
+	                                       "tests/syntax/supported/lua/activation.lua"));
+
+	editorOpen(lua_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("chunk", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(lua_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_glsl_files(void) {
+	char glsl_path[] = "/tmp/rotide-test-syntax-glsl-XXXXXX.glsl";
+	ASSERT_TRUE(write_fixture_to_temp_path(glsl_path, 5,
+	                                       "tests/syntax/supported/glsl/activation.glsl"));
+
+	editorOpen(glsl_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GLSL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(glsl_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(
@@ -1091,6 +1123,9 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_bibtex_files",
          test_editor_syntax_activation_for_bibtex_files},
         {"editor_syntax_activation_for_hcl_files", test_editor_syntax_activation_for_hcl_files},
+        {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
+        {"editor_syntax_activation_for_glsl_files",
+         test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_go_and_mod_files",
          test_editor_syntax_activation_for_go_and_mod_files},
         {"editor_syntax_disabled_for_non_c_or_shell_files",

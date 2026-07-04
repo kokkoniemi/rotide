@@ -1509,6 +1509,57 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-glsl-XXXXXX.glsl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+	                                       "tests/syntax/supported/glsl/highlight.glsl"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m// comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96muniform") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mfloat") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mvoid") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mgl_Position") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m1.0\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-lua-XXXXXX.lua";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/lua/highlight.lua"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m-- comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mlocal") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"positive\"\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-hcl-XXXXXX.hcl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
@@ -2618,6 +2669,10 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",

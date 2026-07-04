@@ -148,6 +148,8 @@ static const struct langCase k_lang_cases[] = {
         {"haskell", EDITOR_SYNTAX_HASKELL, "tests/syntax/supported/haskell/contract.hs", 20},
         {"bibtex", EDITOR_SYNTAX_BIBTEX, "tests/syntax/supported/bibtex/contract.bib", 20},
         {"hcl", EDITOR_SYNTAX_HCL, "tests/syntax/supported/hcl/contract.hcl", 20},
+        {"lua", EDITOR_SYNTAX_LUA, "tests/syntax/supported/lua/contract.lua", 20},
+        {"glsl", EDITOR_SYNTAX_GLSL, "tests/syntax/supported/glsl/contract.glsl", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -373,6 +375,8 @@ INCR_EQUIV_TEST(julia, 15)
 INCR_EQUIV_TEST(haskell, 16)
 INCR_EQUIV_TEST(bibtex, 17)
 INCR_EQUIV_TEST(hcl, 18)
+INCR_EQUIV_TEST(lua, 19)
+INCR_EQUIV_TEST(glsl, 20)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -394,6 +398,8 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_haskell", test_syntax_incremental_equiv_haskell},
         {"syntax_incremental_equiv_bibtex", test_syntax_incremental_equiv_bibtex},
         {"syntax_incremental_equiv_hcl", test_syntax_incremental_equiv_hcl},
+        {"syntax_incremental_equiv_lua", test_syntax_incremental_equiv_lua},
+        {"syntax_incremental_equiv_glsl", test_syntax_incremental_equiv_glsl},
 };
 
 const int g_syntax_incremental_equiv_test_count =

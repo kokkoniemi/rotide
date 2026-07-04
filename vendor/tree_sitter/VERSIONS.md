@@ -34,6 +34,8 @@ Pinned source/tooling used by this repository:
 - Tree-sitter LaTeX grammar source ref: `7e0ecdc02926c7b9b2e0c76003d4fe7b0944f957` (`tree-sitter-latex-v0.6.0-7e0ecdc`)
 - Tree-sitter BibTeX grammar source ref: `8d04ed27b3bc7929f14b7df9236797dab9f3fa66` (`tree-sitter-bibtex-master-8d04ed2`)
 - Tree-sitter HCL grammar source ref: `fad991865fee927dd1de5e172fb3f08ac674d914` (`tree-sitter-hcl-v1.2.0-fad9918`)
+- Tree-sitter Lua grammar source ref: `10fe0054734eec83049514ea2e718b2a56acd0c9` (`tree-sitter-lua-v0.5.0-10fe005`)
+- Tree-sitter GLSL grammar source ref: `e47b8b62b59d0e3529f1c31b03e025d6bd475044` (`tree-sitter-glsl-v0.2.0-e47b8b6`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

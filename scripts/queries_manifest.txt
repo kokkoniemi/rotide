@@ -57,3 +57,7 @@ diff_highlight            vendor/tree_sitter/grammars/diff/queries/highlights.sc
 latex_highlight           src/language/queries/latex/highlights.scm
 bibtex_highlight          vendor/tree_sitter/grammars/bibtex/queries/highlights.scm
 hcl_highlight             src/language/queries/hcl/highlights.scm
+lua_highlight             src/language/queries/lua/highlights.scm
+lua_locals                vendor/tree_sitter/grammars/lua/queries/locals.scm
+lua_injection             vendor/tree_sitter/grammars/lua/queries/injections.scm
+glsl_highlight            src/language/queries/glsl/highlights.scm

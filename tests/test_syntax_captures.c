@@ -692,6 +692,55 @@ static int test_editor_syntax_hcl_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_lua_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/lua/highlight.lua", 17, UINT64_C(0x0329e15a23fa275b)},
+	        {"tests/syntax/supported/lua/contract.lua", 123, UINT64_C(0xad435e57c1359dfa)},
+	        {"tests/syntax/supported/lua/incomplete.lua", 9, UINT64_C(0x9789dbf60ed755ad)},
+	        {"tests/syntax/supported/lua/injections.lua", 25, UINT64_C(0x184135a14ae5ed2d)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_LUA, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_glsl_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/glsl/highlight.glsl", 18, UINT64_C(0x0b0dab6c478e8945)},
+	        {"tests/syntax/supported/glsl/contract.glsl", 143, UINT64_C(0x1e1fa4a2eed3023d)},
+	        {"tests/syntax/supported/glsl/incomplete.glsl", 12, UINT64_C(0x885392c1e192871a)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_GLSL, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1052,6 +1101,8 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
         {"editor_syntax_bibtex_capture_contract", test_editor_syntax_bibtex_capture_contract},
         {"editor_syntax_hcl_capture_contract", test_editor_syntax_hcl_capture_contract},
+        {"editor_syntax_lua_capture_contract", test_editor_syntax_lua_capture_contract},
+        {"editor_syntax_glsl_capture_contract", test_editor_syntax_glsl_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

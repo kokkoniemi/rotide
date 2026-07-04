@@ -42,6 +42,8 @@ extern const TSLanguage *tree_sitter_diff(void);
 extern const TSLanguage *tree_sitter_latex(void);
 extern const TSLanguage *tree_sitter_bibtex(void);
 extern const TSLanguage *tree_sitter_hcl(void);
+extern const TSLanguage *tree_sitter_lua(void);
+extern const TSLanguage *tree_sitter_glsl(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -71,6 +73,11 @@ static int languagesShellShebangMatch(const char *token, size_t len) {
 
 static int languagesRubyShebangMatch(const char *token, size_t len) {
 	return languagesStringEqualsNoCaseLen(token, len, "ruby");
+}
+
+static int languagesLuaShebangMatch(const char *token, size_t len) {
+	return languagesStringEqualsNoCaseLen(token, len, "lua") ||
+	       languagesStringEqualsNoCaseLen(token, len, "luajit");
 }
 
 static int languagesPythonShebangMatch(const char *token, size_t len) {
@@ -143,6 +150,11 @@ static const char *const k_latex_extensions[] = {".tex", ".ltx", ".sty", ".cls",
                                                  ".dtx", ".ins", NULL};
 static const char *const k_bibtex_extensions[] = {".bib", NULL};
 static const char *const k_hcl_extensions[] = {".hcl", ".tf", ".tfvars", ".nomad", NULL};
+static const char *const k_lua_extensions[] = {".lua", NULL};
+static const char *const k_glsl_extensions[] = {".glsl", ".vert", ".frag", ".geom", ".comp",
+                                                ".tesc",  ".tese", ".mesh", ".task", ".rgen",
+                                                ".rchit", ".rahit", ".rmiss", ".rint", ".rcall",
+                                                NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -168,6 +180,8 @@ static const char *const k_diff_injection_aliases[] = {"diff", "patch", NULL};
 static const char *const k_latex_injection_aliases[] = {"latex", "tex", NULL};
 static const char *const k_bibtex_injection_aliases[] = {"bibtex", "bib", NULL};
 static const char *const k_hcl_injection_aliases[] = {"hcl", "terraform", "tf", NULL};
+static const char *const k_lua_injection_aliases[] = {"lua", "luajit", NULL};
+static const char *const k_glsl_injection_aliases[] = {"glsl", "vert", "frag", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -441,7 +455,26 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .highlight_parts = editor_query_hcl_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_HCL_HIGHLIGHT_PART_COUNT,
          .extensions = k_hcl_extensions,
-         .injection_aliases = k_hcl_injection_aliases}};
+         .injection_aliases = k_hcl_injection_aliases},
+        {.id = EDITOR_SYNTAX_LUA,
+         .name = "lua",
+         .ts_factory = tree_sitter_lua,
+         .highlight_parts = editor_query_lua_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_LUA_HIGHLIGHT_PART_COUNT,
+         .locals_parts = editor_query_lua_locals_parts,
+         .locals_part_count = EDITOR_QUERY_LUA_LOCALS_PART_COUNT,
+         .injection_parts = editor_query_lua_injection_parts,
+         .injection_part_count = EDITOR_QUERY_LUA_INJECTION_PART_COUNT,
+         .extensions = k_lua_extensions,
+         .shebang_matches = languagesLuaShebangMatch,
+         .injection_aliases = k_lua_injection_aliases},
+        {.id = EDITOR_SYNTAX_GLSL,
+         .name = "glsl",
+         .ts_factory = tree_sitter_glsl,
+         .highlight_parts = editor_query_glsl_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_GLSL_HIGHLIGHT_PART_COUNT,
+         .extensions = k_glsl_extensions,
+         .injection_aliases = k_glsl_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 

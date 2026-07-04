@@ -17,6 +17,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/diff/` maps to `EDITOR_SYNTAX_DIFF`
 - `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
 - `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
+- `supported/glsl/` maps to `EDITOR_SYNTAX_GLSL`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`
 - `supported/haskell/` maps to `EDITOR_SYNTAX_HASKELL`
 - `supported/hcl/` maps to `EDITOR_SYNTAX_HCL`
@@ -26,6 +27,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/json/` maps to `EDITOR_SYNTAX_JSON`
 - `supported/julia/` maps to `EDITOR_SYNTAX_JULIA`
 - `supported/latex/` maps to `EDITOR_SYNTAX_LATEX`
+- `supported/lua/` maps to `EDITOR_SYNTAX_LUA`
 - `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
 - `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
@@ -61,6 +63,7 @@ Notes:
     (`R"html(...)html"`).
   - Haskell: QuasiQuotes (`hamlet`/`lucius`/`julius`/`tsc`/`aesonQQ`/...).
   - Julia: regex (`r"..."`) and command (`` `...` ``) literals.
+  - Lua: `ffi.cdef([[ ... ]])` bodies injected as C (LuaJIT FFI).
   - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB: same shape as EJS, with `code` injected as Ruby.

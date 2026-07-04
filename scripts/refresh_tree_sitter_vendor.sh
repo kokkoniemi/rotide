@@ -188,10 +188,10 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "julia" && \
-		"$2" != "latex" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
+		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "julia" && \
+		"$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
 		"$2" != "rust" && "$2" != "scala" && "$2" != "typescript" ) ]]; then
-		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|haskell|hcl|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
+		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|glsl|haskell|hcl|julia|latex|lua|ocaml|php|ruby|rust|scala|typescript]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -286,6 +286,32 @@ if [[ "${ONLY_GRAMMAR}" == "hcl" ]]; then
 	sync_grammar_vendor "${HCL_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/hcl"
 	echo "Tree-sitter HCL vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "lua" ]]; then
+	LUA_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-lua" \
+		"${TREE_SITTER_LUA_GRAMMAR_REF}" LUA_GRAMMAR_SRC
+	regenerate_parser "${LUA_GRAMMAR_SRC}" "Lua"
+	sync_grammar_vendor "${LUA_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/lua"
+	echo "Tree-sitter Lua vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "glsl" ]]; then
+	C_GRAMMAR_SRC=""
+	GLSL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-c" \
+		"${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-glsl" \
+		"${TREE_SITTER_GLSL_GRAMMAR_REF}" GLSL_GRAMMAR_SRC
+	link_grammar_dep "${GLSL_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+	regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
+	sync_grammar_vendor "${GLSL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/glsl"
+	echo "Tree-sitter GLSL vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -448,6 +474,8 @@ DIFF_GRAMMAR_SRC=""
 LATEX_GRAMMAR_SRC=""
 BIBTEX_GRAMMAR_SRC=""
 HCL_GRAMMAR_SRC=""
+LUA_GRAMMAR_SRC=""
+GLSL_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -481,6 +509,8 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIF
 download_repo_tarball "latex-lsp/tree-sitter-latex" "${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
 download_repo_tarball "latex-lsp/tree-sitter-bibtex" "${TREE_SITTER_BIBTEX_GRAMMAR_REF}" BIBTEX_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-hcl" "${TREE_SITTER_HCL_GRAMMAR_REF}" HCL_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-lua" "${TREE_SITTER_LUA_GRAMMAR_REF}" LUA_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-glsl" "${TREE_SITTER_GLSL_GRAMMAR_REF}" GLSL_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -561,6 +591,9 @@ regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
 rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
 regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
 regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
+regenerate_parser "${LUA_GRAMMAR_SRC}" "Lua"
+link_grammar_dep "${GLSL_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -661,6 +694,8 @@ sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
 sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
 sync_grammar_vendor "${HCL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/hcl"
+sync_grammar_vendor "${LUA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/lua"
+sync_grammar_vendor "${GLSL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/glsl"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2
