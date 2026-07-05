@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <sys/wait.h> // NOLINT(misc-include-cleaner)
 
 /* Integration tests run against a throwaway repo under /tmp; they skip (pass
  * with a note) when no git binary is available. */

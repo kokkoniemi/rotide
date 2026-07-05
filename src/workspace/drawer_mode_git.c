@@ -1,4 +1,3 @@
-#include "editing/edit.h"
 #include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"

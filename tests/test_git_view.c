@@ -1,4 +1,6 @@
+#include "config/theme_config.h"
 #include "editor_test_api.h"
+#include "language/syntax.h"
 #include "render/status_bar.h"
 #include "rotide.h"
 #include "support/alloc.h"
