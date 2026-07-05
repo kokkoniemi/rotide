@@ -36,8 +36,8 @@ are implemented and tested.
 - Tree-sitter syntax highlighting for C/C++, Go, Shell, HTML, JavaScript,
   TypeScript, TSX, CSS/SCSS, JSON/JSONC, Python, PHP, Rust, Java, C#,
   Haskell, Ruby, OCaml, Julia, Scala, EJS, ERB, Markdown, TOML, YAML, XML,
-  Make, Diff, Regex, LaTeX, BibTeX, HCL, Lua, GLSL, Kotlin, and Svelte
-  (with JavaScript in `<script>` and CSS in `<style>`).
+  Make, Diff, Regex, LaTeX, BibTeX, HCL, Lua, GLSL, Kotlin, Svelte, and Vue
+  (the last two with JavaScript in `<script>` and CSS in `<style>`).
 - LSP definition lookup for Go, C/C++, HTML, CSS/SCSS, JSON, and JavaScript.
 - LSP-backed document symbols, problems drawer, and autocomplete where enabled.
 - ESLint diagnostics and manual `eslint_fix` action for JavaScript buffers.

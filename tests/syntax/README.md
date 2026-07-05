@@ -41,6 +41,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/svelte/` maps to `EDITOR_SYNTAX_SVELTE`
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
+- `supported/vue/` maps to `EDITOR_SYNTAX_VUE`
 - `supported/xml/` maps to `EDITOR_SYNTAX_XML`
 
 Notes:
@@ -68,6 +69,9 @@ Notes:
   - Lua: `ffi.cdef([[ ... ]])` bodies injected as C (LuaJIT FFI).
   - Svelte: `<script>` bodies as JavaScript and `<style>` bodies as CSS,
     layered on the HTML markup grammar Svelte extends.
+  - Vue: `<script>` bodies as JavaScript, `<style>` bodies as CSS, and
+    `{{ ... }}` interpolation expressions as JavaScript, layered on the HTML
+    markup grammar Vue extends.
   - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB: same shape as EJS, with `code` injected as Ruby.

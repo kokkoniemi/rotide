@@ -38,6 +38,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter GLSL grammar source ref: `e47b8b62b59d0e3529f1c31b03e025d6bd475044` (`tree-sitter-glsl-v0.2.0-e47b8b6`)
 - Tree-sitter Kotlin grammar source ref: `77dd60ea0a9003ce062c9728a513ffe1aaff8c82` (`tree-sitter-kotlin-v1.1.0-77dd60e`)
 - Tree-sitter Svelte grammar source ref: `774a65aea563accc35f5d45fafa4d96ec5761f57` (`tree-sitter-svelte-v1.0.2-774a65a`) — `grammar.js` extends `tree-sitter-html`, which is linked into `node_modules` from the pinned HTML source during regeneration.
+- Tree-sitter Vue grammar source ref: `ce8011a414fdf8091f4e4071752efc376f4afb08` (`tree-sitter-vue-main-ce8011a`) — `grammar.js` extends `tree-sitter-html` (ESM import), linked into `node_modules` from the pinned HTML source during regeneration. Upstream ships no release tags, so this pins a `main`-branch commit.
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

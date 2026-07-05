@@ -1511,8 +1511,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-kotlin-XXXXXX.kt";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-	                                       "tests/syntax/supported/kotlin/highlight.kt"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/kotlin/highlight.kt"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -1563,10 +1563,40 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-vue-XXXXXX.vue";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/vue/highlight.vue"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* HTML markup Vue extends: tag name and attribute name. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mh1\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	/* Vue-specific directive name. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mv-if\x1b[39m") != NULL);
+	/* JavaScript injected into <script>. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	/* CSS injected into <style>. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-glsl-XXXXXX.glsl";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-	                                       "tests/syntax/supported/glsl/highlight.glsl"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/glsl/highlight.glsl"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -1591,8 +1621,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_token
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-lua-XXXXXX.lua";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-	                                       "tests/syntax/supported/lua/highlight.lua"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/lua/highlight.lua"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -1616,8 +1646,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-hcl-XXXXXX.hcl";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-	                                       "tests/syntax/supported/hcl/highlight.hcl"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/hcl/highlight.hcl"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -2731,6 +2761,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",

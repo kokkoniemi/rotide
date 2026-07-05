@@ -64,3 +64,5 @@ glsl_highlight            src/language/queries/glsl/highlights.scm
 kotlin_highlight          src/language/queries/kotlin/highlights.scm
 svelte_highlight          vendor/tree_sitter/grammars/html/queries/highlights.scm vendor/tree_sitter/grammars/svelte/queries/highlights.scm
 svelte_injection          src/language/queries/svelte/injections.scm
+vue_highlight             vendor/tree_sitter/grammars/html/queries/highlights.scm src/language/queries/vue/highlights.scm
+vue_injection             src/language/queries/vue/injections.scm
