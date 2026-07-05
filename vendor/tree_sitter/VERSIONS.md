@@ -32,17 +32,25 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Make grammar source ref: `70613f3d812cbabbd7f38d104d60a409c4008b43` (`tree-sitter-make-master-70613f3`)
 - Tree-sitter Diff grammar source ref: `2520c3f934b3179bb540d23e0ef45f75304b5fed` (`tree-sitter-diff-master-2520c3f`)
 - Tree-sitter LaTeX grammar source ref: `7e0ecdc02926c7b9b2e0c76003d4fe7b0944f957` (`tree-sitter-latex-v0.6.0-7e0ecdc`)
+- Tree-sitter BibTeX grammar source ref: `8d04ed27b3bc7929f14b7df9236797dab9f3fa66` (`tree-sitter-bibtex-master-8d04ed2`)
+- Tree-sitter HCL grammar source ref: `fad991865fee927dd1de5e172fb3f08ac674d914` (`tree-sitter-hcl-v1.2.0-fad9918`)
+- Tree-sitter Lua grammar source ref: `10fe0054734eec83049514ea2e718b2a56acd0c9` (`tree-sitter-lua-v0.5.0-10fe005`)
+- Tree-sitter GLSL grammar source ref: `e47b8b62b59d0e3529f1c31b03e025d6bd475044` (`tree-sitter-glsl-v0.2.0-e47b8b6`)
+- Tree-sitter Kotlin grammar source ref: `77dd60ea0a9003ce062c9728a513ffe1aaff8c82` (`tree-sitter-kotlin-v1.1.0-77dd60e`)
+- Tree-sitter Svelte grammar source ref: `774a65aea563accc35f5d45fafa4d96ec5761f57` (`tree-sitter-svelte-v1.0.2-774a65a`) — `grammar.js` extends `tree-sitter-html`, which is linked into `node_modules` from the pinned HTML source during regeneration.
+- Tree-sitter Vue grammar source ref: `ce8011a414fdf8091f4e4071752efc376f4afb08` (`tree-sitter-vue-main-ce8011a`) — `grammar.js` extends `tree-sitter-html` (ESM import), linked into `node_modules` from the pinned HTML source during regeneration. Upstream ships no release tags, so this pins a `main`-branch commit.
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.
 
-RotIDE applies the Bash, C++, C#, Haskell, Julia, LaTeX, OCaml, PHP, Ruby, Rust, Scala, and shared
-TypeScript/TSX grammars under `overrides/` before generation. The overrides preserve each registered
-highlight/locals and injection query contract without carrying the full upstream language grammar.
-Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`, `--grammar haskell`, `--grammar julia`,
-`--grammar latex`, `--grammar ocaml`, `--grammar php`, `--grammar ruby`, `--grammar rust`,
-`--grammar scala`, or `--grammar typescript` to refresh only that grammar or shared family.
+RotIDE applies the Bash, C++, C#, GLSL, Haskell, Julia, Kotlin, LaTeX, OCaml, PHP, Ruby, Rust,
+Scala, and shared TypeScript/TSX grammars under `overrides/` before generation. The overrides
+preserve each registered highlight/locals and injection query contract without carrying the full
+upstream language grammar. Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`,
+`--grammar glsl`, `--grammar haskell`, `--grammar julia`, `--grammar kotlin`, `--grammar latex`,
+`--grammar ocaml`, `--grammar php`, `--grammar ruby`, `--grammar rust`, `--grammar scala`, or
+`--grammar typescript` to refresh only that grammar or shared family.
 
 ## Size baseline
 

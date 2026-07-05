@@ -121,7 +121,11 @@ download_repo_tarball() {
 	echo "Downloading ${repo} source ref: ${ref}" >&2
 	curl -fsSL "https://github.com/${repo}/archive/${ref}.tar.gz" -o "${tarball}"
 	local top
-	top="$(tar -tzf "${tarball}" | awk -F/ 'NR == 1 { print $1; exit }')"
+	# Larger tarballs would SIGPIPE tar when awk exits early; read the whole
+	# listing first, then take the top-level dir from the buffered output.
+	local listing
+	listing="$(tar -tzf "${tarball}")"
+	top="$(printf '%s\n' "${listing}" | awk -F/ 'NR == 1 { print $1; exit }')"
 	tar -xzf "${tarball}" -C "${TMP_DIR}"
 
 	printf -v "${out_var}" '%s' "${TMP_DIR}/${top}"
@@ -145,6 +149,25 @@ link_grammar_dep() {
 	mkdir -p "${modules_dir}"
 	rm -rf "${modules_dir}/${dep_name}"
 	ln -s "${dep_src}" "${modules_dir}/${dep_name}"
+}
+
+# tree-sitter-vue ships an ES-module grammar.js that default-imports the
+# CommonJS tree-sitter-html grammar. The CLI's QuickJS runtime cannot interop
+# an ESM default import of a CommonJS module, so rewrite the two module lines
+# (and package.json "type") to CommonJS require()/module.exports, matching the
+# form tree-sitter-svelte already uses. Only the module wrappers change; the
+# grammar rules are untouched.
+convert_vue_grammar_to_cjs() {
+	local src_dir="$1"
+	sed -i.bak \
+		-e "s|^import HTML from 'tree-sitter-html/grammar\.js';|const HTML = require('tree-sitter-html/grammar');|" \
+		-e 's|^export default grammar(HTML, {|module.exports = grammar(HTML, {|' \
+		"${src_dir}/grammar.js"
+	rm -f "${src_dir}/grammar.js.bak"
+	if [[ -f "${src_dir}/package.json" ]]; then
+		sed -i.bak 's|"type": *"module"|"type": "commonjs"|' "${src_dir}/package.json"
+		rm -f "${src_dir}/package.json.bak"
+	fi
 }
 
 sync_grammar_vendor() {
@@ -184,10 +207,10 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "bash" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "haskell" && "$2" != "julia" && \
-		"$2" != "latex" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
-		"$2" != "rust" && "$2" != "scala" && "$2" != "typescript" ) ]]; then
-		echo "Usage: $0 [--grammar bash|cpp|csharp|haskell|julia|latex|ocaml|php|ruby|rust|scala|typescript]" >&2
+		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "julia" && \
+		"$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
+		"$2" != "rust" && "$2" != "scala" && "$2" != "svelte" && "$2" != "typescript" && "$2" != "vue" ) ]]; then
+		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|glsl|haskell|hcl|julia|kotlin|latex|lua|ocaml|php|ruby|rust|scala|svelte|typescript|vue]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -260,6 +283,102 @@ if [[ "${ONLY_GRAMMAR}" == "haskell" ]]; then
 	sync_grammar_vendor "${HASKELL_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/haskell"
 	echo "Tree-sitter Haskell vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "bibtex" ]]; then
+	BIBTEX_GRAMMAR_SRC=""
+	download_repo_tarball "latex-lsp/tree-sitter-bibtex" \
+		"${TREE_SITTER_BIBTEX_GRAMMAR_REF}" BIBTEX_GRAMMAR_SRC
+	regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
+	sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
+	echo "Tree-sitter BibTeX vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "hcl" ]]; then
+	HCL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-hcl" \
+		"${TREE_SITTER_HCL_GRAMMAR_REF}" HCL_GRAMMAR_SRC
+	regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
+	sync_grammar_vendor "${HCL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/hcl"
+	echo "Tree-sitter HCL vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "lua" ]]; then
+	LUA_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-lua" \
+		"${TREE_SITTER_LUA_GRAMMAR_REF}" LUA_GRAMMAR_SRC
+	regenerate_parser "${LUA_GRAMMAR_SRC}" "Lua"
+	sync_grammar_vendor "${LUA_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/lua"
+	echo "Tree-sitter Lua vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "glsl" ]]; then
+	GLSL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-glsl" \
+		"${TREE_SITTER_GLSL_GRAMMAR_REF}" GLSL_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/glsl/grammar.js" \
+		"${GLSL_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
+	sync_grammar_vendor "${GLSL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/glsl"
+	echo "Tree-sitter GLSL vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "kotlin" ]]; then
+	KOTLIN_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-kotlin" \
+		"${TREE_SITTER_KOTLIN_GRAMMAR_REF}" KOTLIN_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/kotlin/grammar.js" \
+		"${KOTLIN_GRAMMAR_SRC}/grammar.js"
+	regenerate_parser "${KOTLIN_GRAMMAR_SRC}" "Kotlin"
+	rm -f "${KOTLIN_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${KOTLIN_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/kotlin"
+	echo "Tree-sitter Kotlin vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "svelte" ]]; then
+	HTML_GRAMMAR_SRC=""
+	SVELTE_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-html" \
+		"${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-svelte" \
+		"${TREE_SITTER_SVELTE_GRAMMAR_REF}" SVELTE_GRAMMAR_SRC
+	# grammar.js extends tree-sitter-html via require('tree-sitter-html/grammar');
+	# expose the pinned HTML source in node_modules before regenerating.
+	link_grammar_dep "${SVELTE_GRAMMAR_SRC}" "tree-sitter-html" "${HTML_GRAMMAR_SRC}"
+	regenerate_parser "${SVELTE_GRAMMAR_SRC}" "Svelte"
+	sync_grammar_vendor "${SVELTE_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/svelte"
+	echo "Tree-sitter Svelte vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "vue" ]]; then
+	HTML_GRAMMAR_SRC=""
+	VUE_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter/tree-sitter-html" \
+		"${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
+	download_repo_tarball "tree-sitter-grammars/tree-sitter-vue" \
+		"${TREE_SITTER_VUE_GRAMMAR_REF}" VUE_GRAMMAR_SRC
+	# grammar.js extends tree-sitter-html via `import HTML from
+	# 'tree-sitter-html/grammar.js'`; expose the pinned HTML source in
+	# node_modules before regenerating.
+	link_grammar_dep "${VUE_GRAMMAR_SRC}" "tree-sitter-html" "${HTML_GRAMMAR_SRC}"
+	convert_vue_grammar_to_cjs "${VUE_GRAMMAR_SRC}"
+	regenerate_parser "${VUE_GRAMMAR_SRC}" "Vue"
+	sync_grammar_vendor "${VUE_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/vue"
+	echo "Tree-sitter Vue vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -420,6 +539,13 @@ XML_GRAMMAR_SRC=""
 MAKE_GRAMMAR_SRC=""
 DIFF_GRAMMAR_SRC=""
 LATEX_GRAMMAR_SRC=""
+BIBTEX_GRAMMAR_SRC=""
+HCL_GRAMMAR_SRC=""
+LUA_GRAMMAR_SRC=""
+GLSL_GRAMMAR_SRC=""
+KOTLIN_GRAMMAR_SRC=""
+SVELTE_GRAMMAR_SRC=""
+VUE_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -451,6 +577,13 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-xml" "${TREE_SITTER_XML_
 download_repo_tarball "tree-sitter-grammars/tree-sitter-make" "${TREE_SITTER_MAKE_GRAMMAR_REF}" MAKE_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIFF_GRAMMAR_REF}" DIFF_GRAMMAR_SRC
 download_repo_tarball "latex-lsp/tree-sitter-latex" "${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
+download_repo_tarball "latex-lsp/tree-sitter-bibtex" "${TREE_SITTER_BIBTEX_GRAMMAR_REF}" BIBTEX_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-hcl" "${TREE_SITTER_HCL_GRAMMAR_REF}" HCL_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-lua" "${TREE_SITTER_LUA_GRAMMAR_REF}" LUA_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-glsl" "${TREE_SITTER_GLSL_GRAMMAR_REF}" GLSL_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-kotlin" "${TREE_SITTER_KOTLIN_GRAMMAR_REF}" KOTLIN_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-svelte" "${TREE_SITTER_SVELTE_GRAMMAR_REF}" SVELTE_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-vue" "${TREE_SITTER_VUE_GRAMMAR_REF}" VUE_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -529,6 +662,26 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/latex/grammar.js" \
 	"${LATEX_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
 rm -f "${LATEX_GRAMMAR_SRC}/src/scanner.c"
+regenerate_parser "${BIBTEX_GRAMMAR_SRC}" "BibTeX"
+regenerate_parser "${HCL_GRAMMAR_SRC}" "HCL"
+regenerate_parser "${LUA_GRAMMAR_SRC}" "Lua"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/glsl/grammar.js" \
+	"${GLSL_GRAMMAR_SRC}/grammar.js"
+regenerate_parser "${GLSL_GRAMMAR_SRC}" "GLSL"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/kotlin/grammar.js" \
+	"${KOTLIN_GRAMMAR_SRC}/grammar.js"
+regenerate_parser "${KOTLIN_GRAMMAR_SRC}" "Kotlin"
+rm -f "${KOTLIN_GRAMMAR_SRC}/src/scanner.c"
+# tree-sitter-svelte grammar.js extends tree-sitter-html via
+# require('tree-sitter-html/grammar'); expose the pinned JS source in
+# node_modules before regenerating.
+link_grammar_dep "${SVELTE_GRAMMAR_SRC}" "tree-sitter-html" "${HTML_GRAMMAR_SRC}"
+regenerate_parser "${SVELTE_GRAMMAR_SRC}" "Svelte"
+# tree-sitter-vue grammar.js also extends tree-sitter-html (ESM import); link
+# the pinned JS source in node_modules before regenerating.
+link_grammar_dep "${VUE_GRAMMAR_SRC}" "tree-sitter-html" "${HTML_GRAMMAR_SRC}"
+convert_vue_grammar_to_cjs "${VUE_GRAMMAR_SRC}"
+regenerate_parser "${VUE_GRAMMAR_SRC}" "Vue"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -627,6 +780,13 @@ git -C "${REPO_ROOT}" apply \
 sync_grammar_vendor "${MAKE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/make"
 sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/diff"
 sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
+sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
+sync_grammar_vendor "${HCL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/hcl"
+sync_grammar_vendor "${LUA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/lua"
+sync_grammar_vendor "${GLSL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/glsl"
+sync_grammar_vendor "${KOTLIN_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/kotlin"
+sync_grammar_vendor "${SVELTE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/svelte"
+sync_grammar_vendor "${VUE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/vue"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

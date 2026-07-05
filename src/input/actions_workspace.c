@@ -12,7 +12,6 @@
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
-#include "workspace/git.h"
 #include "workspace/git_view.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"

@@ -738,6 +738,118 @@ static int test_editor_syntax_activation_for_latex_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_bibtex_files(void) {
+	char bib_path[] = "/tmp/rotide-test-syntax-bibtex-XXXXXX.bib";
+	ASSERT_TRUE(write_fixture_to_temp_path(bib_path, 4,
+	                                       "tests/syntax/supported/bibtex/activation.bib"));
+
+	editorOpen(bib_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_BIBTEX, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(bib_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_hcl_files(void) {
+	char hcl_path[] = "/tmp/rotide-test-syntax-hcl-XXXXXX.hcl";
+	ASSERT_TRUE(write_fixture_to_temp_path(hcl_path, 4,
+	                                       "tests/syntax/supported/hcl/activation.hcl"));
+
+	editorOpen(hcl_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HCL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("config_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(hcl_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_lua_files(void) {
+	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
+	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
+	                                       "tests/syntax/supported/lua/activation.lua"));
+
+	editorOpen(lua_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("chunk", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(lua_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_glsl_files(void) {
+	char glsl_path[] = "/tmp/rotide-test-syntax-glsl-XXXXXX.glsl";
+	ASSERT_TRUE(write_fixture_to_temp_path(glsl_path, 5,
+	                                       "tests/syntax/supported/glsl/activation.glsl"));
+
+	editorOpen(glsl_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GLSL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(glsl_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_kotlin_files(void) {
+	char kt_path[] = "/tmp/rotide-test-syntax-kotlin-XXXXXX.kt";
+	ASSERT_TRUE(write_fixture_to_temp_path(kt_path, 3,
+	                                       "tests/syntax/supported/kotlin/activation.kt"));
+
+	editorOpen(kt_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(kt_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_svelte_files(void) {
+	char svelte_path[] = "/tmp/rotide-test-syntax-svelte-XXXXXX.svelte";
+	ASSERT_TRUE(write_fixture_to_temp_path(svelte_path, 7,
+	                                       "tests/syntax/supported/svelte/activation.svelte"));
+
+	editorOpen(svelte_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(svelte_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_vue_files(void) {
+	char vue_path[] = "/tmp/rotide-test-syntax-vue-XXXXXX.vue";
+	ASSERT_TRUE(write_fixture_to_temp_path(vue_path, 4,
+	                                       "tests/syntax/supported/vue/activation.vue"));
+
+	editorOpen(vue_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_VUE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(vue_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(
@@ -1056,6 +1168,16 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_erb_files", test_editor_syntax_activation_for_erb_files},
         {"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
         {"editor_syntax_activation_for_latex_files", test_editor_syntax_activation_for_latex_files},
+        {"editor_syntax_activation_for_bibtex_files",
+         test_editor_syntax_activation_for_bibtex_files},
+        {"editor_syntax_activation_for_hcl_files", test_editor_syntax_activation_for_hcl_files},
+        {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
+        {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
+        {"editor_syntax_activation_for_kotlin_files",
+         test_editor_syntax_activation_for_kotlin_files},
+        {"editor_syntax_activation_for_svelte_files",
+         test_editor_syntax_activation_for_svelte_files},
+        {"editor_syntax_activation_for_vue_files", test_editor_syntax_activation_for_vue_files},
         {"editor_syntax_activation_for_go_and_mod_files",
          test_editor_syntax_activation_for_go_and_mod_files},
         {"editor_syntax_disabled_for_non_c_or_shell_files",

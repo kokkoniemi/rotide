@@ -489,6 +489,336 @@ static int test_editor_syntax_haskell_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_bibtex_capture_contract(void) {
+	size_t source_len = 0;
+	char *source =
+	        read_file_contents("tests/syntax/supported/bibtex/highlight.bib", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture expected[] = {
+	        {0, 8, EDITOR_SYNTAX_HL_COMMENT},         {8, 32, EDITOR_SYNTAX_HL_COMMENT},
+	        {32, 39, EDITOR_SYNTAX_HL_KEYWORD},       {39, 40, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {40, 43, EDITOR_SYNTAX_HL_CONSTANT},      {44, 45, EDITOR_SYNTAX_HL_OPERATOR},
+	        {47, 50, EDITOR_SYNTAX_HL_STRING},        {51, 63, EDITOR_SYNTAX_HL_STRING},
+	        {64, 65, EDITOR_SYNTAX_HL_PUNCTUATION},   {66, 74, EDITOR_SYNTAX_HL_KEYWORD},
+	        {74, 75, EDITOR_SYNTAX_HL_PUNCTUATION},   {75, 82, EDITOR_SYNTAX_HL_PREPROCESSOR},
+	        {82, 83, EDITOR_SYNTAX_HL_PUNCTUATION},   {86, 92, EDITOR_SYNTAX_HL_CONSTANT},
+	        {93, 94, EDITOR_SYNTAX_HL_OPERATOR},      {96, 102, EDITOR_SYNTAX_HL_STRING},
+	        {103, 105, EDITOR_SYNTAX_HL_STRING},      {106, 107, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {110, 114, EDITOR_SYNTAX_HL_CONSTANT},    {115, 116, EDITOR_SYNTAX_HL_OPERATOR},
+	        {117, 121, EDITOR_SYNTAX_HL_NUMBER},      {121, 122, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {123, 124, EDITOR_SYNTAX_HL_PUNCTUATION},
+	};
+
+	int result = assert_syntax_capture_contract(EDITOR_SYNTAX_BIBTEX, source, expected,
+	                                            (int)(sizeof(expected) / sizeof(expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/bibtex/incomplete.bib", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture incomplete_expected[] = {
+	        {0, 8, EDITOR_SYNTAX_HL_KEYWORD},       {8, 9, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {9, 16, EDITOR_SYNTAX_HL_PREPROCESSOR}, {16, 17, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {20, 26, EDITOR_SYNTAX_HL_CONSTANT},    {27, 28, EDITOR_SYNTAX_HL_OPERATOR},
+	        {30, 32, EDITOR_SYNTAX_HL_STRING},      {33, 40, EDITOR_SYNTAX_HL_STRING},
+	        {41, 46, EDITOR_SYNTAX_HL_STRING},      {47, 48, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {51, 55, EDITOR_SYNTAX_HL_CONSTANT},    {56, 57, EDITOR_SYNTAX_HL_OPERATOR},
+	        {58, 62, EDITOR_SYNTAX_HL_NUMBER},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_BIBTEX, source, incomplete_expected,
+	        (int)(sizeof(incomplete_expected) / sizeof(incomplete_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/bibtex/contract.bib", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture contract_expected[] = {
+	        {0, 9, EDITOR_SYNTAX_HL_KEYWORD},         {9, 10, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {11, 27, EDITOR_SYNTAX_HL_FUNCTION},      {22, 23, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {23, 26, EDITOR_SYNTAX_HL_FUNCTION},      {26, 27, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {27, 28, EDITOR_SYNTAX_HL_PUNCTUATION},   {28, 34, EDITOR_SYNTAX_HL_STRING},
+	        {34, 35, EDITOR_SYNTAX_HL_PUNCTUATION},   {36, 37, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {38, 45, EDITOR_SYNTAX_HL_KEYWORD},       {45, 46, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {46, 49, EDITOR_SYNTAX_HL_CONSTANT},      {50, 51, EDITOR_SYNTAX_HL_OPERATOR},
+	        {53, 56, EDITOR_SYNTAX_HL_STRING},        {57, 69, EDITOR_SYNTAX_HL_STRING},
+	        {70, 72, EDITOR_SYNTAX_HL_STRING},        {73, 81, EDITOR_SYNTAX_HL_STRING},
+	        {82, 83, EDITOR_SYNTAX_HL_PUNCTUATION},   {84, 92, EDITOR_SYNTAX_HL_KEYWORD},
+	        {92, 93, EDITOR_SYNTAX_HL_PUNCTUATION},   {93, 105, EDITOR_SYNTAX_HL_PREPROCESSOR},
+	        {105, 106, EDITOR_SYNTAX_HL_PUNCTUATION}, {109, 115, EDITOR_SYNTAX_HL_CONSTANT},
+	        {116, 117, EDITOR_SYNTAX_HL_OPERATOR},    {118, 119, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {119, 128, EDITOR_SYNTAX_HL_STRING},      {129, 135, EDITOR_SYNTAX_HL_STRING},
+	        {135, 136, EDITOR_SYNTAX_HL_PUNCTUATION}, {136, 137, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {140, 145, EDITOR_SYNTAX_HL_CONSTANT},    {146, 147, EDITOR_SYNTAX_HL_OPERATOR},
+	        {149, 151, EDITOR_SYNTAX_HL_STRING},      {152, 155, EDITOR_SYNTAX_HL_STRING},
+	        {156, 171, EDITOR_SYNTAX_HL_STRING},      {172, 173, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {176, 183, EDITOR_SYNTAX_HL_CONSTANT},    {184, 185, EDITOR_SYNTAX_HL_OPERATOR},
+	        {186, 189, EDITOR_SYNTAX_HL_PARAMETER},   {189, 190, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {193, 199, EDITOR_SYNTAX_HL_CONSTANT},    {200, 201, EDITOR_SYNTAX_HL_OPERATOR},
+	        {202, 204, EDITOR_SYNTAX_HL_NUMBER},      {204, 205, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {208, 212, EDITOR_SYNTAX_HL_CONSTANT},    {213, 214, EDITOR_SYNTAX_HL_OPERATOR},
+	        {215, 219, EDITOR_SYNTAX_HL_NUMBER},      {219, 220, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {221, 222, EDITOR_SYNTAX_HL_PUNCTUATION}, {223, 228, EDITOR_SYNTAX_HL_KEYWORD},
+	        {228, 229, EDITOR_SYNTAX_HL_PUNCTUATION}, {229, 236, EDITOR_SYNTAX_HL_PREPROCESSOR},
+	        {236, 237, EDITOR_SYNTAX_HL_PUNCTUATION}, {240, 246, EDITOR_SYNTAX_HL_CONSTANT},
+	        {247, 248, EDITOR_SYNTAX_HL_OPERATOR},    {249, 250, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {250, 256, EDITOR_SYNTAX_HL_STRING},      {257, 259, EDITOR_SYNTAX_HL_STRING},
+	        {259, 260, EDITOR_SYNTAX_HL_PUNCTUATION}, {260, 261, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {264, 269, EDITOR_SYNTAX_HL_CONSTANT},    {270, 271, EDITOR_SYNTAX_HL_OPERATOR},
+	        {272, 273, EDITOR_SYNTAX_HL_PUNCTUATION}, {273, 276, EDITOR_SYNTAX_HL_STRING},
+	        {277, 284, EDITOR_SYNTAX_HL_STRING},      {284, 285, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {285, 286, EDITOR_SYNTAX_HL_PUNCTUATION}, {289, 298, EDITOR_SYNTAX_HL_CONSTANT},
+	        {299, 300, EDITOR_SYNTAX_HL_OPERATOR},    {302, 316, EDITOR_SYNTAX_HL_STRING},
+	        {317, 318, EDITOR_SYNTAX_HL_PUNCTUATION}, {321, 325, EDITOR_SYNTAX_HL_CONSTANT},
+	        {326, 327, EDITOR_SYNTAX_HL_OPERATOR},    {328, 332, EDITOR_SYNTAX_HL_NUMBER},
+	        {333, 334, EDITOR_SYNTAX_HL_OPERATOR},    {335, 336, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {336, 337, EDITOR_SYNTAX_HL_STRING},      {337, 338, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {338, 339, EDITOR_SYNTAX_HL_PUNCTUATION}, {340, 341, EDITOR_SYNTAX_HL_PUNCTUATION},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_BIBTEX, source, contract_expected,
+	        (int)(sizeof(contract_expected) / sizeof(contract_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+	return 0;
+}
+
+static int test_editor_syntax_hcl_capture_contract(void) {
+	size_t source_len = 0;
+	char *source = read_file_contents("tests/syntax/supported/hcl/highlight.hcl", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture expected[] = {
+	        {0, 9, EDITOR_SYNTAX_HL_COMMENT},       {10, 18, EDITOR_SYNTAX_HL_VARIABLE},
+	        {10, 18, EDITOR_SYNTAX_HL_KEYWORD},     {19, 20, EDITOR_SYNTAX_HL_STRING},
+	        {20, 24, EDITOR_SYNTAX_HL_STRING},      {24, 25, EDITOR_SYNTAX_HL_STRING},
+	        {26, 27, EDITOR_SYNTAX_HL_PUNCTUATION}, {30, 37, EDITOR_SYNTAX_HL_VARIABLE},
+	        {30, 37, EDITOR_SYNTAX_HL_PROPERTY},    {40, 41, EDITOR_SYNTAX_HL_STRING},
+	        {41, 44, EDITOR_SYNTAX_HL_STRING},      {44, 45, EDITOR_SYNTAX_HL_STRING},
+	        {48, 53, EDITOR_SYNTAX_HL_VARIABLE},    {48, 53, EDITOR_SYNTAX_HL_PROPERTY},
+	        {58, 59, EDITOR_SYNTAX_HL_NUMBER},      {60, 61, EDITOR_SYNTAX_HL_PUNCTUATION},
+	};
+
+	int result = assert_syntax_capture_contract(EDITOR_SYNTAX_HCL, source, expected,
+	                                            (int)(sizeof(expected) / sizeof(expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/hcl/incomplete.hcl", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture incomplete_expected[] = {
+	        {0, 8, EDITOR_SYNTAX_HL_VARIABLE},      {0, 8, EDITOR_SYNTAX_HL_KEYWORD},
+	        {9, 10, EDITOR_SYNTAX_HL_STRING},       {10, 23, EDITOR_SYNTAX_HL_STRING},
+	        {23, 24, EDITOR_SYNTAX_HL_STRING},      {25, 26, EDITOR_SYNTAX_HL_STRING},
+	        {26, 30, EDITOR_SYNTAX_HL_STRING},      {30, 31, EDITOR_SYNTAX_HL_STRING},
+	        {32, 33, EDITOR_SYNTAX_HL_PUNCTUATION}, {36, 42, EDITOR_SYNTAX_HL_VARIABLE},
+	        {36, 42, EDITOR_SYNTAX_HL_PROPERTY},    {45, 46, EDITOR_SYNTAX_HL_STRING},
+	        {46, 50, EDITOR_SYNTAX_HL_STRING},      {50, 51, EDITOR_SYNTAX_HL_STRING},
+	        {54, 57, EDITOR_SYNTAX_HL_VARIABLE},    {54, 57, EDITOR_SYNTAX_HL_PROPERTY},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_HCL, source, incomplete_expected,
+	        (int)(sizeof(incomplete_expected) / sizeof(incomplete_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+
+	source = read_file_contents("tests/syntax/supported/hcl/contract.hcl", &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len == strlen(source));
+	const struct expectedSyntaxCapture contract_expected[] = {
+	        {0, 23, EDITOR_SYNTAX_HL_COMMENT},        {24, 43, EDITOR_SYNTAX_HL_COMMENT},
+	        {44, 50, EDITOR_SYNTAX_HL_VARIABLE},      {44, 50, EDITOR_SYNTAX_HL_KEYWORD},
+	        {51, 52, EDITOR_SYNTAX_HL_PUNCTUATION},   {55, 62, EDITOR_SYNTAX_HL_VARIABLE},
+	        {55, 62, EDITOR_SYNTAX_HL_PROPERTY},      {65, 69, EDITOR_SYNTAX_HL_CONSTANT},
+	        {72, 78, EDITOR_SYNTAX_HL_VARIABLE},      {72, 78, EDITOR_SYNTAX_HL_PROPERTY},
+	        {82, 83, EDITOR_SYNTAX_HL_STRING},        {83, 92, EDITOR_SYNTAX_HL_STRING},
+	        {92, 93, EDITOR_SYNTAX_HL_STRING},        {96, 101, EDITOR_SYNTAX_HL_VARIABLE},
+	        {96, 101, EDITOR_SYNTAX_HL_PROPERTY},     {106, 107, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {107, 109, EDITOR_SYNTAX_HL_NUMBER},      {109, 110, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {111, 114, EDITOR_SYNTAX_HL_NUMBER},      {114, 115, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {118, 122, EDITOR_SYNTAX_HL_VARIABLE},    {118, 122, EDITOR_SYNTAX_HL_PROPERTY},
+	        {128, 129, EDITOR_SYNTAX_HL_PUNCTUATION}, {134, 137, EDITOR_SYNTAX_HL_VARIABLE},
+	        {134, 137, EDITOR_SYNTAX_HL_PROPERTY},    {141, 142, EDITOR_SYNTAX_HL_STRING},
+	        {142, 146, EDITOR_SYNTAX_HL_STRING},      {146, 147, EDITOR_SYNTAX_HL_STRING},
+	        {152, 156, EDITOR_SYNTAX_HL_VARIABLE},    {152, 156, EDITOR_SYNTAX_HL_PROPERTY},
+	        {159, 160, EDITOR_SYNTAX_HL_STRING},      {160, 164, EDITOR_SYNTAX_HL_STRING},
+	        {164, 165, EDITOR_SYNTAX_HL_STRING},      {168, 169, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {170, 171, EDITOR_SYNTAX_HL_PUNCTUATION}, {173, 181, EDITOR_SYNTAX_HL_VARIABLE},
+	        {173, 181, EDITOR_SYNTAX_HL_KEYWORD},     {182, 183, EDITOR_SYNTAX_HL_STRING},
+	        {183, 195, EDITOR_SYNTAX_HL_STRING},      {195, 196, EDITOR_SYNTAX_HL_STRING},
+	        {197, 198, EDITOR_SYNTAX_HL_STRING},      {198, 201, EDITOR_SYNTAX_HL_STRING},
+	        {201, 202, EDITOR_SYNTAX_HL_STRING},      {203, 204, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {207, 210, EDITOR_SYNTAX_HL_VARIABLE},    {207, 210, EDITOR_SYNTAX_HL_PROPERTY},
+	        {223, 226, EDITOR_SYNTAX_HL_VARIABLE},    {223, 226, EDITOR_SYNTAX_HL_CONSTANT},
+	        {226, 227, EDITOR_SYNTAX_HL_PUNCTUATION}, {227, 233, EDITOR_SYNTAX_HL_VARIABLE},
+	        {227, 233, EDITOR_SYNTAX_HL_PROPERTY},    {236, 249, EDITOR_SYNTAX_HL_VARIABLE},
+	        {236, 249, EDITOR_SYNTAX_HL_PROPERTY},    {252, 253, EDITOR_SYNTAX_HL_STRING},
+	        {253, 261, EDITOR_SYNTAX_HL_STRING},      {261, 262, EDITOR_SYNTAX_HL_STRING},
+	        {265, 270, EDITOR_SYNTAX_HL_VARIABLE},    {265, 270, EDITOR_SYNTAX_HL_PROPERTY},
+	        {281, 286, EDITOR_SYNTAX_HL_VARIABLE},    {281, 286, EDITOR_SYNTAX_HL_CONSTANT},
+	        {286, 287, EDITOR_SYNTAX_HL_PUNCTUATION}, {287, 294, EDITOR_SYNTAX_HL_VARIABLE},
+	        {287, 294, EDITOR_SYNTAX_HL_PROPERTY},    {295, 296, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {297, 298, EDITOR_SYNTAX_HL_NUMBER},      {301, 302, EDITOR_SYNTAX_HL_NUMBER},
+	        {306, 316, EDITOR_SYNTAX_HL_VARIABLE},    {306, 316, EDITOR_SYNTAX_HL_KEYWORD},
+	        {306, 316, EDITOR_SYNTAX_HL_TYPE},        {317, 318, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {323, 327, EDITOR_SYNTAX_HL_VARIABLE},    {323, 327, EDITOR_SYNTAX_HL_PROPERTY},
+	        {330, 334, EDITOR_SYNTAX_HL_VARIABLE},    {330, 334, EDITOR_SYNTAX_HL_CONSTANT},
+	        {334, 335, EDITOR_SYNTAX_HL_PUNCTUATION}, {335, 344, EDITOR_SYNTAX_HL_VARIABLE},
+	        {335, 344, EDITOR_SYNTAX_HL_PROPERTY},    {347, 348, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {349, 350, EDITOR_SYNTAX_HL_PUNCTUATION}, {352, 358, EDITOR_SYNTAX_HL_VARIABLE},
+	        {352, 358, EDITOR_SYNTAX_HL_KEYWORD},     {359, 360, EDITOR_SYNTAX_HL_STRING},
+	        {360, 368, EDITOR_SYNTAX_HL_STRING},      {368, 369, EDITOR_SYNTAX_HL_STRING},
+	        {370, 371, EDITOR_SYNTAX_HL_PUNCTUATION}, {374, 379, EDITOR_SYNTAX_HL_VARIABLE},
+	        {374, 379, EDITOR_SYNTAX_HL_PROPERTY},    {382, 388, EDITOR_SYNTAX_HL_VARIABLE},
+	        {382, 388, EDITOR_SYNTAX_HL_FUNCTION},    {388, 389, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {389, 390, EDITOR_SYNTAX_HL_STRING},      {390, 400, EDITOR_SYNTAX_HL_STRING},
+	        {400, 401, EDITOR_SYNTAX_HL_STRING},      {401, 402, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {403, 415, EDITOR_SYNTAX_HL_VARIABLE},    {403, 415, EDITOR_SYNTAX_HL_CONSTANT},
+	        {403, 415, EDITOR_SYNTAX_HL_CONSTANT},    {415, 416, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {416, 419, EDITOR_SYNTAX_HL_VARIABLE},    {416, 419, EDITOR_SYNTAX_HL_PROPERTY},
+	        {419, 420, EDITOR_SYNTAX_HL_PUNCTUATION}, {420, 430, EDITOR_SYNTAX_HL_VARIABLE},
+	        {420, 430, EDITOR_SYNTAX_HL_PROPERTY},    {430, 431, EDITOR_SYNTAX_HL_PUNCTUATION},
+	        {432, 433, EDITOR_SYNTAX_HL_PUNCTUATION},
+	};
+	result = assert_syntax_capture_contract(
+	        EDITOR_SYNTAX_HCL, source, contract_expected,
+	        (int)(sizeof(contract_expected) / sizeof(contract_expected[0])));
+	free(source);
+	ASSERT_EQ_INT(0, result);
+	return 0;
+}
+
+static int test_editor_syntax_lua_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/lua/highlight.lua", 17, UINT64_C(0x0329e15a23fa275b)},
+	        {"tests/syntax/supported/lua/contract.lua", 123, UINT64_C(0xad435e57c1359dfa)},
+	        {"tests/syntax/supported/lua/incomplete.lua", 9, UINT64_C(0x9789dbf60ed755ad)},
+	        {"tests/syntax/supported/lua/injections.lua", 25, UINT64_C(0x184135a14ae5ed2d)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_LUA, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_glsl_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/glsl/highlight.glsl", 17, UINT64_C(0x3f52c80c459cdd56)},
+	        {"tests/syntax/supported/glsl/contract.glsl", 143, UINT64_C(0xcabba11b8558f349)},
+	        {"tests/syntax/supported/glsl/incomplete.glsl", 12, UINT64_C(0x7eedbf1e34477e91)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_GLSL, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_kotlin_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/kotlin/highlight.kt", 18, UINT64_C(0x0d71101a86e59c0d)},
+	        {"tests/syntax/supported/kotlin/contract.kt", 229, UINT64_C(0xb188e939338adc2c)},
+	        {"tests/syntax/supported/kotlin/incomplete.kt", 13, UINT64_C(0xc867de5835893867)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_KOTLIN, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_svelte_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/svelte/highlight.svelte", 40,
+	         UINT64_C(0x773d939a83e2ee7b)},
+	        {"tests/syntax/supported/svelte/contract.svelte", 137,
+	         UINT64_C(0x03a28f03edf234fb)},
+	        {"tests/syntax/supported/svelte/incomplete.svelte", 17,
+	         UINT64_C(0x60d61aadf9f8892f)},
+	        {"tests/syntax/supported/svelte/injections.svelte", 42,
+	         UINT64_C(0x3575b0205f6dce1a)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SVELTE, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_vue_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/vue/highlight.vue", 43, UINT64_C(0x78d6a80f6a56e076)},
+	        {"tests/syntax/supported/vue/contract.vue", 129, UINT64_C(0x1a2c3cfcff0f5e3f)},
+	        {"tests/syntax/supported/vue/incomplete.vue", 29, UINT64_C(0x6b14618ec026f200)},
+	        {"tests/syntax/supported/vue/injections.vue", 49, UINT64_C(0x5fece295396a0fc2)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_VUE, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -847,6 +1177,13 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_cpp_capture_contract", test_editor_syntax_cpp_capture_contract},
         {"editor_syntax_scala_capture_contract", test_editor_syntax_scala_capture_contract},
         {"editor_syntax_latex_capture_contract", test_editor_syntax_latex_capture_contract},
+        {"editor_syntax_bibtex_capture_contract", test_editor_syntax_bibtex_capture_contract},
+        {"editor_syntax_hcl_capture_contract", test_editor_syntax_hcl_capture_contract},
+        {"editor_syntax_lua_capture_contract", test_editor_syntax_lua_capture_contract},
+        {"editor_syntax_glsl_capture_contract", test_editor_syntax_glsl_capture_contract},
+        {"editor_syntax_kotlin_capture_contract", test_editor_syntax_kotlin_capture_contract},
+        {"editor_syntax_svelte_capture_contract", test_editor_syntax_svelte_capture_contract},
+        {"editor_syntax_vue_capture_contract", test_editor_syntax_vue_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <sys/wait.h> // NOLINT(misc-include-cleaner)
 #include <unistd.h>
 
 /* End-to-end key tests for the Git drawer: raw bytes go through

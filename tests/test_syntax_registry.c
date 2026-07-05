@@ -161,6 +161,46 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_LATEX, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".bib");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_BIBTEX, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".hcl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HCL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".tf");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HCL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".lua");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".glsl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GLSL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".frag");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GLSL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".kt");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".kts");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".svelte");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".vue");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_VUE, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -194,6 +234,11 @@ static int test_editor_syntax_registry_lookup_by_shebang(void) {
 	def = editorSyntaxLookupLanguageByShebangToken(bash, strlen(bash));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, (int)def->id);
+
+	const char *lua = "lua";
+	def = editorSyntaxLookupLanguageByShebangToken(lua, strlen(lua));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, (int)def->id);
 
 	const char *unknown = "perl";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByShebangToken(unknown, strlen(unknown)) == NULL);
@@ -241,6 +286,41 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(tex, strlen(tex));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_LATEX, (int)def->id);
+
+	const char *bib = "bib";
+	def = editorSyntaxLookupLanguageByInjectionName(bib, strlen(bib));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_BIBTEX, (int)def->id);
+
+	const char *terraform = "terraform";
+	def = editorSyntaxLookupLanguageByInjectionName(terraform, strlen(terraform));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HCL, (int)def->id);
+
+	const char *luajit = "luajit";
+	def = editorSyntaxLookupLanguageByInjectionName(luajit, strlen(luajit));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, (int)def->id);
+
+	const char *glsl = "glsl";
+	def = editorSyntaxLookupLanguageByInjectionName(glsl, strlen(glsl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GLSL, (int)def->id);
+
+	const char *kt = "kt";
+	def = editorSyntaxLookupLanguageByInjectionName(kt, strlen(kt));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, (int)def->id);
+
+	const char *svelte = "svelte";
+	def = editorSyntaxLookupLanguageByInjectionName(svelte, strlen(svelte));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, (int)def->id);
+
+	const char *vue = "vue";
+	def = editorSyntaxLookupLanguageByInjectionName(vue, strlen(vue));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_VUE, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

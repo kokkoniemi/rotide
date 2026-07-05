@@ -942,6 +942,188 @@ static int test_editor_syntax_incremental_edits_keep_latex_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_bibtex_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-bibtex-XXXXXX.bib";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/bibtex/incremental.bib"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_BIBTEX, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 12;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_hcl_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-hcl-XXXXXX.hcl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/hcl/incremental.hcl"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HCL, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 12;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_lua_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-lua-XXXXXX.lua";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/lua/incremental.lua"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_glsl_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-glsl-XXXXXX.glsl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+	                                       "tests/syntax/supported/glsl/incremental.glsl"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GLSL, editorSyntaxLanguageActive());
+
+	E.cy = 4;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_kotlin_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-kotlin-XXXXXX.kt";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/kotlin/incremental.kt"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, editorSyntaxLanguageActive());
+
+	E.cy = 4;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_svelte_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-svelte-XXXXXX.svelte";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
+	                                       "tests/syntax/supported/svelte/incremental.svelte"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_vue_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-vue-XXXXXX.vue";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/vue/incremental.vue"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_VUE, editorSyntaxLanguageActive());
+
+	E.cy = 5;
+	E.cx = 4;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_provider_parse_keeps_tree_valid(void) {
 	const char *before = "int value = 1;\n";
 	const char *after = "int xvalue = 1;\n";
@@ -1066,6 +1248,20 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_regex_tree_valid},
         {"editor_syntax_incremental_edits_keep_latex_tree_valid",
          test_editor_syntax_incremental_edits_keep_latex_tree_valid},
+        {"editor_syntax_incremental_edits_keep_bibtex_tree_valid",
+         test_editor_syntax_incremental_edits_keep_bibtex_tree_valid},
+        {"editor_syntax_incremental_edits_keep_hcl_tree_valid",
+         test_editor_syntax_incremental_edits_keep_hcl_tree_valid},
+        {"editor_syntax_incremental_edits_keep_lua_tree_valid",
+         test_editor_syntax_incremental_edits_keep_lua_tree_valid},
+        {"editor_syntax_incremental_edits_keep_glsl_tree_valid",
+         test_editor_syntax_incremental_edits_keep_glsl_tree_valid},
+        {"editor_syntax_incremental_edits_keep_kotlin_tree_valid",
+         test_editor_syntax_incremental_edits_keep_kotlin_tree_valid},
+        {"editor_syntax_incremental_edits_keep_svelte_tree_valid",
+         test_editor_syntax_incremental_edits_keep_svelte_tree_valid},
+        {"editor_syntax_incremental_edits_keep_vue_tree_valid",
+         test_editor_syntax_incremental_edits_keep_vue_tree_valid},
         {"editor_syntax_incremental_provider_parse_keeps_tree_valid",
          test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
         {"editor_syntax_large_file_stays_enabled_in_degraded_mode",

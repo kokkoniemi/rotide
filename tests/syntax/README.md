@@ -9,6 +9,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 [`src/rotide.h`](../../src/rotide.h)):
 
 - `supported/bash/` maps to `EDITOR_SYNTAX_SHELL`
+- `supported/bibtex/` maps to `EDITOR_SYNTAX_BIBTEX`
 - `supported/c/` maps to `EDITOR_SYNTAX_C`
 - `supported/cpp/` maps to `EDITOR_SYNTAX_CPP`
 - `supported/csharp/` maps to `EDITOR_SYNTAX_CSHARP`
@@ -16,14 +17,18 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/diff/` maps to `EDITOR_SYNTAX_DIFF`
 - `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
 - `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
+- `supported/glsl/` maps to `EDITOR_SYNTAX_GLSL`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`
 - `supported/haskell/` maps to `EDITOR_SYNTAX_HASKELL`
+- `supported/hcl/` maps to `EDITOR_SYNTAX_HCL`
 - `supported/html/` maps to `EDITOR_SYNTAX_HTML`
 - `supported/java/` maps to `EDITOR_SYNTAX_JAVA`
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
 - `supported/json/` maps to `EDITOR_SYNTAX_JSON`
 - `supported/julia/` maps to `EDITOR_SYNTAX_JULIA`
+- `supported/kotlin/` maps to `EDITOR_SYNTAX_KOTLIN`
 - `supported/latex/` maps to `EDITOR_SYNTAX_LATEX`
+- `supported/lua/` maps to `EDITOR_SYNTAX_LUA`
 - `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
 - `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
@@ -33,8 +38,10 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/ruby/` maps to `EDITOR_SYNTAX_RUBY`
 - `supported/rust/` maps to `EDITOR_SYNTAX_RUST`
 - `supported/scala/` maps to `EDITOR_SYNTAX_SCALA`
+- `supported/svelte/` maps to `EDITOR_SYNTAX_SVELTE`
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
+- `supported/vue/` maps to `EDITOR_SYNTAX_VUE`
 - `supported/xml/` maps to `EDITOR_SYNTAX_XML`
 
 Notes:
@@ -59,6 +66,12 @@ Notes:
     (`R"html(...)html"`).
   - Haskell: QuasiQuotes (`hamlet`/`lucius`/`julius`/`tsc`/`aesonQQ`/...).
   - Julia: regex (`r"..."`) and command (`` `...` ``) literals.
+  - Lua: `ffi.cdef([[ ... ]])` bodies injected as C (LuaJIT FFI).
+  - Svelte: `<script>` bodies as JavaScript and `<style>` bodies as CSS,
+    layered on the HTML markup grammar Svelte extends.
+  - Vue: `<script>` bodies as JavaScript, `<style>` bodies as CSS, and
+    `{{ ... }}` interpolation expressions as JavaScript, layered on the HTML
+    markup grammar Vue extends.
   - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB: same shape as EJS, with `code` injected as Ruby.
