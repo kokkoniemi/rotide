@@ -45,6 +45,7 @@ extern const TSLanguage *tree_sitter_hcl(void);
 extern const TSLanguage *tree_sitter_lua(void);
 extern const TSLanguage *tree_sitter_glsl(void);
 extern const TSLanguage *tree_sitter_kotlin(void);
+extern const TSLanguage *tree_sitter_svelte(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -157,6 +158,7 @@ static const char *const k_glsl_extensions[] = {".glsl", ".vert", ".frag", ".geo
                                                 ".rchit", ".rahit", ".rmiss", ".rint", ".rcall",
                                                 NULL};
 static const char *const k_kotlin_extensions[] = {".kt", ".kts", ".ktm", NULL};
+static const char *const k_svelte_extensions[] = {".svelte", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -185,6 +187,7 @@ static const char *const k_hcl_injection_aliases[] = {"hcl", "terraform", "tf", 
 static const char *const k_lua_injection_aliases[] = {"lua", "luajit", NULL};
 static const char *const k_glsl_injection_aliases[] = {"glsl", "vert", "frag", NULL};
 static const char *const k_kotlin_injection_aliases[] = {"kotlin", "kt", NULL};
+static const char *const k_svelte_injection_aliases[] = {"svelte", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -484,7 +487,16 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .highlight_parts = editor_query_kotlin_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_KOTLIN_HIGHLIGHT_PART_COUNT,
          .extensions = k_kotlin_extensions,
-         .injection_aliases = k_kotlin_injection_aliases}};
+         .injection_aliases = k_kotlin_injection_aliases},
+        {.id = EDITOR_SYNTAX_SVELTE,
+         .name = "svelte",
+         .ts_factory = tree_sitter_svelte,
+         .highlight_parts = editor_query_svelte_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_SVELTE_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_svelte_injection_parts,
+         .injection_part_count = EDITOR_QUERY_SVELTE_INJECTION_PART_COUNT,
+         .extensions = k_svelte_extensions,
+         .injection_aliases = k_svelte_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 

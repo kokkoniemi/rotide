@@ -38,6 +38,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/ruby/` maps to `EDITOR_SYNTAX_RUBY`
 - `supported/rust/` maps to `EDITOR_SYNTAX_RUST`
 - `supported/scala/` maps to `EDITOR_SYNTAX_SCALA`
+- `supported/svelte/` maps to `EDITOR_SYNTAX_SVELTE`
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
 - `supported/xml/` maps to `EDITOR_SYNTAX_XML`
@@ -65,6 +66,8 @@ Notes:
   - Haskell: QuasiQuotes (`hamlet`/`lucius`/`julius`/`tsc`/`aesonQQ`/...).
   - Julia: regex (`r"..."`) and command (`` `...` ``) literals.
   - Lua: `ffi.cdef([[ ... ]])` bodies injected as C (LuaJIT FFI).
+  - Svelte: `<script>` bodies as JavaScript and `<style>` bodies as CSS,
+    layered on the HTML markup grammar Svelte extends.
   - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB: same shape as EJS, with `code` injected as Ruby.

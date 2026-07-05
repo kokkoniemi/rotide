@@ -193,6 +193,10 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".svelte");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -303,6 +307,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(kt, strlen(kt));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_KOTLIN, (int)def->id);
+
+	const char *svelte = "svelte";
+	def = editorSyntaxLookupLanguageByInjectionName(svelte, strlen(svelte));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

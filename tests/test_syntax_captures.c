@@ -765,6 +765,31 @@ static int test_editor_syntax_kotlin_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_svelte_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/svelte/highlight.svelte", 40, UINT64_C(0x773d939a83e2ee7b)},
+	        {"tests/syntax/supported/svelte/contract.svelte", 137, UINT64_C(0x03a28f03edf234fb)},
+	        {"tests/syntax/supported/svelte/incomplete.svelte", 17, UINT64_C(0x60d61aadf9f8892f)},
+	        {"tests/syntax/supported/svelte/injections.svelte", 42, UINT64_C(0x3575b0205f6dce1a)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SVELTE, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1128,6 +1153,7 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_lua_capture_contract", test_editor_syntax_lua_capture_contract},
         {"editor_syntax_glsl_capture_contract", test_editor_syntax_glsl_capture_contract},
         {"editor_syntax_kotlin_capture_contract", test_editor_syntax_kotlin_capture_contract},
+        {"editor_syntax_svelte_capture_contract", test_editor_syntax_svelte_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

@@ -818,6 +818,22 @@ static int test_editor_syntax_activation_for_kotlin_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_svelte_files(void) {
+	char svelte_path[] = "/tmp/rotide-test-syntax-svelte-XXXXXX.svelte";
+	ASSERT_TRUE(write_fixture_to_temp_path(svelte_path, 7,
+	                                       "tests/syntax/supported/svelte/activation.svelte"));
+
+	editorOpen(svelte_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SVELTE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(svelte_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(
@@ -1144,6 +1160,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
          test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",
          test_editor_syntax_activation_for_kotlin_files},
+        {"editor_syntax_activation_for_svelte_files",
+         test_editor_syntax_activation_for_svelte_files},
         {"editor_syntax_activation_for_go_and_mod_files",
          test_editor_syntax_activation_for_go_and_mod_files},
         {"editor_syntax_disabled_for_non_c_or_shell_files",

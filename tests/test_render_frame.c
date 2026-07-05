@@ -1533,6 +1533,36 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-svelte-XXXXXX.svelte";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
+	                                       "tests/syntax/supported/svelte/highlight.svelte"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* HTML markup Svelte extends: tag name and attribute name. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mh1\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	/* Svelte-specific control-flow keyword. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* JavaScript injected into <script>. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	/* CSS injected into <style>. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-glsl-XXXXXX.glsl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
@@ -2699,6 +2729,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",

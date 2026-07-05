@@ -71,6 +71,7 @@
 - Make (`.mk`, `.mak`, `Makefile`/`makefile`/`GNUmakefile`/`BSDmakefile`) — extern parser `tree_sitter_make`; standard parser-only layout, no external scanner.
 - Diff (`.diff`, `.patch`, plus generated Git diff tabs) — extern parser `tree_sitter_diff`; standard parser-only layout, no external scanner. Generated Git diff tabs opt into this language by tab kind rather than filename.
 - Regex (`.regex`)
+- Svelte (`.svelte`) — vendored from `tree-sitter-grammars/tree-sitter-svelte`; `grammar.js` extends `tree-sitter-html` via `require('tree-sitter-html/grammar')`, so the refresh script links the pinned HTML grammar source into `node_modules` (like TypeScript links JavaScript) before regenerating. Ships an external scanner (`scanner.c` + same-dir `tag.h`) and no shared `common/`. The highlight bundle concatenates the vendored HTML `highlights.scm` with Svelte's own (`; inherits: html`), and injections use a repo-local `src/language/queries/svelte/injections.scm` that mirrors HTML's `<script>`→JavaScript / `<style>`→CSS instead of the upstream `; inherits: html_tags` + catch-all `raw_text` pattern RotIDE does not model. Root node is `document`.
 
 ## Per-grammar `common/` convention
 
