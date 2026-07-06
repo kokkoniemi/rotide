@@ -1,0 +1,16 @@
+{{- /* full contract sample */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+data:
+  replicas: {{ .Values.replicaCount | default 3 }}
+  enabled: {{ .Values.enabled | quote }}
+  {{- if .Values.extra }}
+  {{- range $key, $val := .Values.extra }}
+  {{ $key }}: {{ $val | quote }}
+  {{- end }}
+  {{- end }}
+  host: {{ .Values.host }}

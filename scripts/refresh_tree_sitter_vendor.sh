@@ -207,10 +207,10 @@ sync_grammar_vendor() {
 ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
-		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "julia" && \
+		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "helm" && "$2" != "julia" && \
 		"$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
 		"$2" != "rust" && "$2" != "scala" && "$2" != "svelte" && "$2" != "typescript" && "$2" != "vue" ) ]]; then
-		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|glsl|haskell|hcl|julia|kotlin|latex|lua|ocaml|php|ruby|rust|scala|svelte|typescript|vue]" >&2
+		echo "Usage: $0 [--grammar bash|bibtex|cpp|csharp|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|php|ruby|rust|scala|svelte|typescript|vue]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -294,6 +294,14 @@ if [[ "${ONLY_GRAMMAR}" == "bibtex" ]]; then
 	sync_grammar_vendor "${BIBTEX_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/bibtex"
 	echo "Tree-sitter BibTeX vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "helm" ]]; then
+	# helm is a self-authored, in-repo grammar (no upstream tarball). Its
+	# grammar.js lives in the vendored dir; just regenerate parser.c in place.
+	regenerate_parser "${REPO_ROOT}/vendor/tree_sitter/grammars/helm" "Helm"
+	echo "Tree-sitter Helm parser regeneration complete." >&2
 	exit 0
 fi
 
@@ -682,6 +690,9 @@ regenerate_parser "${SVELTE_GRAMMAR_SRC}" "Svelte"
 link_grammar_dep "${VUE_GRAMMAR_SRC}" "tree-sitter-html" "${HTML_GRAMMAR_SRC}"
 convert_vue_grammar_to_cjs "${VUE_GRAMMAR_SRC}"
 regenerate_parser "${VUE_GRAMMAR_SRC}" "Vue"
+# helm is a self-authored, in-repo grammar (no upstream tarball); regenerate
+# parser.c in place from its committed grammar.js.
+regenerate_parser "${REPO_ROOT}/vendor/tree_sitter/grammars/helm" "Helm"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"

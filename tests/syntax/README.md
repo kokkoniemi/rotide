@@ -42,6 +42,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
 - `supported/vue/` maps to `EDITOR_SYNTAX_VUE`
+- `supported/helm/` maps to `EDITOR_SYNTAX_HELM`
 - `supported/xml/` maps to `EDITOR_SYNTAX_XML`
 
 Notes:
@@ -72,6 +73,9 @@ Notes:
   - Vue: `<script>` bodies as JavaScript, `<style>` bodies as CSS, and
     `{{ ... }}` interpolation expressions as JavaScript, layered on the HTML
     markup grammar Vue extends.
+  - Helm: the literal chart body between `{{ ... }}` Go-template actions is
+    combined and injected as YAML, so the surrounding manifest still
+    highlights while the template actions are colored by the helm grammar.
   - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB: same shape as EJS, with `code` injected as Ruby.

@@ -1668,6 +1668,31 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_helm_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-helm-XXXXXX.tpl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/helm/highlight.helm"));
+
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m{{/*") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m.Values") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mquote") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m3\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-bibtex-XXXXXX.bib";
 	ASSERT_TRUE(
@@ -2753,6 +2778,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_helm_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_helm_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens",

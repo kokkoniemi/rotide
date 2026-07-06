@@ -1,0 +1,26 @@
+{
+  "grammars": [
+    {
+      "name": "helm",
+      "path": ".",
+      "scope": "source.helm",
+      "injection-regex": "^(helm|gotmpl|go-template)$",
+      "file-types": [
+        "tpl",
+        "gotmpl"
+      ],
+      "highlights": "queries/highlights.scm",
+      "injections": "queries/injections.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "description": "Minimal Helm / Go template grammar authored in-repo for RotIDE syntax highlighting",
+    "license": "BSD-3-Clause",
+    "authors": [
+      {
+        "name": "RotIDE"
+      }
+    ]
+  }
+}

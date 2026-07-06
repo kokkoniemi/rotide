@@ -66,3 +66,5 @@ svelte_highlight          vendor/tree_sitter/grammars/html/queries/highlights.sc
 svelte_injection          src/language/queries/svelte/injections.scm
 vue_highlight             vendor/tree_sitter/grammars/html/queries/highlights.scm src/language/queries/vue/highlights.scm
 vue_injection             src/language/queries/vue/injections.scm
+helm_highlight            src/language/queries/helm/highlights.scm
+helm_injection            src/language/queries/helm/injections.scm

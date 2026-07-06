@@ -1,0 +1,7 @@
+apiVersion: v1
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Values.appName | quote }}
+spec:
+  replicas: {{ .Values.replicas | default 2 }}

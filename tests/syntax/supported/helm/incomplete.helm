@@ -1,0 +1,3 @@
+data:
+  name: {{ .Values.name
+  port: {{ .Values.

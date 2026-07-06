@@ -994,6 +994,32 @@ static int test_editor_syntax_incremental_edits_keep_hcl_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_helm_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-helm-XXXXXX.tpl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/helm/incremental.helm"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 12;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_lua_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-lua-XXXXXX.lua";
 	ASSERT_TRUE(
@@ -1252,6 +1278,8 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_bibtex_tree_valid},
         {"editor_syntax_incremental_edits_keep_hcl_tree_valid",
          test_editor_syntax_incremental_edits_keep_hcl_tree_valid},
+        {"editor_syntax_incremental_edits_keep_helm_tree_valid",
+         test_editor_syntax_incremental_edits_keep_helm_tree_valid},
         {"editor_syntax_incremental_edits_keep_lua_tree_valid",
          test_editor_syntax_incremental_edits_keep_lua_tree_valid},
         {"editor_syntax_incremental_edits_keep_glsl_tree_valid",

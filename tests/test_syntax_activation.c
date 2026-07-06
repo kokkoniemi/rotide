@@ -770,6 +770,22 @@ static int test_editor_syntax_activation_for_hcl_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_helm_files(void) {
+	char helm_path[] = "/tmp/rotide-test-syntax-helm-XXXXXX.tpl";
+	ASSERT_TRUE(write_fixture_to_temp_path(helm_path, 4,
+	                                       "tests/syntax/supported/helm/activation.helm"));
+
+	editorOpen(helm_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("template", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(helm_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_lua_files(void) {
 	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
 	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
@@ -1171,6 +1187,7 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_bibtex_files",
          test_editor_syntax_activation_for_bibtex_files},
         {"editor_syntax_activation_for_hcl_files", test_editor_syntax_activation_for_hcl_files},
+        {"editor_syntax_activation_for_helm_files", test_editor_syntax_activation_for_helm_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

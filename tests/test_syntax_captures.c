@@ -819,6 +819,31 @@ static int test_editor_syntax_vue_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_helm_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/helm/highlight.helm", 26, UINT64_C(0x6d6db7e91b4e359f)},
+	        {"tests/syntax/supported/helm/contract.helm", 79, UINT64_C(0x52bf24ccce20f507)},
+	        {"tests/syntax/supported/helm/incomplete.helm", 12, UINT64_C(0xfa6588f7679f8090)},
+	        {"tests/syntax/supported/helm/injections.helm", 36, UINT64_C(0x269059bc70028783)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_HELM, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1184,6 +1209,7 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_kotlin_capture_contract", test_editor_syntax_kotlin_capture_contract},
         {"editor_syntax_svelte_capture_contract", test_editor_syntax_svelte_capture_contract},
         {"editor_syntax_vue_capture_contract", test_editor_syntax_vue_capture_contract},
+        {"editor_syntax_helm_capture_contract", test_editor_syntax_helm_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",
