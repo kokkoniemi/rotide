@@ -41,19 +41,19 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Vue grammar source ref: `ce8011a414fdf8091f4e4071752efc376f4afb08` (`tree-sitter-vue-main-ce8011a`) — `grammar.js` extends `tree-sitter-html` (ESM import), linked into `node_modules` from the pinned HTML source during regeneration. Upstream ships no release tags, so this pins a `main`-branch commit.
 - Tree-sitter Dockerfile grammar source ref: `d13f2847b2cfd74f92f9a122f6e7ac1e6618a39d` (`tree-sitter-containerfile-main-d13f284`) — from `wharflab/tree-sitter-containerfile`; the grammar/parser is named `containerfile` (`tree_sitter_containerfile`) but is vendored under `grammars/dockerfile`. Ships an external scanner. Upstream tags switch numbering schemes, so this pins a `main`-branch commit.
 - Tree-sitter Clojure grammar source ref: `3a1ace906c151dd631cf6f149b5083f2b60e6a9e` (`tree-sitter-clojure-v0.0.13-3a1ace9`) — from `sogaiu/tree-sitter-clojure`, a structural-only grammar (parser-only, no external scanner, ABI 14). Its upstream `highlights.scm` is intentionally minimal, so RotIDE ships a richer repo-local query at `src/language/queries/clojure/highlights.scm` instead.
-- Tree-sitter R grammar source ref: `346d3707b8c9301f1051e8f6e32666e67529f7d2` (`tree-sitter-r-v1.3.0-346d370`) — from `r-lib/tree-sitter-r` (parser `tree_sitter_r`). Ships an external scanner; upstream `highlights.scm` and `locals.scm` map cleanly and are vendored as-is.
+- Tree-sitter R grammar source ref: `346d3707b8c9301f1051e8f6e32666e67529f7d2` (`tree-sitter-r-v1.3.0-346d370`) — from `r-lib/tree-sitter-r` (parser `tree_sitter_r`). Upstream `highlights.scm` and `locals.scm` map cleanly and are vendored as-is, but the grammar is replaced with RotIDE's reduced highlight grammar under `overrides/r/` before generation (no external scanner, no newline-tracking states → ~5× smaller `parser.c`).
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.
 
-RotIDE applies the Bash, C++, C#, GLSL, Haskell, Julia, Kotlin, LaTeX, OCaml, PHP, Ruby, Rust,
-Scala, and shared TypeScript/TSX grammars under `overrides/` before generation. The overrides
-preserve each registered highlight/locals and injection query contract without carrying the full
-upstream language grammar. Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`,
+RotIDE applies the Bash, C++, C#, GLSL, Haskell, Julia, Kotlin, LaTeX, OCaml, PHP, R, Ruby,
+Rust, Scala, and shared TypeScript/TSX grammars under `overrides/` before generation. The
+overrides preserve each registered highlight/locals and injection query contract without carrying
+the full upstream language grammar. Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`,
 `--grammar glsl`, `--grammar haskell`, `--grammar julia`, `--grammar kotlin`, `--grammar latex`,
-`--grammar ocaml`, `--grammar php`, `--grammar ruby`, `--grammar rust`, `--grammar scala`, or
-`--grammar typescript` to refresh only that grammar or shared family.
+`--grammar ocaml`, `--grammar php`, `--grammar r`, `--grammar ruby`, `--grammar rust`,
+`--grammar scala`, or `--grammar typescript` to refresh only that grammar or shared family.
 
 ## Size baseline
 

@@ -2547,7 +2547,7 @@
     "fields": {
       "close": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "string_close",
@@ -2567,7 +2567,7 @@
       },
       "open": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "string_open",
@@ -3362,6 +3362,10 @@
   },
   {
     "type": ":=",
+    "named": false
+  },
+  {
+    "type": ";",
     "named": false
   },
   {

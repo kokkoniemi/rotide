@@ -420,7 +420,10 @@ if [[ "${ONLY_GRAMMAR}" == "r" ]]; then
 	R_GRAMMAR_SRC=""
 	download_repo_tarball "r-lib/tree-sitter-r" \
 		"${TREE_SITTER_R_GRAMMAR_REF}" R_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/r/grammar.js" \
+		"${R_GRAMMAR_SRC}/grammar.js"
 	regenerate_parser "${R_GRAMMAR_SRC}" "R"
+	rm -f "${R_GRAMMAR_SRC}/src/scanner.c"
 	sync_grammar_vendor "${R_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/r"
 	echo "Tree-sitter R vendor refresh complete." >&2
@@ -741,8 +744,12 @@ regenerate_parser "${REPO_ROOT}/vendor/tree_sitter/grammars/helm" "Helm"
 regenerate_parser "${DOCKERFILE_GRAMMAR_SRC}" "Containerfile"
 # sogaiu/tree-sitter-clojure: parser-only, no external scanner.
 regenerate_parser "${CLOJURE_GRAMMAR_SRC}" "Clojure"
-# r-lib/tree-sitter-r: ships an external scanner.
+# r-lib/tree-sitter-r: replace with RotIDE's reduced highlight grammar (no external
+# scanner) before regenerating, then drop the now-unused upstream scanner.
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/r/grammar.js" \
+	"${R_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${R_GRAMMAR_SRC}" "R"
+rm -f "${R_GRAMMAR_SRC}/src/scanner.c"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"

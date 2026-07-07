@@ -904,7 +904,7 @@ static int test_editor_syntax_r_capture_contract(void) {
 		uint64_t digest;
 	} cases[] = {
 	        {"tests/syntax/supported/r/highlight.R", 140, UINT64_C(0x621c666e55adf106)},
-	        {"tests/syntax/supported/r/contract.R", 410, UINT64_C(0x11a6f6d158ed585b)},
+	        {"tests/syntax/supported/r/contract.R", 409, UINT64_C(0x4d56ef09190fba30)},
 	        {"tests/syntax/supported/r/incomplete.R", 31, UINT64_C(0x3b7742d4ffd9eba5)},
 	};
 
