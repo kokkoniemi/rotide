@@ -217,6 +217,18 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".clj");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".cljs");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".edn");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -355,6 +367,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(docker, strlen(docker));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	const char *clj = "clj";
+	def = editorSyntaxLookupLanguageByInjectionName(clj, strlen(clj));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

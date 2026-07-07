@@ -70,3 +70,4 @@ helm_highlight            src/language/queries/helm/highlights.scm
 helm_injection            src/language/queries/helm/injections.scm
 dockerfile_highlight      vendor/tree_sitter/grammars/dockerfile/queries/highlights.scm
 dockerfile_injection      vendor/tree_sitter/grammars/dockerfile/queries/injections.scm
+clojure_highlight         src/language/queries/clojure/highlights.scm

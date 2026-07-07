@@ -39,8 +39,9 @@ are implemented and tested.
   Make, Diff, Regex, LaTeX, BibTeX, HCL, Lua, GLSL, Kotlin, Svelte, Vue
   (the last two with JavaScript in `<script>` and CSS in `<style>`), Helm
   charts (Go-template actions with the surrounding manifest injected as YAML),
-  and Dockerfile/Containerfile (with `RUN` bodies and heredocs injected as
-  Bash, and `COPY` heredocs routed to JSON/YAML/TOML/XML by filename).
+  Dockerfile/Containerfile (with `RUN` bodies and heredocs injected as Bash,
+  and `COPY` heredocs routed to JSON/YAML/TOML/XML by filename), and
+  Clojure/ClojureScript/EDN.
 - LSP definition lookup for Go, C/C++, HTML, CSS/SCSS, JSON, and JavaScript.
 - LSP-backed document symbols, problems drawer, and autocomplete where enabled.
 - ESLint diagnostics and manual `eslint_fix` action for JavaScript buffers.

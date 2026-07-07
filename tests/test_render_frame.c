@@ -1566,6 +1566,41 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-clojure-XXXXXX.clj";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/clojure/highlight.clj"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Line comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m;; Namespace and requires") != NULL);
+	/* Special forms / definers as keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mns\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mdefn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcond\x1b[39m") != NULL);
+	/* def-introduced name and call-position heads as functions. */
+	ASSERT_TRUE(strstr(output, "\x1b[93marea\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmap\x1b[39m") != NULL);
+	/* Literals: number, string, char, keyword, and builtin constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14159\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Compute circle area.\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\\newline\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m:negative\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mnil\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-svelte-XXXXXX.svelte";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
@@ -2821,6 +2856,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

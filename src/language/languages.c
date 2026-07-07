@@ -49,6 +49,7 @@ extern const TSLanguage *tree_sitter_svelte(void);
 extern const TSLanguage *tree_sitter_vue(void);
 extern const TSLanguage *tree_sitter_helm(void);
 extern const TSLanguage *tree_sitter_containerfile(void);
+extern const TSLanguage *tree_sitter_clojure(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -166,6 +167,8 @@ static const char *const k_helm_extensions[] = {".tpl", ".gotmpl", ".helm", NULL
 static const char *const k_dockerfile_extensions[] = {".dockerfile", ".containerfile", NULL};
 static const char *const k_dockerfile_basenames[] = {"Dockerfile", "dockerfile", "Containerfile",
                                                      "containerfile", NULL};
+static const char *const k_clojure_extensions[] = {".clj", ".cljs", ".cljc", ".cljd",
+                                                   ".edn", ".bb",   ".boot", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -199,6 +202,8 @@ static const char *const k_vue_injection_aliases[] = {"vue", NULL};
 static const char *const k_helm_injection_aliases[] = {"helm", "gotmpl", "go-template", NULL};
 static const char *const k_dockerfile_injection_aliases[] = {"dockerfile", "containerfile",
                                                              "docker", "container", NULL};
+static const char *const k_clojure_injection_aliases[] = {"clojure", "clj", "cljs", "cljc",
+                                                          "cljd",    "edn", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -535,7 +540,14 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .injection_part_count = EDITOR_QUERY_DOCKERFILE_INJECTION_PART_COUNT,
          .extensions = k_dockerfile_extensions,
          .basenames = k_dockerfile_basenames,
-         .injection_aliases = k_dockerfile_injection_aliases}};
+         .injection_aliases = k_dockerfile_injection_aliases},
+        {.id = EDITOR_SYNTAX_CLOJURE,
+         .name = "clojure",
+         .ts_factory = tree_sitter_clojure,
+         .highlight_parts = editor_query_clojure_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_CLOJURE_HIGHLIGHT_PART_COUNT,
+         .extensions = k_clojure_extensions,
+         .injection_aliases = k_clojure_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 

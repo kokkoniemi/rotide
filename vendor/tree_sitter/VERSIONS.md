@@ -40,6 +40,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Svelte grammar source ref: `774a65aea563accc35f5d45fafa4d96ec5761f57` (`tree-sitter-svelte-v1.0.2-774a65a`) — `grammar.js` extends `tree-sitter-html`, which is linked into `node_modules` from the pinned HTML source during regeneration.
 - Tree-sitter Vue grammar source ref: `ce8011a414fdf8091f4e4071752efc376f4afb08` (`tree-sitter-vue-main-ce8011a`) — `grammar.js` extends `tree-sitter-html` (ESM import), linked into `node_modules` from the pinned HTML source during regeneration. Upstream ships no release tags, so this pins a `main`-branch commit.
 - Tree-sitter Dockerfile grammar source ref: `d13f2847b2cfd74f92f9a122f6e7ac1e6618a39d` (`tree-sitter-containerfile-main-d13f284`) — from `wharflab/tree-sitter-containerfile`; the grammar/parser is named `containerfile` (`tree_sitter_containerfile`) but is vendored under `grammars/dockerfile`. Ships an external scanner. Upstream tags switch numbering schemes, so this pins a `main`-branch commit.
+- Tree-sitter Clojure grammar source ref: `3a1ace906c151dd631cf6f149b5083f2b60e6a9e` (`tree-sitter-clojure-v0.0.13-3a1ace9`) — from `sogaiu/tree-sitter-clojure`, a structural-only grammar (parser-only, no external scanner, ABI 14). Its upstream `highlights.scm` is intentionally minimal, so RotIDE ships a richer repo-local query at `src/language/queries/clojure/highlights.scm` instead.
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

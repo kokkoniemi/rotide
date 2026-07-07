@@ -820,6 +820,39 @@ static int test_editor_syntax_activation_for_dockerfile_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_clojure_files(void) {
+	char clj_path[] = "/tmp/rotide-test-syntax-clojure-XXXXXX.clj";
+	ASSERT_TRUE(write_fixture_to_temp_path(clj_path, 4,
+	                                       "tests/syntax/supported/clojure/activation.clj"));
+
+	editorOpen(clj_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(clj_path) == 0);
+
+	/* ClojureScript and EDN share the same grammar. */
+	char cljs_path[] = "/tmp/rotide-test-syntax-cljs-XXXXXX.cljs";
+	ASSERT_TRUE(write_fixture_to_temp_path(cljs_path, 5,
+	                                       "tests/syntax/supported/clojure/activation.clj"));
+	editorOpen(cljs_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(cljs_path) == 0);
+
+	char edn_path[] = "/tmp/rotide-test-syntax-edn-XXXXXX.edn";
+	ASSERT_TRUE(write_fixture_to_temp_path(edn_path, 4,
+	                                       "tests/syntax/supported/clojure/activation.clj"));
+	editorOpen(edn_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(edn_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_lua_files(void) {
 	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
 	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
@@ -1224,6 +1257,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_helm_files", test_editor_syntax_activation_for_helm_files},
         {"editor_syntax_activation_for_dockerfile_files",
          test_editor_syntax_activation_for_dockerfile_files},
+        {"editor_syntax_activation_for_clojure_files",
+         test_editor_syntax_activation_for_clojure_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",
