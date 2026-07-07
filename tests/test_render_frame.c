@@ -1601,6 +1601,40 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_to
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-r-XXXXXX.R";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/r/highlight.R"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Highlighting sampler") != NULL);
+	/* Call head as a function. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mlibrary\x1b[39m") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunction\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* Function-definition parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[33mr\x1b[39m") != NULL);
+	/* Namespaced access marks the namespace, then the `::` operator. */
+	ASSERT_TRUE(strstr(output, "\x1b[36mstats\x1b[97m::") != NULL);
+	/* Literals: integer suffix, string, and builtin constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m42L\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"world\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mNULL\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-svelte-XXXXXX.svelte";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
@@ -2858,6 +2892,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_r_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

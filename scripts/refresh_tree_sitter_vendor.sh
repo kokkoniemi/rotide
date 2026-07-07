@@ -212,9 +212,9 @@ ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
 		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "clojure" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "dockerfile" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "helm" && "$2" != "julia" && \
-		"$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "ruby" && \
+		"$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "r" && "$2" != "ruby" && \
 		"$2" != "rust" && "$2" != "scala" && "$2" != "svelte" && "$2" != "typescript" && "$2" != "vue" ) ]]; then
-		echo "Usage: $0 [--grammar bash|bibtex|clojure|cpp|csharp|dockerfile|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|php|ruby|rust|scala|svelte|typescript|vue]" >&2
+		echo "Usage: $0 [--grammar bash|bibtex|clojure|cpp|csharp|dockerfile|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|php|r|ruby|rust|scala|svelte|typescript|vue]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -416,6 +416,17 @@ if [[ "${ONLY_GRAMMAR}" == "clojure" ]]; then
 	exit 0
 fi
 
+if [[ "${ONLY_GRAMMAR}" == "r" ]]; then
+	R_GRAMMAR_SRC=""
+	download_repo_tarball "r-lib/tree-sitter-r" \
+		"${TREE_SITTER_R_GRAMMAR_REF}" R_GRAMMAR_SRC
+	regenerate_parser "${R_GRAMMAR_SRC}" "R"
+	sync_grammar_vendor "${R_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/r"
+	echo "Tree-sitter R vendor refresh complete." >&2
+	exit 0
+fi
+
 if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
 	LATEX_GRAMMAR_SRC=""
 	download_repo_tarball "latex-lsp/tree-sitter-latex" \
@@ -582,6 +593,7 @@ SVELTE_GRAMMAR_SRC=""
 VUE_GRAMMAR_SRC=""
 DOCKERFILE_GRAMMAR_SRC=""
 CLOJURE_GRAMMAR_SRC=""
+R_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -622,6 +634,7 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-svelte" "${TREE_SITTER_S
 download_repo_tarball "tree-sitter-grammars/tree-sitter-vue" "${TREE_SITTER_VUE_GRAMMAR_REF}" VUE_GRAMMAR_SRC
 download_repo_tarball "wharflab/tree-sitter-containerfile" "${TREE_SITTER_DOCKERFILE_GRAMMAR_REF}" DOCKERFILE_GRAMMAR_SRC
 download_repo_tarball "sogaiu/tree-sitter-clojure" "${TREE_SITTER_CLOJURE_GRAMMAR_REF}" CLOJURE_GRAMMAR_SRC
+download_repo_tarball "r-lib/tree-sitter-r" "${TREE_SITTER_R_GRAMMAR_REF}" R_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -728,6 +741,8 @@ regenerate_parser "${REPO_ROOT}/vendor/tree_sitter/grammars/helm" "Helm"
 regenerate_parser "${DOCKERFILE_GRAMMAR_SRC}" "Containerfile"
 # sogaiu/tree-sitter-clojure: parser-only, no external scanner.
 regenerate_parser "${CLOJURE_GRAMMAR_SRC}" "Clojure"
+# r-lib/tree-sitter-r: ships an external scanner.
+regenerate_parser "${R_GRAMMAR_SRC}" "R"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -835,6 +850,7 @@ sync_grammar_vendor "${SVELTE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gra
 sync_grammar_vendor "${VUE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/vue"
 sync_grammar_vendor "${DOCKERFILE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/dockerfile"
 sync_grammar_vendor "${CLOJURE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/clojure"
+sync_grammar_vendor "${R_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/r"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

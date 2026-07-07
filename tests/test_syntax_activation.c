@@ -853,6 +853,54 @@ static int test_editor_syntax_activation_for_clojure_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_r_files(void) {
+	char r_path[] = "/tmp/rotide-test-syntax-r-XXXXXX.R";
+	ASSERT_TRUE(write_fixture_to_temp_path(r_path, 2, "tests/syntax/supported/r/activation.R"));
+
+	editorOpen(r_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(r_path) == 0);
+
+	/* Lowercase extension. */
+	char lower_path[] = "/tmp/rotide-test-syntax-r-lower-XXXXXX.r";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(lower_path, 2, "tests/syntax/supported/r/activation.R"));
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(lower_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(lower_path) == 0);
+
+	/* .Rprofile basename. */
+	char base_dir_template[] = "/tmp/rotide-test-syntax-r-base-XXXXXX";
+	char *base_dir = mkdtemp(base_dir_template);
+	ASSERT_TRUE(base_dir != NULL);
+	char base_path[512];
+	ASSERT_TRUE(path_join(base_path, sizeof(base_path), base_dir, ".Rprofile"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/r/activation.R", base_path));
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(base_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(base_path) == 0);
+	ASSERT_TRUE(rmdir(base_dir) == 0);
+
+	/* Extensionless file with an Rscript shebang. */
+	char shebang_path[] = "/tmp/rotide-test-syntax-r-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
+	                                       "tests/syntax/supported/r/extensionless_shebang"));
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_lua_files(void) {
 	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
 	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
@@ -1259,6 +1307,7 @@ const struct editorTestCase g_syntax_activation_tests[] = {
          test_editor_syntax_activation_for_dockerfile_files},
         {"editor_syntax_activation_for_clojure_files",
          test_editor_syntax_activation_for_clojure_files},
+        {"editor_syntax_activation_for_r_files", test_editor_syntax_activation_for_r_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

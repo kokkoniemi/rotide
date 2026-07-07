@@ -1202,6 +1202,31 @@ static int test_editor_syntax_incremental_edits_keep_clojure_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_r_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-r-XXXXXX.R";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/r/incremental.R"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 5;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_provider_parse_keeps_tree_valid(void) {
 	const char *before = "int value = 1;\n";
 	const char *after = "int xvalue = 1;\n";
@@ -1342,6 +1367,8 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_dockerfile_tree_valid},
         {"editor_syntax_incremental_edits_keep_clojure_tree_valid",
          test_editor_syntax_incremental_edits_keep_clojure_tree_valid},
+        {"editor_syntax_incremental_edits_keep_r_tree_valid",
+         test_editor_syntax_incremental_edits_keep_r_tree_valid},
         {"editor_syntax_incremental_edits_keep_svelte_tree_valid",
          test_editor_syntax_incremental_edits_keep_svelte_tree_valid},
         {"editor_syntax_incremental_edits_keep_vue_tree_valid",

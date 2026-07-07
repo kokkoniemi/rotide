@@ -229,6 +229,14 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".R");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".r");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -255,6 +263,10 @@ static int test_editor_syntax_registry_lookup_by_basename(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByBasename(".Rprofile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByBasename("noresult") == NULL);
 	return 0;
 }
@@ -265,6 +277,11 @@ static int test_editor_syntax_registry_lookup_by_shebang(void) {
 	        editorSyntaxLookupLanguageByShebangToken(python3, strlen(python3));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, (int)def->id);
+
+	const char *rscript = "Rscript";
+	def = editorSyntaxLookupLanguageByShebangToken(rscript, strlen(rscript));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
 
 	const char *bash = "bash";
 	def = editorSyntaxLookupLanguageByShebangToken(bash, strlen(bash));
@@ -372,6 +389,12 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(clj, strlen(clj));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	/* Injection-name lookup is case-insensitive, so "R" resolves via "r". */
+	const char *r_upper = "R";
+	def = editorSyntaxLookupLanguageByInjectionName(r_upper, strlen(r_upper));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

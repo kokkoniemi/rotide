@@ -71,3 +71,5 @@ helm_injection            src/language/queries/helm/injections.scm
 dockerfile_highlight      vendor/tree_sitter/grammars/dockerfile/queries/highlights.scm
 dockerfile_injection      vendor/tree_sitter/grammars/dockerfile/queries/injections.scm
 clojure_highlight         src/language/queries/clojure/highlights.scm
+r_highlight               vendor/tree_sitter/grammars/r/queries/highlights.scm
+r_locals                  vendor/tree_sitter/grammars/r/queries/locals.scm
