@@ -39,6 +39,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Kotlin grammar source ref: `77dd60ea0a9003ce062c9728a513ffe1aaff8c82` (`tree-sitter-kotlin-v1.1.0-77dd60e`)
 - Tree-sitter Svelte grammar source ref: `774a65aea563accc35f5d45fafa4d96ec5761f57` (`tree-sitter-svelte-v1.0.2-774a65a`) — `grammar.js` extends `tree-sitter-html`, which is linked into `node_modules` from the pinned HTML source during regeneration.
 - Tree-sitter Vue grammar source ref: `ce8011a414fdf8091f4e4071752efc376f4afb08` (`tree-sitter-vue-main-ce8011a`) — `grammar.js` extends `tree-sitter-html` (ESM import), linked into `node_modules` from the pinned HTML source during regeneration. Upstream ships no release tags, so this pins a `main`-branch commit.
+- Tree-sitter Dockerfile grammar source ref: `d13f2847b2cfd74f92f9a122f6e7ac1e6618a39d` (`tree-sitter-containerfile-main-d13f284`) — from `wharflab/tree-sitter-containerfile`; the grammar/parser is named `containerfile` (`tree_sitter_containerfile`) but is vendored under `grammars/dockerfile`. Ships an external scanner. Upstream tags switch numbering schemes, so this pins a `main`-branch commit.
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

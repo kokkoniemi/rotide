@@ -844,6 +844,35 @@ static int test_editor_syntax_helm_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_dockerfile_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/dockerfile/highlight.dockerfile", 31,
+	         UINT64_C(0xe626ad5e5752df12)},
+	        {"tests/syntax/supported/dockerfile/contract.dockerfile", 101,
+	         UINT64_C(0xab80d0d4cf846242)},
+	        {"tests/syntax/supported/dockerfile/incomplete.dockerfile", 9,
+	         UINT64_C(0x0ca7981c9afac19f)},
+	        {"tests/syntax/supported/dockerfile/injections.dockerfile", 57,
+	         UINT64_C(0x2cf7b1d938338970)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_DOCKERFILE, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1210,6 +1239,8 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_svelte_capture_contract", test_editor_syntax_svelte_capture_contract},
         {"editor_syntax_vue_capture_contract", test_editor_syntax_vue_capture_contract},
         {"editor_syntax_helm_capture_contract", test_editor_syntax_helm_capture_contract},
+        {"editor_syntax_dockerfile_capture_contract",
+         test_editor_syntax_dockerfile_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

@@ -68,3 +68,5 @@ vue_highlight             vendor/tree_sitter/grammars/html/queries/highlights.sc
 vue_injection             src/language/queries/vue/injections.scm
 helm_highlight            src/language/queries/helm/highlights.scm
 helm_injection            src/language/queries/helm/injections.scm
+dockerfile_highlight      vendor/tree_sitter/grammars/dockerfile/queries/highlights.scm
+dockerfile_injection      vendor/tree_sitter/grammars/dockerfile/queries/injections.scm

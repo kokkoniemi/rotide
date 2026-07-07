@@ -786,6 +786,40 @@ static int test_editor_syntax_activation_for_helm_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_dockerfile_files(void) {
+	char df_path[] = "/tmp/rotide-test-syntax-dockerfile-XXXXXX.dockerfile";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        df_path, 11, "tests/syntax/supported/dockerfile/activation.dockerfile"));
+
+	editorOpen(df_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(df_path) == 0);
+
+	/* Extensionless canonical basename detection. */
+	char base_dir_template[] = "/tmp/rotide-test-syntax-dockerfile-base-XXXXXX";
+	char *base_dir = mkdtemp(base_dir_template);
+	ASSERT_TRUE(base_dir != NULL);
+
+	char base_path[512];
+	ASSERT_TRUE(path_join(base_path, sizeof(base_path), base_dir, "Dockerfile"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/dockerfile/activation.dockerfile",
+	                                  base_path));
+
+	editorOpen(base_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(base_path) == 0);
+	ASSERT_TRUE(rmdir(base_dir) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_lua_files(void) {
 	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
 	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
@@ -1188,6 +1222,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
          test_editor_syntax_activation_for_bibtex_files},
         {"editor_syntax_activation_for_hcl_files", test_editor_syntax_activation_for_hcl_files},
         {"editor_syntax_activation_for_helm_files", test_editor_syntax_activation_for_helm_files},
+        {"editor_syntax_activation_for_dockerfile_files",
+         test_editor_syntax_activation_for_dockerfile_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

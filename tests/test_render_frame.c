@@ -1533,6 +1533,39 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-dockerfile-XXXXXX.dockerfile";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        path, 11, "tests/syntax/supported/dockerfile/highlight.dockerfile"));
+
+	editorOpen(path);
+	E.window_rows = 16;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Directive comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# syntax=docker/dockerfile:1") != NULL);
+	/* Instruction keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mFROM\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mRUN\x1b[39m") != NULL);
+	/* ENV/ARG names render as properties. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mAPP_HOME\x1b[39m") != NULL);
+	/* Quoted LABEL value is a string. */
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"https://example.com/repo\"\x1b[39m") != NULL);
+	/* EXPOSE port is a number. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m8080\x1b[39m") != NULL);
+	/* Bash injected into the RUN body highlights the command word. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mnpm\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-svelte-XXXXXX.svelte";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
@@ -2786,6 +2819,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

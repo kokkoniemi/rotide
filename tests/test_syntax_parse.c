@@ -1150,6 +1150,32 @@ static int test_editor_syntax_incremental_edits_keep_vue_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_dockerfile_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-dockerfile-XXXXXX.dockerfile";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        path, 11, "tests/syntax/supported/dockerfile/incremental.dockerfile"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, editorSyntaxLanguageActive());
+
+	E.cy = 4;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_provider_parse_keeps_tree_valid(void) {
 	const char *before = "int value = 1;\n";
 	const char *after = "int xvalue = 1;\n";
@@ -1286,6 +1312,8 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_glsl_tree_valid},
         {"editor_syntax_incremental_edits_keep_kotlin_tree_valid",
          test_editor_syntax_incremental_edits_keep_kotlin_tree_valid},
+        {"editor_syntax_incremental_edits_keep_dockerfile_tree_valid",
+         test_editor_syntax_incremental_edits_keep_dockerfile_tree_valid},
         {"editor_syntax_incremental_edits_keep_svelte_tree_valid",
          test_editor_syntax_incremental_edits_keep_svelte_tree_valid},
         {"editor_syntax_incremental_edits_keep_vue_tree_valid",

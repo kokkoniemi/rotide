@@ -209,6 +209,14 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".dockerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".containerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -226,6 +234,14 @@ static int test_editor_syntax_registry_lookup_by_basename(void) {
 	def = editorSyntaxLookupLanguageByBasename("Makefile");
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByBasename("Dockerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByBasename("Containerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
 
 	ASSERT_TRUE(editorSyntaxLookupLanguageByBasename("noresult") == NULL);
 	return 0;
@@ -334,6 +350,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(gotmpl, strlen(gotmpl));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, (int)def->id);
+
+	const char *docker = "docker";
+	def = editorSyntaxLookupLanguageByInjectionName(docker, strlen(docker));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

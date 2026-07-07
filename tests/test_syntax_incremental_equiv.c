@@ -154,6 +154,8 @@ static const struct langCase k_lang_cases[] = {
         {"svelte", EDITOR_SYNTAX_SVELTE, "tests/syntax/supported/svelte/contract.svelte", 20},
         {"vue", EDITOR_SYNTAX_VUE, "tests/syntax/supported/vue/contract.vue", 20},
         {"helm", EDITOR_SYNTAX_HELM, "tests/syntax/supported/helm/contract.helm", 20},
+        {"dockerfile", EDITOR_SYNTAX_DOCKERFILE,
+         "tests/syntax/supported/dockerfile/contract.dockerfile", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -385,6 +387,7 @@ INCR_EQUIV_TEST(kotlin, 21)
 INCR_EQUIV_TEST(svelte, 22)
 INCR_EQUIV_TEST(vue, 23)
 INCR_EQUIV_TEST(helm, 24)
+INCR_EQUIV_TEST(dockerfile, 25)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -412,6 +415,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_svelte", test_syntax_incremental_equiv_svelte},
         {"syntax_incremental_equiv_vue", test_syntax_incremental_equiv_vue},
         {"syntax_incremental_equiv_helm", test_syntax_incremental_equiv_helm},
+        {"syntax_incremental_equiv_dockerfile", test_syntax_incremental_equiv_dockerfile},
 };
 
 const int g_syntax_incremental_equiv_test_count =
