@@ -853,6 +853,21 @@ static int test_editor_syntax_activation_for_clojure_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_swift_files(void) {
+	char swift_path[] = "/tmp/rotide-test-syntax-swift-XXXXXX.swift";
+	ASSERT_TRUE(write_fixture_to_temp_path(swift_path, 6,
+	                                       "tests/syntax/supported/swift/activation.swift"));
+
+	editorOpen(swift_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(swift_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_zig_files(void) {
 	char zig_path[] = "/tmp/rotide-test-syntax-zig-XXXXXX.zig";
 	ASSERT_TRUE(
@@ -1341,6 +1356,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_gdscript_files",
          test_editor_syntax_activation_for_gdscript_files},
         {"editor_syntax_activation_for_zig_files", test_editor_syntax_activation_for_zig_files},
+        {"editor_syntax_activation_for_swift_files",
+         test_editor_syntax_activation_for_swift_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

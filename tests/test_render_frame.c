@@ -1635,6 +1635,46 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-swift-XXXXXX.swift";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 6, "tests/syntax/supported/swift/highlight.swift"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Doc comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m/// Highlighting sampler") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mimport\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mstruct\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mlet\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunc\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	/* Visibility modifier. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mpublic\x1b[39m") != NULL);
+	/* Type identifiers. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mPoint\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mInt\x1b[39m") != NULL);
+	/* Function-definition names and a parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mdistance\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mgreet\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mother\x1b[39m") != NULL);
+	/* String literal and boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-zig-XXXXXX.zig";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 4, "tests/syntax/supported/zig/highlight.zig"));
@@ -2979,6 +3019,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_r_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens",

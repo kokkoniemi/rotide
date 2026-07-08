@@ -75,3 +75,5 @@ r_highlight               vendor/tree_sitter/grammars/r/queries/highlights.scm
 r_locals                  vendor/tree_sitter/grammars/r/queries/locals.scm
 gdscript_highlight        src/language/queries/gdscript/highlights.scm
 zig_highlight             src/language/queries/zig/highlights.scm
+swift_highlight           vendor/tree_sitter/grammars/swift/queries/highlights.scm
+swift_injection           vendor/tree_sitter/grammars/swift/queries/injections.scm

@@ -53,6 +53,7 @@ extern const TSLanguage *tree_sitter_clojure(void);
 extern const TSLanguage *tree_sitter_r(void);
 extern const TSLanguage *tree_sitter_gdscript(void);
 extern const TSLanguage *tree_sitter_zig(void);
+extern const TSLanguage *tree_sitter_swift(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -180,6 +181,7 @@ static const char *const k_r_extensions[] = {".R", ".r", NULL};
 static const char *const k_r_basenames[] = {".Rprofile", ".Rhistory", NULL};
 static const char *const k_gdscript_extensions[] = {".gd", NULL};
 static const char *const k_zig_extensions[] = {".zig", NULL};
+static const char *const k_swift_extensions[] = {".swift", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -218,6 +220,7 @@ static const char *const k_clojure_injection_aliases[] = {"clojure", "clj", "clj
 static const char *const k_r_injection_aliases[] = {"r", NULL};
 static const char *const k_gdscript_injection_aliases[] = {"gdscript", "gd", NULL};
 static const char *const k_zig_injection_aliases[] = {"zig", NULL};
+static const char *const k_swift_injection_aliases[] = {"swift", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -586,7 +589,16 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .highlight_parts = editor_query_zig_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_ZIG_HIGHLIGHT_PART_COUNT,
          .extensions = k_zig_extensions,
-         .injection_aliases = k_zig_injection_aliases}};
+         .injection_aliases = k_zig_injection_aliases},
+        {.id = EDITOR_SYNTAX_SWIFT,
+         .name = "swift",
+         .ts_factory = tree_sitter_swift,
+         .highlight_parts = editor_query_swift_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_SWIFT_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_swift_injection_parts,
+         .injection_part_count = EDITOR_QUERY_SWIFT_INJECTION_PART_COUNT,
+         .extensions = k_swift_extensions,
+         .injection_aliases = k_swift_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 
