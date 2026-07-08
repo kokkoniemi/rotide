@@ -945,6 +945,30 @@ static int test_editor_syntax_gdscript_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_zig_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/zig/highlight.zig", 97, UINT64_C(0x3ad2058e66ad7584)},
+	        {"tests/syntax/supported/zig/contract.zig", 452, UINT64_C(0x37881fb2dbd9d07a)},
+	        {"tests/syntax/supported/zig/incomplete.zig", 28, UINT64_C(0x34b5b1548e1ab9e1)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_ZIG, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1317,6 +1341,7 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_r_capture_contract", test_editor_syntax_r_capture_contract},
         {"editor_syntax_gdscript_capture_contract",
          test_editor_syntax_gdscript_capture_contract},
+        {"editor_syntax_zig_capture_contract", test_editor_syntax_zig_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

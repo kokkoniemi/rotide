@@ -853,6 +853,21 @@ static int test_editor_syntax_activation_for_clojure_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_zig_files(void) {
+	char zig_path[] = "/tmp/rotide-test-syntax-zig-XXXXXX.zig";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(zig_path, 4, "tests/syntax/supported/zig/activation.zig"));
+
+	editorOpen(zig_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(zig_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_gdscript_files(void) {
 	char gd_path[] = "/tmp/rotide-test-syntax-gdscript-XXXXXX.gd";
 	ASSERT_TRUE(
@@ -1325,6 +1340,7 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_r_files", test_editor_syntax_activation_for_r_files},
         {"editor_syntax_activation_for_gdscript_files",
          test_editor_syntax_activation_for_gdscript_files},
+        {"editor_syntax_activation_for_zig_files", test_editor_syntax_activation_for_zig_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

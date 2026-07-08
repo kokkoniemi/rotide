@@ -159,6 +159,7 @@ static const struct langCase k_lang_cases[] = {
         {"clojure", EDITOR_SYNTAX_CLOJURE, "tests/syntax/supported/clojure/contract.clj", 20},
         {"r", EDITOR_SYNTAX_R, "tests/syntax/supported/r/contract.R", 20},
         {"gdscript", EDITOR_SYNTAX_GDSCRIPT, "tests/syntax/supported/gdscript/contract.gd", 20},
+        {"zig", EDITOR_SYNTAX_ZIG, "tests/syntax/supported/zig/contract.zig", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -419,6 +420,7 @@ INCR_EQUIV_TEST(dockerfile, 25)
 INCR_EQUIV_TEST(clojure, 26)
 INCR_EQUIV_TEST(r, 27)
 INCR_EQUIV_TEST(gdscript, 28)
+INCR_EQUIV_TEST(zig, 29)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -450,6 +452,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_clojure", test_syntax_incremental_equiv_clojure},
         {"syntax_incremental_equiv_r", test_syntax_incremental_equiv_r},
         {"syntax_incremental_equiv_gdscript", test_syntax_incremental_equiv_gdscript},
+        {"syntax_incremental_equiv_zig", test_syntax_incremental_equiv_zig},
 };
 
 const int g_syntax_incremental_equiv_test_count =

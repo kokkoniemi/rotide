@@ -241,6 +241,10 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".zig");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -410,6 +414,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(gd_alias, strlen(gd_alias));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
+
+	const char *zig = "zig";
+	def = editorSyntaxLookupLanguageByInjectionName(zig, strlen(zig));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

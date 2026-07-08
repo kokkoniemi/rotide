@@ -41,7 +41,7 @@ are implemented and tested.
   charts (Go-template actions with the surrounding manifest injected as YAML),
   Dockerfile/Containerfile (with `RUN` bodies and heredocs injected as Bash,
   and `COPY` heredocs routed to JSON/YAML/TOML/XML by filename),
-  Clojure/ClojureScript/EDN, R, and GDScript.
+  Clojure/ClojureScript/EDN, R, GDScript, and Zig.
 - LSP definition lookup for Go, C/C++, HTML, CSS/SCSS, JSON, and JavaScript.
 - LSP-backed document symbols, problems drawer, and autocomplete where enabled.
 - ESLint diagnostics and manual `eslint_fix` action for JavaScript buffers.

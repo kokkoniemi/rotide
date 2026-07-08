@@ -1635,6 +1635,50 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-zig-XXXXXX.zig";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4, "tests/syntax/supported/zig/highlight.zig"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Doc comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m//! Highlighting sampler") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94menum\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mtest\x1b[39m") != NULL);
+	/* `const std = @import(...)` marks the binding as a module. */
+	ASSERT_TRUE(strstr(output, "\x1b[36mstd\x1b[39m") != NULL);
+	/* SCREAMING_SNAKE_CASE identifier reads as a constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mMAX_LEN\x1b[39m") != NULL);
+	/* TitleCase identifier reads as a type. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mColor\x1b[39m") != NULL);
+	/* Builtin type. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mi32\x1b[39m") != NULL);
+	/* Function-definition name and its parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[93madd\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mlhs\x1b[39m") != NULL);
+	/* Field-call head as a function. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mprint\x1b[39m") != NULL);
+	/* Literals: number, string, and boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m100\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"sampler\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-gdscript-XXXXXX.gd";
 	ASSERT_TRUE(
@@ -2935,6 +2979,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_r_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
