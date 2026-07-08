@@ -543,15 +543,18 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	}
 	if (rlen < 0) {
 		rlen = 0;
+		rightbuf[0] = '\0';
 	}
 
-	int right_start_col = E.window_cols - rlen;
+	/* Position the right segment by its on-screen width */
+	int right_cols = editorDisplayTextCols(rightbuf);
+	int right_start_col = E.window_cols - right_cols;
 	if (right_start_col < 0) {
 		right_start_col = 0;
 	}
 
 	/* The input-system badge (e.g. the Vim mode label) is always the far-left
-	 * element of the status bar, ahead of any debug or git action buttons. */
+	 * element of the status bar. */
 	const struct editorInputSystem *active_system = editorInputSystemActive();
 	char *input_segment = NULL;
 	int input_segment_cols = 0;
@@ -606,11 +609,7 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		}
 	}
 
-	/* The next segment is context-sensitive: debug controls while a DAP session
-	 * runs, git action buttons while a git surface has focus. Both sit just to
-	 * the right of the input badge, so their clickable spans are recorded with
-	 * that column offset. The git segment replaces the tab name to leave room
-	 * for its buttons. */
+	/* The context-sensitive segment of the status bar */
 	int debug_cols = 0;
 	enum statusBarGitContext git_context = statusBarGitContext();
 	int segment_max = right_start_col - input_segment_total_cols;
