@@ -73,3 +73,4 @@ dockerfile_injection      vendor/tree_sitter/grammars/dockerfile/queries/injecti
 clojure_highlight         src/language/queries/clojure/highlights.scm
 r_highlight               vendor/tree_sitter/grammars/r/queries/highlights.scm
 r_locals                  vendor/tree_sitter/grammars/r/queries/locals.scm
+gdscript_highlight        src/language/queries/gdscript/highlights.scm

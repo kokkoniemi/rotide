@@ -237,6 +237,10 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".gd");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -395,6 +399,17 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(r_upper, strlen(r_upper));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
+	const char *gdscript = "gdscript";
+	def = editorSyntaxLookupLanguageByInjectionName(gdscript, strlen(gdscript));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
+
+	/* Injection alias resolves the shorthand. */
+	const char *gd_alias = "gd";
+	def = editorSyntaxLookupLanguageByInjectionName(gd_alias, strlen(gd_alias));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

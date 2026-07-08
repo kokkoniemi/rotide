@@ -853,6 +853,21 @@ static int test_editor_syntax_activation_for_clojure_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_gdscript_files(void) {
+	char gd_path[] = "/tmp/rotide-test-syntax-gdscript-XXXXXX.gd";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(gd_path, 3, "tests/syntax/supported/gdscript/activation.gd"));
+
+	editorOpen(gd_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(gd_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_r_files(void) {
 	char r_path[] = "/tmp/rotide-test-syntax-r-XXXXXX.R";
 	ASSERT_TRUE(write_fixture_to_temp_path(r_path, 2, "tests/syntax/supported/r/activation.R"));
@@ -1308,6 +1323,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_clojure_files",
          test_editor_syntax_activation_for_clojure_files},
         {"editor_syntax_activation_for_r_files", test_editor_syntax_activation_for_r_files},
+        {"editor_syntax_activation_for_gdscript_files",
+         test_editor_syntax_activation_for_gdscript_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

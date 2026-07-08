@@ -921,6 +921,30 @@ static int test_editor_syntax_r_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_gdscript_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/gdscript/highlight.gd", 52, UINT64_C(0x28abe71543590a41)},
+	        {"tests/syntax/supported/gdscript/contract.gd", 405, UINT64_C(0xc3a4c46e6844f361)},
+	        {"tests/syntax/supported/gdscript/incomplete.gd", 18, UINT64_C(0xb62ce11e513d3563)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_GDSCRIPT, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -1291,6 +1315,8 @@ const struct editorTestCase g_syntax_captures_tests[] = {
          test_editor_syntax_dockerfile_capture_contract},
         {"editor_syntax_clojure_capture_contract", test_editor_syntax_clojure_capture_contract},
         {"editor_syntax_r_capture_contract", test_editor_syntax_r_capture_contract},
+        {"editor_syntax_gdscript_capture_contract",
+         test_editor_syntax_gdscript_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

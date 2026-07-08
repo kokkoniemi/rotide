@@ -1635,6 +1635,47 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-gdscript-XXXXXX.gd";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/gdscript/highlight.gd"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Highlighting sampler") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mextends\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunc\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* TitleCase identifier reads as a type. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mNode\x1b[39m") != NULL);
+	/* Annotation renders as a preprocessor-class attribute. */
+	ASSERT_TRUE(strstr(output, "\x1b[91m@export\x1b[39m") != NULL);
+	/* SCREAMING_SNAKE_CASE const name reads as a constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mMAX_HP\x1b[39m") != NULL);
+	/* Function-definition name and its parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mspawn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mcount\x1b[39m") != NULL);
+	/* Call head as a function. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mprint\x1b[39m") != NULL);
+	/* Literals: float, string, and boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"hello\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-svelte-XXXXXX.svelte";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
@@ -2894,6 +2935,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_r_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",
