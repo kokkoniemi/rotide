@@ -23,7 +23,7 @@ TS_GRAMMARS_DIR := $(TS_DIR)/grammars
 TS_GRAMMARS := \
 	c cpp go bash html javascript jsdoc css json typescript tsx \
 	python php rust java regex csharp haskell ruby ocaml julia scala \
-	embedded_template markdown markdown_inline toml yaml xml make diff latex bibtex hcl lua glsl kotlin svelte vue helm dockerfile clojure r gdscript zig swift
+	embedded_template markdown markdown_inline toml yaml xml make diff latex bibtex hcl lua glsl kotlin svelte vue helm dockerfile clojure r gdscript zig swift perl
 
 # ============================================================================
 # Compiler flags
@@ -64,7 +64,7 @@ TREE_SITTER_CPPFLAGS = $(CPPFLAGS)
 TREE_SITTER_CFLAGS = $(VENDOR_CFLAGS) \
 	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
 	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-unused-label \
-	-Wno-comment
+	-Wno-comment -Wno-empty-body
 
 LIBVTERM_CPPFLAGS = $(CPPFLAGS) \
 	-I$(LIBVTERM_DIR)/include -I$(LIBVTERM_DIR)/src

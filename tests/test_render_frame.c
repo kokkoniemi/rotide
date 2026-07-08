@@ -1637,8 +1637,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens(v
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-swift-XXXXXX.swift";
-	ASSERT_TRUE(
-	        write_fixture_to_temp_path(path, 6, "tests/syntax/supported/swift/highlight.swift"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
+	                                       "tests/syntax/supported/swift/highlight.swift"));
 
 	editorOpen(path);
 	E.window_rows = 32;
@@ -1677,7 +1677,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_swift_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-zig-XXXXXX.zig";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4, "tests/syntax/supported/zig/highlight.zig"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/zig/highlight.zig"));
 
 	editorOpen(path);
 	E.window_rows = 32;
@@ -1721,8 +1722,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-gdscript-XXXXXX.gd";
-	ASSERT_TRUE(
-	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/gdscript/highlight.gd"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/gdscript/highlight.gd"));
 
 	editorOpen(path);
 	E.window_rows = 32;
@@ -1754,6 +1755,55 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_t
 	ASSERT_TRUE(strstr(output, "\x1b[35m3.14\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[32m\"hello\"\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-perl-XXXXXX.pl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/perl/highlight.pl"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Highlighting sampler") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94muse\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mSample\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mgreet\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_perl_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-injections-perl-XXXXXX.pl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/perl/injections.pl"));
+
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -3025,6 +3075,10 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens},
+        {"editor_refresh_screen_applies_perl_injections",
+         test_editor_refresh_screen_applies_perl_injections},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

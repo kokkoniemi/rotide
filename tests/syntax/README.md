@@ -32,6 +32,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
 - `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
+- `supported/perl/` maps to `EDITOR_SYNTAX_PERL`
 - `supported/php/` maps to `EDITOR_SYNTAX_PHP`
 - `supported/python/` maps to `EDITOR_SYNTAX_PYTHON`
 - `supported/regex/` maps to `EDITOR_SYNTAX_REGEX`
@@ -82,6 +83,8 @@ Notes:
   - Markdown: fenced code blocks routed by their info-string (e.g.
     ```` ```python ```` -> Python), plus the inline grammar overlay for
     emphasis, links, and code spans inside paragraphs.
+  - Perl: evaluated substitution replacements reparse as Perl, and heredoc
+    terminators dynamically select registered languages such as HTML.
 - Git diff tabs use `EDITOR_SYNTAX_DIFF` directly; they do not rely on a
   filename extension because generated diff tabs are read-only buffers with
   display titles instead of real file paths.

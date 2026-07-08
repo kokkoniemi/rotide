@@ -853,6 +853,34 @@ static int test_editor_syntax_activation_for_clojure_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_perl_files_and_shebang(void) {
+	static const char *const extensions[] = {"pl", "pm", "t"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[64];
+		int written = snprintf(path, sizeof(path), "/tmp/rotide-test-syntax-perl-XXXXXX.%s",
+		                       extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/perl/activation.pl"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, editorSyntaxLanguageActive());
+		ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+
+	char shebang_path[] = "/tmp/rotide-test-syntax-perl-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        shebang_path, 0, "tests/syntax/supported/perl/extensionless_shebang"));
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_swift_files(void) {
 	char swift_path[] = "/tmp/rotide-test-syntax-swift-XXXXXX.swift";
 	ASSERT_TRUE(write_fixture_to_temp_path(swift_path, 6,
@@ -870,8 +898,8 @@ static int test_editor_syntax_activation_for_swift_files(void) {
 
 static int test_editor_syntax_activation_for_zig_files(void) {
 	char zig_path[] = "/tmp/rotide-test-syntax-zig-XXXXXX.zig";
-	ASSERT_TRUE(
-	        write_fixture_to_temp_path(zig_path, 4, "tests/syntax/supported/zig/activation.zig"));
+	ASSERT_TRUE(write_fixture_to_temp_path(zig_path, 4,
+	                                       "tests/syntax/supported/zig/activation.zig"));
 
 	editorOpen(zig_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -885,8 +913,8 @@ static int test_editor_syntax_activation_for_zig_files(void) {
 
 static int test_editor_syntax_activation_for_gdscript_files(void) {
 	char gd_path[] = "/tmp/rotide-test-syntax-gdscript-XXXXXX.gd";
-	ASSERT_TRUE(
-	        write_fixture_to_temp_path(gd_path, 3, "tests/syntax/supported/gdscript/activation.gd"));
+	ASSERT_TRUE(write_fixture_to_temp_path(gd_path, 3,
+	                                       "tests/syntax/supported/gdscript/activation.gd"));
 
 	editorOpen(gd_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1356,8 +1384,9 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_gdscript_files",
          test_editor_syntax_activation_for_gdscript_files},
         {"editor_syntax_activation_for_zig_files", test_editor_syntax_activation_for_zig_files},
-        {"editor_syntax_activation_for_swift_files",
-         test_editor_syntax_activation_for_swift_files},
+        {"editor_syntax_activation_for_swift_files", test_editor_syntax_activation_for_swift_files},
+        {"editor_syntax_activation_for_perl_files_and_shebang",
+         test_editor_syntax_activation_for_perl_files_and_shebang},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

@@ -1323,8 +1323,10 @@ static int test_editor_refresh_screen_status_bar_fills_width_with_ahead_behind(v
 	/* editorDrawStatusBar ends the row with a trailing CRLF; drop it. */
 	ASSERT_TRUE(wb.len >= 2);
 	wb.b[wb.len - 2] = '\0';
-	ASSERT_TRUE(strstr(wb.b, "\xE2\x86\x91" "2") != NULL); /* ↑2 present */
-	ASSERT_TRUE(strstr(wb.b, "\xE2\x86\x93" "1") != NULL); /* ↓1 present */
+	ASSERT_TRUE(strstr(wb.b, "\xE2\x86\x91"
+	                         "2") != NULL); /* ↑2 present */
+	ASSERT_TRUE(strstr(wb.b, "\xE2\x86\x93"
+	                         "1") != NULL); /* ↓1 present */
 	ASSERT_EQ_INT(E.window_cols, status_row_visible_cols(wb.b));
 	wbFree(&wb);
 	return 0;

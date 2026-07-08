@@ -248,6 +248,17 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	def = editorSyntaxLookupLanguageByExtension(".swift");
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, (int)def->id);
+	def = editorSyntaxLookupLanguageByExtension(".pl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".pm");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".t");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
 
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
@@ -305,7 +316,12 @@ static int test_editor_syntax_registry_lookup_by_shebang(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, (int)def->id);
 
-	const char *unknown = "perl";
+	const char *perl = "perl";
+	def = editorSyntaxLookupLanguageByShebangToken(perl, strlen(perl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	const char *unknown = "pythonx";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByShebangToken(unknown, strlen(unknown)) == NULL);
 	return 0;
 }
@@ -428,6 +444,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(swift, strlen(swift));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, (int)def->id);
+
+	const char *pl = "pl";
+	def = editorSyntaxLookupLanguageByInjectionName(pl, strlen(pl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

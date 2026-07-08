@@ -213,8 +213,8 @@ if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
 		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "clojure" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "dockerfile" && "$2" != "gdscript" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "helm" && "$2" != "julia" && \
 		"$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "r" && "$2" != "ruby" && \
-		"$2" != "rust" && "$2" != "scala" && "$2" != "svelte" && "$2" != "swift" && "$2" != "typescript" && "$2" != "vue" && "$2" != "zig" ) ]]; then
-		echo "Usage: $0 [--grammar bash|bibtex|clojure|cpp|csharp|dockerfile|gdscript|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|php|r|ruby|rust|scala|svelte|swift|typescript|vue|zig]" >&2
+		"$2" != "perl" && "$2" != "rust" && "$2" != "scala" && "$2" != "svelte" && "$2" != "swift" && "$2" != "typescript" && "$2" != "vue" && "$2" != "zig" ) ]]; then
+		echo "Usage: $0 [--grammar bash|bibtex|clojure|cpp|csharp|dockerfile|gdscript|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|perl|php|r|ruby|rust|scala|svelte|swift|typescript|vue|zig]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -466,6 +466,23 @@ if [[ "${ONLY_GRAMMAR}" == "swift" ]]; then
 	exit 0
 fi
 
+if [[ "${ONLY_GRAMMAR}" == "perl" ]]; then
+	PERL_GRAMMAR_SRC=""
+	download_repo_tarball "tree-sitter-perl/tree-sitter-perl" \
+		"${TREE_SITTER_PERL_GRAMMAR_REF}" PERL_GRAMMAR_SRC
+	regenerate_parser "${PERL_GRAMMAR_SRC}" "Perl"
+	sync_grammar_vendor "${PERL_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl"
+	sed -i.bak 's/#lua-match?/#match?/' \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm"
+	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm.bak"
+	sed -i.bak -e 's/[[:space:]]*$//' -e 's/(#set! injection.language "perl"))/(#set! injection.language "perl")\n  (#set! injection.include-children))/' \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm"
+	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm.bak"
+	echo "Tree-sitter Perl vendor refresh complete." >&2
+	exit 0
+fi
+
 if [[ "${ONLY_GRAMMAR}" == "latex" ]]; then
 	LATEX_GRAMMAR_SRC=""
 	download_repo_tarball "latex-lsp/tree-sitter-latex" \
@@ -636,6 +653,7 @@ R_GRAMMAR_SRC=""
 GDSCRIPT_GRAMMAR_SRC=""
 ZIG_GRAMMAR_SRC=""
 SWIFT_GRAMMAR_SRC=""
+PERL_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -680,6 +698,7 @@ download_repo_tarball "r-lib/tree-sitter-r" "${TREE_SITTER_R_GRAMMAR_REF}" R_GRA
 download_repo_tarball "PrestonKnopp/tree-sitter-gdscript" "${TREE_SITTER_GDSCRIPT_GRAMMAR_REF}" GDSCRIPT_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-zig" "${TREE_SITTER_ZIG_GRAMMAR_REF}" ZIG_GRAMMAR_SRC
 download_repo_tarball "alex-pinkus/tree-sitter-swift" "${TREE_SITTER_SWIFT_GRAMMAR_REF}" SWIFT_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-perl/tree-sitter-perl" "${TREE_SITTER_PERL_GRAMMAR_REF}" PERL_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -804,6 +823,8 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/swift/grammar.js" \
 regenerate_parser "${SWIFT_GRAMMAR_SRC}" "Swift"
 rm -f "${SWIFT_GRAMMAR_SRC}/src/scanner.c"
 
+regenerate_parser "${PERL_GRAMMAR_SRC}" "Perl"
+
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
 rm -rf "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -914,6 +935,13 @@ sync_grammar_vendor "${R_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars
 sync_grammar_vendor "${GDSCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/gdscript"
 sync_grammar_vendor "${ZIG_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/zig"
 sync_grammar_vendor "${SWIFT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/swift"
+sync_grammar_vendor "${PERL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/perl"
+sed -i.bak 's/#lua-match?/#match?/' \
+	"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm"
+rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm.bak"
+	sed -i.bak -e 's/[[:space:]]*$//' -e 's/(#set! injection.language "perl"))/(#set! injection.language "perl")\n  (#set! injection.include-children))/' \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm"
+	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm.bak"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2
