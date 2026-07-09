@@ -34,7 +34,7 @@ static int test_runner_tags_have_exact_token(void) {
 static int test_runner_options_parse_basic_flags(void) {
 	char *argv[] = {
 	        (char *)"rotide_tests", (char *)"--list",           (char *)"--fail-fast",
-	        (char *)"--shuffle",    (char *)"--validate-reset", (char *)"--no-quarantine",
+	        (char *)"--shuffle",    (char *)"--validate-reset",
 	};
 	struct testRunnerOptions opts;
 	runnerOptionsInit(&opts);
@@ -43,7 +43,6 @@ static int test_runner_options_parse_basic_flags(void) {
 	ASSERT_TRUE(opts.fail_fast);
 	ASSERT_TRUE(opts.shuffle);
 	ASSERT_TRUE(opts.validate_reset);
-	ASSERT_TRUE(opts.no_quarantine);
 	ASSERT_EQ_INT(1, opts.repeat);
 	return 0;
 }
@@ -165,55 +164,6 @@ static int test_runner_shuffle_differs_for_different_seeds(void) {
 		}
 	}
 	ASSERT_TRUE(!identical);
-	return 0;
-}
-
-static int test_quarantine_list_load_parses_dash_entries(void) {
-	char path[] = "/tmp/rotide_quarantine_test_XXXXXX";
-	int fd = mkstemp(path);
-	ASSERT_TRUE(fd >= 0);
-	const char *content = "# Header\n"
-	                      "\n"
-	                      "Random prose line.\n"
-	                      "- alpha_test  # trailing comment\n"
-	                      "  - beta_test\n"
-	                      "\n"
-	                      "```\n"
-	                      "- ignored_in_fence\n"
-	                      "```\n"
-	                      "\n"
-	                      "- gamma_test\n"
-	                      "-not_an_entry\n";
-	ssize_t wrote = write(fd, content, strlen(content));
-	(void)close(fd);
-	ASSERT_EQ_INT((int)strlen(content), (int)wrote);
-
-	struct quarantineList q;
-	quarantineListInit(&q);
-	char *err = NULL;
-	int rc = quarantineListLoad(&q, path, &err);
-	(void)unlink(path);
-	ASSERT_EQ_INT(0, rc);
-	ASSERT_TRUE(err == NULL);
-	ASSERT_EQ_INT(3, q.count);
-	ASSERT_TRUE(quarantineListContains(&q, "alpha_test"));
-	ASSERT_TRUE(quarantineListContains(&q, "beta_test"));
-	ASSERT_TRUE(quarantineListContains(&q, "gamma_test"));
-	ASSERT_TRUE(!quarantineListContains(&q, "ignored_in_fence"));
-	ASSERT_TRUE(!quarantineListContains(&q, "not_an_entry"));
-	quarantineListFree(&q);
-	return 0;
-}
-
-static int test_quarantine_list_missing_file_is_not_error(void) {
-	struct quarantineList q;
-	quarantineListInit(&q);
-	char *err = NULL;
-	int rc = quarantineListLoad(&q, "/tmp/rotide_quarantine_definitely_missing_file_xyz", &err);
-	ASSERT_EQ_INT(0, rc);
-	ASSERT_TRUE(err == NULL);
-	ASSERT_EQ_INT(0, q.count);
-	quarantineListFree(&q);
 	return 0;
 }
 
@@ -375,9 +325,6 @@ const struct editorTestCase g_runner_internals_tests[] = {
          test_runner_shuffle_is_deterministic_for_same_seed},
         {"runner_shuffle_differs_for_different_seeds",
          test_runner_shuffle_differs_for_different_seeds},
-        {"quarantine_list_load_parses_dash_entries", test_quarantine_list_load_parses_dash_entries},
-        {"quarantine_list_missing_file_is_not_error",
-         test_quarantine_list_missing_file_is_not_error},
         {"snapshot_compare_equal_buffers", test_snapshot_compare_equal_buffers},
         {"snapshot_compare_reports_first_diff", test_snapshot_compare_reports_first_diff},
         {"snapshot_compare_excludes_skipped_region", test_snapshot_compare_excludes_skipped_region},

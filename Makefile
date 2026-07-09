@@ -686,12 +686,6 @@ test-determinism: $(TEST_BIN)
 test-crash-handler: $(TEST_BIN)
 	$(call LOG,TEST,crash)scripts/check_crash_handler.sh ./$(TEST_BIN)
 
-test-quarantine-age:
-	$(call LOG,TEST,quarantine-age)scripts/check_quarantine_age.sh
-
-test-quarantine-passing: $(TEST_BIN)
-	$(call LOG,TEST,quarantine-pass)scripts/check_quarantine_passing.sh ./$(TEST_BIN) $(TEST_FLAGS)
-
 test-tsan:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-tsan)$(MAKE) CFLAGS="$(CFLAGS) $(TSAN_FLAGS)" \
@@ -724,7 +718,7 @@ loc:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing test-tree-sitter-sizes tree-sitter-sizes release docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-tree-sitter-sizes tree-sitter-sizes release docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,$(BUILD_DIR))rm -rf $(BUILD_DIR)

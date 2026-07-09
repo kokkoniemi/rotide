@@ -26,7 +26,6 @@ struct testRunnerOptions {
 	const char *filter;
 	const char *include_tag;
 	const char *exclude_tag;
-	const char *quarantine_path;
 	const char *metrics_out;
 	const char *update_golden_stash;
 	int list_only;
@@ -35,7 +34,6 @@ struct testRunnerOptions {
 	int repeat;
 	int shuffle;
 	int validate_reset;
-	int no_quarantine;
 	int parse_error;
 	int seed_specified;
 	int jobs;
@@ -58,21 +56,6 @@ void runnerShuffleIndices(int *indices, int count, unsigned long long seed);
  * passing --seed directly; rep>0 advances runnerRngNext() rep times. Reproducible
  * from the one base seed, so varying the seed per repeat keeps the run replayable. */
 unsigned long long runnerSeedForRepeat(unsigned long long base_seed, int rep);
-
-struct quarantineList {
-	char **names;
-	int count;
-	int cap;
-};
-
-void quarantineListInit(struct quarantineList *q);
-void quarantineListFree(struct quarantineList *q);
-int quarantineListAppend(struct quarantineList *q, const char *name);
-int quarantineListContains(const struct quarantineList *q, const char *name);
-
-/* Missing path is success with empty list. On -1, *error_out (if non-NULL)
- * receives a malloc'd message the caller owns. */
-int quarantineListLoad(struct quarantineList *q, const char *path, char **error_out);
 
 void runnerPrintUsage(void);
 

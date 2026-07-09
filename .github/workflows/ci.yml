@@ -97,16 +97,6 @@ jobs:
           path: tests/artifacts/
           if-no-files-found: ignore
 
-  quarantine-age:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check quarantine entries are within the 30-day window
-        run: make test-quarantine-age
-
   fuzz-vterm-smoke:
     runs-on: ubuntu-latest
     env:

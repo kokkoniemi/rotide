@@ -207,18 +207,6 @@ int main(int argc, char **argv) {
 		              opts.update_golden_stash);
 	}
 
-	struct quarantineList quarantine;
-	quarantineListInit(&quarantine);
-	if (!opts.no_quarantine) {
-		char *err = NULL;
-		if (quarantineListLoad(&quarantine, opts.quarantine_path, &err) != 0) {
-			(void)fprintf(stderr, "rotide_tests: %s\n",
-			              err ? err : "failed to load quarantine list");
-			free(err);
-			quarantineListFree(&quarantine);
-			return EXIT_FAILURE;
-		}
-	}
 
 	int total_candidates = 0;
 	for (int s = 0; s < K_SUITE_COUNT; s++) {
@@ -229,11 +217,9 @@ int main(int argc, char **argv) {
 	        calloc((size_t)(total_candidates > 0 ? total_candidates : 1), sizeof(*selected));
 	if (selected == NULL) {
 		(void)fprintf(stderr, "rotide_tests: out of memory\n");
-		quarantineListFree(&quarantine);
 		return EXIT_FAILURE;
 	}
 	int selected_count = 0;
-	int skipped_quarantine = 0;
 	for (int s = 0; s < K_SUITE_COUNT; s++) {
 		const struct editorTestSuite *suite = &k_suites[s];
 		if (!suitePassesTagFilter(suite, &opts)) {
@@ -243,11 +229,6 @@ int main(int argc, char **argv) {
 		for (int i = 0; i < suite_count; i++) {
 			const char *name = suite->tests[i].name;
 			if (!runnerNameMatches(name, opts.filter)) {
-				continue;
-			}
-			if (!opts.no_quarantine && quarantineListContains(&quarantine, name)) {
-				printf("SKIP %s (quarantined)\n", name);
-				skipped_quarantine++;
 				continue;
 			}
 			selected[selected_count].suite = s;
@@ -263,7 +244,6 @@ int main(int argc, char **argv) {
 			printf("%s\t%s\t%s\n", suite->name, name, suite->tags ? suite->tags : "");
 		}
 		free(selected);
-		quarantineListFree(&quarantine);
 		return EXIT_SUCCESS;
 	}
 
@@ -271,7 +251,6 @@ int main(int argc, char **argv) {
 	if (order == NULL) {
 		(void)fprintf(stderr, "rotide_tests: out of memory\n");
 		free(selected);
-		quarantineListFree(&quarantine);
 		return EXIT_FAILURE;
 	}
 	for (int i = 0; i < selected_count; i++) {
@@ -304,7 +283,6 @@ int main(int argc, char **argv) {
 			free(per_suite_capacity);
 			free(order);
 			free(selected);
-			quarantineListFree(&quarantine);
 			return EXIT_FAILURE;
 		}
 		int *suite_to_batch = malloc((size_t)K_SUITE_COUNT * sizeof(int));
@@ -314,7 +292,6 @@ int main(int argc, char **argv) {
 			free(per_suite_capacity);
 			free(order);
 			free(selected);
-			quarantineListFree(&quarantine);
 			return EXIT_FAILURE;
 		}
 		for (int s = 0; s < K_SUITE_COUNT; s++) {
@@ -347,7 +324,6 @@ int main(int argc, char **argv) {
 					free(batches);
 					free(order);
 					free(selected);
-					quarantineListFree(&quarantine);
 					return EXIT_FAILURE;
 				}
 				batches[b].test_indices = grown;
@@ -399,7 +375,6 @@ int main(int argc, char **argv) {
 			(void)fprintf(stderr, "rotide_tests: out of memory for snapshot\n");
 			free(order);
 			free(selected);
-			quarantineListFree(&quarantine);
 			return EXIT_FAILURE;
 		}
 		reset_editor_state();
@@ -476,9 +451,6 @@ done:
 	if (crashes > 0) {
 		printf(", %d crashed", crashes);
 	}
-	if (skipped_quarantine > 0) {
-		printf(", %d quarantined", skipped_quarantine);
-	}
 	if (opts.validate_reset) {
 		printf(", reset-drift=%d", reset_violations);
 	}
@@ -493,7 +465,6 @@ done:
 	free(snapshot);
 	free(order);
 	free(selected);
-	quarantineListFree(&quarantine);
 
 	int exit_code = EXIT_SUCCESS;
 	if (failed_unique > 0 || crashes > 0) {
@@ -520,7 +491,6 @@ done:
 		        {"property_ops", EDITOR_METRICS_INT, .v.i = property_ops},
 		        {"property_ops_seconds", EDITOR_METRICS_DOUBLE,
 		         .v.d = property_ops_seconds},
-		        {"skipped_quarantine", EDITOR_METRICS_INT, .v.i = skipped_quarantine},
 		        {"jobs", EDITOR_METRICS_INT, .v.i = opts.jobs},
 		        {"repeat", EDITOR_METRICS_INT, .v.i = opts.repeat},
 		        {"seed", EDITOR_METRICS_HEX64, .v.u = opts.seed},

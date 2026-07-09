@@ -34,11 +34,11 @@ through `struct editorRow`.
 
 ![Test pipeline](../diagrams/svg/test-pipeline.svg)
 
-The runner filters suites/tests, applies quarantine, optionally shuffles with a
-printed seed, and runs suites sequentially or in forked workers (`--jobs N`).
-Each test starts from `reset_editor_state`. With `--validate-reset` enabled
-(the default in `make test`), the runner snapshots the clean `editorConfig E`
-state and verifies every reset returns to that byte-identical baseline.
+The runner filters suites/tests, optionally shuffles with a printed seed, and
+runs suites sequentially or in forked workers (`--jobs N`). Each test starts
+from `reset_editor_state`. With `--validate-reset` enabled (the default in
+`make test`), the runner snapshots the clean `editorConfig E` state and
+verifies every reset returns to that byte-identical baseline.
 
 Parallel mode isolates failures at suite granularity. Child output is captured
 under `tests/artifacts/logs/<suite>.log`; the parent replays logs in suite
@@ -53,8 +53,6 @@ and backtrace.
 | `-Wall -Wextra -Werror` | every build | warnings and compile-time regressions |
 | Reset validator | `--validate-reset` | leaked state in `editorConfig E` |
 | Suite forks | `--jobs N` | crash isolation, parallel-only ordering bugs |
-| Quarantine age | `make test-quarantine-age` | stale quarantined entries (>30 days by default) |
-| Quarantine passing | `make test-quarantine-passing` | quarantined tests that now pass |
 | Determinism | `make test-determinism` | nondeterministic PASS/FAIL/SKIP output |
 | Crash smoke | `make test-crash-handler` | the crash reporting path itself |
 | ASan + UBSan | `make test-sanitize` | memory errors and undefined behavior |
@@ -116,7 +114,7 @@ optional workflow metadata from `ROTIDE_METRICS_GIT_SHA`,
 
 | Row kind | Producer | Main fields |
 |---|---|---|
-| `test_run` | `rotide_tests --metrics-out` | wall time, `exec_seconds_total` (summed per-test time, jobs-independent), run counts, failures, crashes, flakes, reset drift, quarantine skips, seed, jobs, repeat |
+| `test_run` | `rotide_tests --metrics-out` | wall time, `exec_seconds_total` (summed per-test time, jobs-independent), run counts, failures, crashes, flakes, reset drift, seed, jobs, repeat |
 | `bench` | `rotide_bench --metrics-out` | name, samples, inner ops, min/p50/p95/IQR ns |
 | `fuzz` | `metrics_fuzz_emit` after fuzz smoke/nightly | target, coverage/features, corpus sizes, exec count, RSS, final-stats flags |
 
@@ -200,9 +198,6 @@ time a real `./build/rotide --render-once <large fixture>` cold-open/render path
   [tests/runner_support.c](../../tests/runner_support.c)
 - Parallel/crash runner: [tests/parallel_runner.c](../../tests/parallel_runner.c)
 - Reset validator: [tests/editor_state_snapshot.c](../../tests/editor_state_snapshot.c)
-- Quarantine: [tests/QUARANTINE.md](../../tests/QUARANTINE.md),
-  [scripts/check_quarantine_age.sh](../../scripts/check_quarantine_age.sh),
-  [scripts/check_quarantine_passing.sh](../../scripts/check_quarantine_passing.sh)
 - Grid snapshots/goldens: [tests/test_grid_snapshot.c](../../tests/test_grid_snapshot.c),
   [tests/grid_snapshot_update.c](../../tests/grid_snapshot_update.c),
   [tests/golden_apply_lib.c](../../tests/golden_apply_lib.c)

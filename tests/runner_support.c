@@ -1,6 +1,5 @@
 #include "runner_support.h"
 
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -13,7 +12,6 @@ void runnerOptionsInit(struct testRunnerOptions *opts) {
 	memset(opts, 0, sizeof(*opts));
 	opts->repeat = 1;
 	opts->jobs = 1;
-	opts->quarantine_path = "tests/QUARANTINE.md";
 }
 
 void runnerPrintUsage(void) {
@@ -25,8 +23,6 @@ void runnerPrintUsage(void) {
 	        "  --filter <substr>      Run tests whose name contains <substr>\n"
 	        "  --tag <tag>            Run only suites tagged <tag>\n"
 	        "  --exclude-tag <tag>    Skip suites tagged <tag>\n"
-	        "  --no-quarantine        Run tests listed in tests/QUARANTINE.md too\n"
-	        "  --quarantine <path>    Override the quarantine list path\n"
 	        "\n"
 	        "Execution:\n"
 	        "  --list                 Print selected tests (suite\\tname\\ttags) and exit\n"
@@ -129,10 +125,6 @@ int runnerOptionsParse(struct testRunnerOptions *opts, int argc, char **argv) {
 			opts->validate_reset = 1;
 			continue;
 		}
-		if (strcmp(arg, "--no-quarantine") == 0) {
-			opts->no_quarantine = 1;
-			continue;
-		}
 		if (parse_long_arg(arg, "--filter", next, &value, &consumed_next)) {
 			if (value == NULL) {
 				opts->parse_error = 1;
@@ -160,16 +152,6 @@ int runnerOptionsParse(struct testRunnerOptions *opts, int argc, char **argv) {
 				return 1;
 			}
 			opts->exclude_tag = value;
-			i += consumed_next;
-			continue;
-		}
-		if (parse_long_arg(arg, "--quarantine", next, &value, &consumed_next)) {
-			if (value == NULL) {
-				opts->parse_error = 1;
-				opts->error_msg = "--quarantine requires an argument";
-				return 1;
-			}
-			opts->quarantine_path = value;
 			i += consumed_next;
 			continue;
 		}
@@ -364,128 +346,4 @@ void runnerShuffleIndices(int *indices, int count, unsigned long long seed) {
 		indices[i] = indices[j];
 		indices[j] = tmp;
 	}
-}
-
-void quarantineListInit(struct quarantineList *q) {
-	q->names = NULL;
-	q->count = 0;
-	q->cap = 0;
-}
-
-void quarantineListFree(struct quarantineList *q) {
-	if (q->names != NULL) {
-		for (int i = 0; i < q->count; i++) {
-			free(q->names[i]);
-		}
-		free(q->names);
-	}
-	q->names = NULL;
-	q->count = 0;
-	q->cap = 0;
-}
-
-int quarantineListAppend(struct quarantineList *q, const char *name) {
-	if (q->count == q->cap) {
-		int new_cap = q->cap == 0 ? 8 : q->cap * 2;
-		char **grown = (char **)realloc(q->names, (size_t)new_cap * sizeof(*grown));
-		if (grown == NULL) {
-			return -1;
-		}
-		q->names = grown;
-		q->cap = new_cap;
-	}
-	char *dup = strdup(name);
-	if (dup == NULL) {
-		return -1;
-	}
-	q->names[q->count++] = dup;
-	return 0;
-}
-
-int quarantineListContains(const struct quarantineList *q, const char *name) {
-	for (int i = 0; i < q->count; i++) {
-		if (strcmp(q->names[i], name) == 0) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-static int is_name_char(int c) {
-	return c == '_' || isalnum(c);
-}
-
-int quarantineListLoad(struct quarantineList *q, const char *path, char **error_out) {
-	if (error_out != NULL) {
-		*error_out = NULL;
-	}
-	FILE *f = fopen(path, "r");
-	if (f == NULL) {
-		if (errno == ENOENT) {
-			return 0;
-		}
-		if (error_out != NULL) {
-			char buf[256];
-			(void)snprintf(buf, sizeof(buf), "failed to open %s: %s", path,
-			               strerror(errno));
-			*error_out = strdup(buf);
-		}
-		return -1;
-	}
-
-	char *line = NULL;
-	size_t cap = 0;
-	ssize_t len;
-	int in_fence = 0;
-	while ((len = getline(&line, &cap, f)) != -1) {
-		while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
-			line[--len] = '\0';
-		}
-		const char *p = line;
-		while (*p == ' ' || *p == '\t') {
-			p++;
-		}
-		if (strncmp(p, "```", 3) == 0) {
-			in_fence = !in_fence;
-			continue;
-		}
-		if (in_fence) {
-			continue;
-		}
-		if (*p != '-') {
-			continue;
-		}
-		p++;
-		if (*p != ' ' && *p != '\t') {
-			continue;
-		}
-		while (*p == ' ' || *p == '\t') {
-			p++;
-		}
-		const char *start = p;
-		while (is_name_char((unsigned char)*p)) {
-			p++;
-		}
-		if (p == start) {
-			continue;
-		}
-		size_t nlen = (size_t)(p - start);
-		char name[256];
-		if (nlen >= sizeof(name)) {
-			nlen = sizeof(name) - 1;
-		}
-		memcpy(name, start, nlen);
-		name[nlen] = '\0';
-		if (quarantineListAppend(q, name) != 0) {
-			if (error_out != NULL) {
-				*error_out = strdup("out of memory while loading quarantine list");
-			}
-			free(line);
-			(void)fclose(f);
-			return -1;
-		}
-	}
-	free(line);
-	(void)fclose(f);
-	return 0;
 }
