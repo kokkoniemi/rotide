@@ -1305,6 +1305,32 @@ static int test_editor_syntax_incremental_edits_keep_erlang_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_elixir_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-elixir-XXXXXX.ex";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/elixir/incremental.ex"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 6;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_swift_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-swift-XXXXXX.swift";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1535,6 +1561,8 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_scheme_tree_valid},
         {"editor_syntax_incremental_edits_keep_erlang_tree_valid",
          test_editor_syntax_incremental_edits_keep_erlang_tree_valid},
+        {"editor_syntax_incremental_edits_keep_elixir_tree_valid",
+         test_editor_syntax_incremental_edits_keep_elixir_tree_valid},
         {"editor_syntax_incremental_edits_keep_r_tree_valid",
          test_editor_syntax_incremental_edits_keep_r_tree_valid},
         {"editor_syntax_incremental_edits_keep_svelte_tree_valid",

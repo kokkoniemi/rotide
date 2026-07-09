@@ -1843,6 +1843,64 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_erlang_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_elixir_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-elixir-XXXXXX.ex";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/elixir/highlight.ex"));
+
+	editorOpen(path);
+	E.window_rows = 40;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Line comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Constants and helpers") != NULL);
+	/* Definition and control-flow keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mdef\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcond\x1b[39m") != NULL);
+	/* Local function call/definition heads. */
+	ASSERT_TRUE(strstr(output, "\x1b[93msquare\x1b[39m") != NULL);
+	/* Literals: number and string. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14159\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, world") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_elixir_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-injections-elixir-XXXXXX.ex";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/elixir/injections.ex"));
+
+	editorOpen(path);
+	E.window_rows = 20;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* ~JS sigil content is injected and highlighted as JavaScript: the `const`
+	 * keyword resets to the surrounding sigil string color (green), and the
+	 * numeric literal paints as a number. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[32m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m0\x1b[39m") != NULL);
+	/* ~r regex sigil content is injected and highlighted by the regex grammar
+	 * (character-class atoms paint as constants). */
+	ASSERT_TRUE(strstr(output, "\x1b[95mA") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_perl_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-injections-perl-XXXXXX.pl";
 	ASSERT_TRUE(
@@ -3138,6 +3196,10 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_elixir_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_elixir_tokens},
+        {"editor_refresh_screen_applies_elixir_injections",
+         test_editor_refresh_screen_applies_elixir_injections},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

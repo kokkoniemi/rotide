@@ -164,6 +164,7 @@ static const struct langCase k_lang_cases[] = {
         {"perl", EDITOR_SYNTAX_PERL, "tests/syntax/supported/perl/contract.pl", 20},
         {"scheme", EDITOR_SYNTAX_SCHEME, "tests/syntax/supported/scheme/contract.scm", 20},
         {"erlang", EDITOR_SYNTAX_ERLANG, "tests/syntax/supported/erlang/contract.erl", 20},
+        {"elixir", EDITOR_SYNTAX_ELIXIR, "tests/syntax/supported/elixir/contract.ex", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -429,6 +430,7 @@ INCR_EQUIV_TEST(swift, 30)
 INCR_EQUIV_TEST(perl, 31)
 INCR_EQUIV_TEST(scheme, 32)
 INCR_EQUIV_TEST(erlang, 33)
+INCR_EQUIV_TEST(elixir, 34)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -465,6 +467,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_perl", test_syntax_incremental_equiv_perl},
         {"syntax_incremental_equiv_scheme", test_syntax_incremental_equiv_scheme},
         {"syntax_incremental_equiv_erlang", test_syntax_incremental_equiv_erlang},
+        {"syntax_incremental_equiv_elixir", test_syntax_incremental_equiv_elixir},
 };
 
 const int g_syntax_incremental_equiv_test_count =

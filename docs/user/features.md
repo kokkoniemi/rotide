@@ -42,7 +42,8 @@ are implemented and tested.
   Dockerfile/Containerfile (with `RUN` bodies and heredocs injected as Bash,
   and `COPY` heredocs routed to JSON/YAML/TOML/XML by filename),
   Clojure/ClojureScript/EDN, R, GDScript, Zig, Swift (with regex literals
-  injected as the regex grammar), Perl, Scheme, and Erlang.
+  injected as the regex grammar), Perl, Scheme, Erlang, and Elixir (with
+  sigils injected as regex, JavaScript, Python, Markdown, and Vue).
 - LSP definition lookup for Go, C/C++, HTML, CSS/SCSS, JSON, and JavaScript.
 - LSP-backed document symbols, problems drawer, and autocomplete where enabled.
 - ESLint diagnostics and manual `eslint_fix` action for JavaScript buffers.

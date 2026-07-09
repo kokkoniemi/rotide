@@ -284,6 +284,14 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".ex");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".exs");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -488,6 +496,16 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(erl, strlen(erl));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, (int)def->id);
+
+	const char *elixir = "elixir";
+	def = editorSyntaxLookupLanguageByInjectionName(elixir, strlen(elixir));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
+
+	const char *ex = "ex";
+	def = editorSyntaxLookupLanguageByInjectionName(ex, strlen(ex));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);
