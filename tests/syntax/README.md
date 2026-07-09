@@ -1,93 +1,17 @@
-# Syntax Test Fixtures
+# Syntax Fixtures
 
-`tests/syntax/` stores sample files used by RotIDE's syntax tests.
+Fixtures under `supported/<lang>/` back syntax activation, highlighting,
+injection, and incremental-parse tests. Directory names should match shipped
+language modes in `src/rotide.h` and `src/language/*`.
 
-- `supported/` contains real fixtures for syntaxes the editor supports today.
-- `planned/` is reserved scaffolding for future language onboarding.
+- `activation.*`: filename, extension, shebang, or title detection.
+- `highlight.*`: capture/color coverage.
+- `incremental.*`: incremental parse equivalence.
+- `incomplete.*`, `contract.*`, and `injections.*`: targeted parser or
+  injection cases.
 
-Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
-[`src/rotide.h`](../../src/rotide.h)):
+Parser overlays such as JSDoc and markdown-inline do not get standalone fixture
+directories; keep those examples in their host language fixtures. `planned/` is
+placeholder-only.
 
-- `supported/bash/` maps to `EDITOR_SYNTAX_SHELL`
-- `supported/bibtex/` maps to `EDITOR_SYNTAX_BIBTEX`
-- `supported/c/` maps to `EDITOR_SYNTAX_C`
-- `supported/cpp/` maps to `EDITOR_SYNTAX_CPP`
-- `supported/csharp/` maps to `EDITOR_SYNTAX_CSHARP`
-- `supported/css/` maps to `EDITOR_SYNTAX_CSS`
-- `supported/diff/` maps to `EDITOR_SYNTAX_DIFF`
-- `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
-- `supported/erlang/` maps to `EDITOR_SYNTAX_ERLANG`
-- `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
-- `supported/glsl/` maps to `EDITOR_SYNTAX_GLSL`
-- `supported/go/` maps to `EDITOR_SYNTAX_GO`
-- `supported/haskell/` maps to `EDITOR_SYNTAX_HASKELL`
-- `supported/hcl/` maps to `EDITOR_SYNTAX_HCL`
-- `supported/html/` maps to `EDITOR_SYNTAX_HTML`
-- `supported/java/` maps to `EDITOR_SYNTAX_JAVA`
-- `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
-- `supported/json/` maps to `EDITOR_SYNTAX_JSON`
-- `supported/julia/` maps to `EDITOR_SYNTAX_JULIA`
-- `supported/kotlin/` maps to `EDITOR_SYNTAX_KOTLIN`
-- `supported/latex/` maps to `EDITOR_SYNTAX_LATEX`
-- `supported/lua/` maps to `EDITOR_SYNTAX_LUA`
-- `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
-- `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
-- `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
-- `supported/perl/` maps to `EDITOR_SYNTAX_PERL`
-- `supported/php/` maps to `EDITOR_SYNTAX_PHP`
-- `supported/python/` maps to `EDITOR_SYNTAX_PYTHON`
-- `supported/regex/` maps to `EDITOR_SYNTAX_REGEX`
-- `supported/ruby/` maps to `EDITOR_SYNTAX_RUBY`
-- `supported/rust/` maps to `EDITOR_SYNTAX_RUST`
-- `supported/scala/` maps to `EDITOR_SYNTAX_SCALA`
-- `supported/svelte/` maps to `EDITOR_SYNTAX_SVELTE`
-- `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
-- `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
-- `supported/vue/` maps to `EDITOR_SYNTAX_VUE`
-- `supported/helm/` maps to `EDITOR_SYNTAX_HELM`
-- `supported/xml/` maps to `EDITOR_SYNTAX_XML`
-
-Notes:
-
-- SCSS coverage lives under `supported/css/`; `.sass` is intentionally out of
-  scope.
-- `EDITOR_SYNTAX_JSDOC` has no fixture directory of its own: it is parser-backed
-  doc-comment highlighting via tree-sitter-jsdoc, overlaid on JS/TS host trees,
-  not a standalone file detection mode. JSDoc coverage lives under
-  `supported/javascript/`, `supported/typescript/`, and `supported/tsx/`.
-- `EDITOR_SYNTAX_MARKDOWN_INLINE` has no fixture directory of its own: it is
-  parser-backed inline highlighting overlaid on the markdown block grammar's
-  `(inline)` nodes via injection, not a standalone file detection mode.
-  Inline-grammar coverage lives under `supported/markdown/`.
-- Languages with injection coverage in fixtures (`injections.*`):
-  - HTML: nested `<script>` JavaScript and `<style>` CSS.
-  - JavaScript / TypeScript / TSX: tagged-template `html` / `css` / regex
-    literals and JSDoc doc-comment overlay.
-  - PHP: interleaved HTML text plus heredoc bodies tagged with a language
-    label (`<<<HTML`, `<<<JS`, ...).
-  - C++: raw string literals tagged with a language delimiter
-    (`R"html(...)html"`).
-  - Haskell: QuasiQuotes (`hamlet`/`lucius`/`julius`/`tsc`/`aesonQQ`/...).
-  - Julia: regex (`r"..."`) and command (`` `...` ``) literals.
-  - Lua: `ffi.cdef([[ ... ]])` bodies injected as C (LuaJIT FFI).
-  - Svelte: `<script>` bodies as JavaScript and `<style>` bodies as CSS,
-    layered on the HTML markup grammar Svelte extends.
-  - Vue: `<script>` bodies as JavaScript, `<style>` bodies as CSS, and
-    `{{ ... }}` interpolation expressions as JavaScript, layered on the HTML
-    markup grammar Vue extends.
-  - Helm: the literal chart body between `{{ ... }}` Go-template actions is
-    combined and injected as YAML, so the surrounding manifest still
-    highlights while the template actions are colored by the helm grammar.
-  - EJS: template `content` as HTML and `code` as JavaScript, with the
-    injected HTML further injecting its own `<script>` JS and `<style>` CSS.
-  - ERB: same shape as EJS, with `code` injected as Ruby.
-  - Markdown: fenced code blocks routed by their info-string (e.g.
-    ```` ```python ```` -> Python), plus the inline grammar overlay for
-    emphasis, links, and code spans inside paragraphs.
-  - Perl: evaluated substitution replacements reparse as Perl, and heredoc
-    terminators dynamically select registered languages such as HTML.
-- Git diff tabs use `EDITOR_SYNTAX_DIFF` directly; they do not rely on a
-  filename extension because generated diff tabs are read-only buffers with
-  display titles instead of real file paths.
-- Tests resolve these fixtures from the startup repo root so they keep working
-  even if a test temporarily changes the current working directory.
+Tests resolve these fixtures from the startup repo root.

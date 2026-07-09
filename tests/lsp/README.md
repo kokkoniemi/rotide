@@ -1,26 +1,14 @@
-# LSP Test Fixtures
+# LSP Fixtures
 
-`tests/lsp/` stores fixtures shaped for go-to-definition and document-sync testing.
+Fixtures for definition lookup, document sync, and manual `Ctrl-O` smoke checks.
+Keep them separate from `tests/syntax/`, which is only for parser/highlighting
+coverage.
 
-- These fixtures are separate from `tests/syntax/` on purpose.
-- `tests/syntax/` is for syntax/highlighting behavior.
-- `tests/lsp/` is for symbol layout, cross-file references, and manual LSP smoke tests.
+- `single_file_definition.*` covers same-file targets.
+- `cross_file/` covers references that must resolve across files.
+- JavaScript fixtures also cover ESLint diagnostics/fix actions.
+- HTML/CSS/JSON samples use server-friendly targets such as `id` references,
+  custom properties, and repeated keys; real server behavior can vary.
 
-Current fixture groups:
-
-- `supported/c/`
-- `supported/cpp/`
-- `supported/go/`
-- `supported/html/`
-- `supported/css/`
-- `supported/json/`
-- `supported/javascript/`
-
-Notes:
-
-- C, C++, and Go fixtures include single-file and cross-file definitions plus call/reference sites that are useful for both mock-based tests and manual `Ctrl-O` checks.
-- HTML fixtures focus on `id` / `href="#id"` style references because that is the most practical current manual definition target for the HTML server path.
-- CSS fixtures use custom property / variable references for `Ctrl-O` and document-sync coverage, including a separate SCSS sample for language-id routing.
-- JSON fixtures use repeated property names so mock definition tests can exercise filename-based routing without needing Tree-sitter JSON.
-- JavaScript fixtures cover `typescript-language-server` single-file and cross-file definition layout plus ESLint diagnostics/fix-action coverage on the same language family.
-- HTML real-server behavior may vary by language-server version, so HTML fixtures are best-effort manual smoke assets in addition to RotIDE’s mock-based LSP tests.
+Add small deterministic files only when they back an automated test or a named
+manual smoke path.

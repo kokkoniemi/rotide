@@ -629,7 +629,7 @@ module.exports = grammar({
 
     _value_argument_list: $ => sep1Opt($.value_argument, ','),
 
-   value_argument: $ => prec.left(choice(
+    value_argument: $ => prec.left(choice(
       repeat1(seq(field('reference_specifier', $.value_argument_label), ':')),
       seq(
         optional(seq(field('name', $.value_argument_label), ':')),
@@ -638,7 +638,7 @@ module.exports = grammar({
       ),
     )),
 
-   value_argument_label: $ => prec(1, $.simple_identifier),
+    value_argument_label: $ => prec(1, $.simple_identifier),
 
     postfix_expression: $ => prec.left(PRECS.postfix, seq(
       $._postfix_expression,
@@ -656,7 +656,7 @@ module.exports = grammar({
       field('target', $._postfix_expression),
     )),
 
-   binary_expression: $ => prec.left(PRECS.binary, seq(
+    binary_expression: $ => prec.left(PRECS.binary, seq(
       field('lhs', $._expression),
       choice(
         seq(
@@ -733,7 +733,7 @@ module.exports = grammar({
       )),
     ),
 
-   _lambda_parameters: $ => choice(
+    _lambda_parameters: $ => choice(
       sep1($.simple_identifier, ','),
       $.value_arguments,
     ),
@@ -812,13 +812,13 @@ module.exports = grammar({
     ),
     multi_line_str_text: $ => /[^\\"]+/,
 
-   _interpolation: $ => seq(
+    _interpolation: $ => seq(
       '\\(',
       optional(alias($._value_argument_list, $.interpolated_expression)),
       ')',
     ),
 
-   _raw_string_literal: $ => choice(
+    _raw_string_literal: $ => choice(
       field('text', $.raw_str_end_part),
       seq(
         field('text', $.raw_str_part),
@@ -859,7 +859,7 @@ module.exports = grammar({
       token(seq('$', LEXICAL_IDENTIFIER)),
     ),
 
-   custom_operator: $ => token(/[+\-*%<>=!&|^~][+\-*\/%<>=!&|^~?]*/),
+    custom_operator: $ => token(/[+\-*%<>=!&|^~][+\-*\/%<>=!&|^~?]*/),
   },
 });
 
