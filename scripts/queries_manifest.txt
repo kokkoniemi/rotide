@@ -79,3 +79,4 @@ swift_highlight           vendor/tree_sitter/grammars/swift/queries/highlights.s
 swift_injection           vendor/tree_sitter/grammars/swift/queries/injections.scm
 perl_highlight            vendor/tree_sitter/grammars/perl/queries/highlights.scm
 perl_injection            vendor/tree_sitter/grammars/perl/queries/injections.scm
+scheme_highlight          vendor/tree_sitter/grammars/scheme/queries/highlights.scm

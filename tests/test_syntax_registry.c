@@ -260,6 +260,18 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".scm");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".ss");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".sld");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -449,6 +461,16 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(pl, strlen(pl));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	const char *scheme = "scheme";
+	def = editorSyntaxLookupLanguageByInjectionName(scheme, strlen(scheme));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	const char *scm = "scm";
+	def = editorSyntaxLookupLanguageByInjectionName(scm, strlen(scm));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

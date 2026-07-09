@@ -1788,6 +1788,39 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_perl_token
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-scheme-XXXXXX.scm";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/scheme/highlight.scm"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Line comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m; Constants and helpers") != NULL);
+	/* Special forms as keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mdefine\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcond\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* Call-position heads and builtins as functions. */
+	ASSERT_TRUE(strstr(output, "\x1b[93msquare\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mdisplay\x1b[39m") != NULL);
+	/* Literals: number, string, boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14159\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m#t\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_perl_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-injections-perl-XXXXXX.pl";
 	ASSERT_TRUE(
@@ -3079,6 +3112,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens},
         {"editor_refresh_screen_applies_perl_injections",
          test_editor_refresh_screen_applies_perl_injections},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

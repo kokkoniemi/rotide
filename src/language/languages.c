@@ -55,6 +55,7 @@ extern const TSLanguage *tree_sitter_gdscript(void);
 extern const TSLanguage *tree_sitter_zig(void);
 extern const TSLanguage *tree_sitter_swift(void);
 extern const TSLanguage *tree_sitter_perl(void);
+extern const TSLanguage *tree_sitter_scheme(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -188,6 +189,7 @@ static const char *const k_gdscript_extensions[] = {".gd", NULL};
 static const char *const k_zig_extensions[] = {".zig", NULL};
 static const char *const k_swift_extensions[] = {".swift", NULL};
 static const char *const k_perl_extensions[] = {".pl", ".pm", ".t", NULL};
+static const char *const k_scheme_extensions[] = {".scm", ".ss", ".sls", ".sld", ".sps", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -228,6 +230,7 @@ static const char *const k_gdscript_injection_aliases[] = {"gdscript", "gd", NUL
 static const char *const k_zig_injection_aliases[] = {"zig", NULL};
 static const char *const k_swift_injection_aliases[] = {"swift", NULL};
 static const char *const k_perl_injection_aliases[] = {"perl", "pl", NULL};
+static const char *const k_scheme_injection_aliases[] = {"scheme", "scm", "ss", "guile", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -615,7 +618,14 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .injection_part_count = EDITOR_QUERY_PERL_INJECTION_PART_COUNT,
          .extensions = k_perl_extensions,
          .shebang_matches = languagesPerlShebangMatch,
-         .injection_aliases = k_perl_injection_aliases}};
+         .injection_aliases = k_perl_injection_aliases},
+        {.id = EDITOR_SYNTAX_SCHEME,
+         .name = "scheme",
+         .ts_factory = tree_sitter_scheme,
+         .highlight_parts = editor_query_scheme_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_SCHEME_HIGHLIGHT_PART_COUNT,
+         .extensions = k_scheme_extensions,
+         .injection_aliases = k_scheme_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 

@@ -881,6 +881,27 @@ static int test_editor_syntax_activation_for_perl_files_and_shebang(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_scheme_files(void) {
+	static const char *const extensions[] = {"scm", "ss", "sls", "sld", "sps"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[64];
+		int written = snprintf(path, sizeof(path), "/tmp/rotide-test-syntax-scheme-XXXXXX.%s",
+		                       extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/scheme/activation.scm"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, editorSyntaxLanguageActive());
+		ASSERT_TRUE(editorSyntaxRootType() != NULL);
+		ASSERT_EQ_STR("program", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_swift_files(void) {
 	char swift_path[] = "/tmp/rotide-test-syntax-swift-XXXXXX.swift";
 	ASSERT_TRUE(write_fixture_to_temp_path(swift_path, 6,
@@ -1387,6 +1408,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_swift_files", test_editor_syntax_activation_for_swift_files},
         {"editor_syntax_activation_for_perl_files_and_shebang",
          test_editor_syntax_activation_for_perl_files_and_shebang},
+        {"editor_syntax_activation_for_scheme_files",
+         test_editor_syntax_activation_for_scheme_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

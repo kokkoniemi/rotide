@@ -162,6 +162,7 @@ static const struct langCase k_lang_cases[] = {
         {"zig", EDITOR_SYNTAX_ZIG, "tests/syntax/supported/zig/contract.zig", 20},
         {"swift", EDITOR_SYNTAX_SWIFT, "tests/syntax/supported/swift/contract.swift", 20},
         {"perl", EDITOR_SYNTAX_PERL, "tests/syntax/supported/perl/contract.pl", 20},
+        {"scheme", EDITOR_SYNTAX_SCHEME, "tests/syntax/supported/scheme/contract.scm", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -425,6 +426,7 @@ INCR_EQUIV_TEST(gdscript, 28)
 INCR_EQUIV_TEST(zig, 29)
 INCR_EQUIV_TEST(swift, 30)
 INCR_EQUIV_TEST(perl, 31)
+INCR_EQUIV_TEST(scheme, 32)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
@@ -459,6 +461,7 @@ const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
         {"syntax_incremental_equiv_zig", test_syntax_incremental_equiv_zig},
         {"syntax_incremental_equiv_swift", test_syntax_incremental_equiv_swift},
         {"syntax_incremental_equiv_perl", test_syntax_incremental_equiv_perl},
+        {"syntax_incremental_equiv_scheme", test_syntax_incremental_equiv_scheme},
 };
 
 const int g_syntax_incremental_equiv_test_count =
