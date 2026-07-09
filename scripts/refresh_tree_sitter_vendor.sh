@@ -470,7 +470,12 @@ if [[ "${ONLY_GRAMMAR}" == "perl" ]]; then
 	PERL_GRAMMAR_SRC=""
 	download_repo_tarball "tree-sitter-perl/tree-sitter-perl" \
 		"${TREE_SITTER_PERL_GRAMMAR_REF}" PERL_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/perl/grammar.js" \
+		"${PERL_GRAMMAR_SRC}/grammar.js"
 	regenerate_parser "${PERL_GRAMMAR_SRC}" "Perl"
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/perl/scanner.c" \
+		"${PERL_GRAMMAR_SRC}/src/scanner.c"
+	rm -f "${PERL_GRAMMAR_SRC}"/src/tsp_*.h "${PERL_GRAMMAR_SRC}/src/bsearch.h"
 	sync_grammar_vendor "${PERL_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl"
 	sed -i.bak 's/#lua-match?/#match?/' \
@@ -823,7 +828,15 @@ cp "${REPO_ROOT}/vendor/tree_sitter/overrides/swift/grammar.js" \
 regenerate_parser "${SWIFT_GRAMMAR_SRC}" "Swift"
 rm -f "${SWIFT_GRAMMAR_SRC}/src/scanner.c"
 
+# tree-sitter-perl/tree-sitter-perl: replace with RotIDE's reduced highlight
+# grammar and its minimal heredoc/POD scanner before regenerating, then drop
+# the upstream scanner's intuit support headers.
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/perl/grammar.js" \
+	"${PERL_GRAMMAR_SRC}/grammar.js"
 regenerate_parser "${PERL_GRAMMAR_SRC}" "Perl"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/perl/scanner.c" \
+	"${PERL_GRAMMAR_SRC}/src/scanner.c"
+rm -f "${PERL_GRAMMAR_SRC}"/src/tsp_*.h "${PERL_GRAMMAR_SRC}/src/bsearch.h"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"

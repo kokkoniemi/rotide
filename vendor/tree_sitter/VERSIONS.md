@@ -45,20 +45,21 @@ Pinned source/tooling used by this repository:
 - Tree-sitter GDScript grammar source ref: `d2a0ee914d297b873a40dd4596bd1f7157ebc52b` (`tree-sitter-gdscript-v6.1.0-d2a0ee9`) — from `PrestonKnopp/tree-sitter-gdscript` (parser `tree_sitter_gdscript`, root node `source`). Ships an external scanner for indentation/newline tracking and string delimiters. Upstream vendors no highlight queries, so RotIDE ships a repo-local query at `src/language/queries/gdscript/highlights.scm`.
 - Tree-sitter Zig grammar source ref: `b670c8df85a1568f498aa5c8cae42f51a90473c0` (`tree-sitter-zig-v1.1.2-b670c8d`) — from `tree-sitter-grammars/tree-sitter-zig` (parser `tree_sitter_zig`, root node `source_file`). Parser-only, no external scanner. Upstream `highlights.scm` maps cleanly to RotIDE classes but gates three patterns with `#lua-match?` (which RotIDE treats as always-pass, marking every identifier as a type/constant), so RotIDE ships a repo-local query at `src/language/queries/zig/highlights.scm` that swaps `#lua-match?` for `#match?`. Upstream injections are a no-op (`comment`→`comment` only), so none are wired.
 - Tree-sitter Swift grammar source ref: `b8b22bffbb3441780e6471665bacfb263741c86a` (`tree-sitter-swift-v0.7.3-b8b22bf`) — from `alex-pinkus/tree-sitter-swift` (parser `tree_sitter_swift`, root node `source_file`). The grammar is replaced with RotIDE's reduced highlight grammar under `overrides/swift/` before generation: no external scanner (upstream's handled nested block comments, `#`-balanced raw strings, and implicit-semicolon lookahead; the override uses regex tokens plus a newline statement-terminator token), a flattened expression grammar, and funneled expression/type containers — upstream's ~20 MB / 10321-state `parser.c` becomes ~3 MB / 1949 states (~3.7 MB object → ~650 KB) with byte-identical fixture captures. Both `highlights.scm` and `injections.scm` are vendored as-is — every capture name maps to a RotIDE class and the query uses only `#match?`; injections route `regex_literal` to the regex grammar (`comment`→`comment` resolves to nothing and is skipped).
-- Tree-sitter Perl grammar source ref: `c3e17b31179bf8f658c9f37c7a3ea6a202212d5a` (`tree-sitter-perl-v1.2.1-c3e17b3`) — from the v1.2.1 source commit deployed to the `release` branch of `tree-sitter-perl/tree-sitter-perl` (parser `tree_sitter_perl`, root node `source_file`). Ships an external scanner. The refresh script changes the upstream highlight query's `#lua-match?` shebang predicate to standard `#match?`; its injection query supports evaluated substitutions (with `injection.include-children` added for RotIDE) plus dynamic heredoc languages.
+- Tree-sitter Perl grammar source ref: `c3e17b31179bf8f658c9f37c7a3ea6a202212d5a` (`tree-sitter-perl-v1.2.1-c3e17b3`) — from the v1.2.1 source commit deployed to the `release` branch of `tree-sitter-perl/tree-sitter-perl` (parser `tree_sitter_perl`, root node `source_file`). The grammar is replaced with RotIDE's reduced highlight grammar under `overrides/perl/` before generation: upstream's 54-token scanner (plus generated intuit headers) becomes a ~230-line heredoc/POD-only scanner shipped with the override, quote-like operators become regex tokens over the common delimiters, and infix operators collapse into one flat rule — ~29 MB / 5749-state `parser.c` becomes ~5.9 MB / 1586 states (~4.7 MB object → ~930 KB) with near-identical fixture captures. The refresh script changes the upstream highlight query's `#lua-match?` shebang predicate to standard `#match?`; its injection query supports evaluated substitutions (with `injection.include-children` added for RotIDE) plus dynamic heredoc languages.
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.
 
-RotIDE applies the Bash, C++, C#, GLSL, Haskell, Julia, Kotlin, LaTeX, OCaml, PHP, R, Ruby,
+RotIDE applies the Bash, C++, C#, GLSL, Haskell, Julia, Kotlin, LaTeX, OCaml, Perl, PHP, R, Ruby,
 Rust, Scala, Swift, and shared TypeScript/TSX grammars under `overrides/` before generation. The
 overrides preserve each registered highlight/locals and injection query contract without carrying
-the full upstream language grammar. Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`,
-`--grammar glsl`, `--grammar haskell`, `--grammar julia`, `--grammar kotlin`, `--grammar latex`,
-`--grammar ocaml`, `--grammar php`, `--grammar r`, `--grammar ruby`, `--grammar rust`,
-`--grammar scala`, `--grammar swift`, or `--grammar typescript` to refresh only that grammar or
-shared family.
+the full upstream language grammar (the Perl override also ships its own minimal `scanner.c`).
+Pass `--grammar bash`, `--grammar cpp`, `--grammar csharp`, `--grammar glsl`,
+`--grammar haskell`, `--grammar julia`, `--grammar kotlin`, `--grammar latex`,
+`--grammar ocaml`, `--grammar perl`, `--grammar php`, `--grammar r`, `--grammar ruby`,
+`--grammar rust`, `--grammar scala`, `--grammar swift`, or `--grammar typescript` to refresh only
+that grammar or shared family.
 
 ## Size baseline
 

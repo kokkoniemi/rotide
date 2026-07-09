@@ -1026,10 +1026,10 @@ static int test_editor_syntax_perl_capture_contract(void) {
 		int count;
 		uint64_t digest;
 	} cases[] = {
-	        {"tests/syntax/supported/perl/highlight.pl", 82, UINT64_C(0xa78c90e126566a58)},
-	        {"tests/syntax/supported/perl/contract.pl", 254, UINT64_C(0x3a271ee59f5ba530)},
+	        {"tests/syntax/supported/perl/highlight.pl", 81, UINT64_C(0xcbfd2963fd9311bf)},
+	        {"tests/syntax/supported/perl/contract.pl", 253, UINT64_C(0x443fa63aad218eba)},
 	        {"tests/syntax/supported/perl/incomplete.pl", 9, UINT64_C(0xfb8a233beaae8152)},
-	        {"tests/syntax/supported/perl/injections.pl", 41, UINT64_C(0x351f4de8f6e1b978)},
+	        {"tests/syntax/supported/perl/injections.pl", 40, UINT64_C(0xba2bacc4e374cf75)},
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
