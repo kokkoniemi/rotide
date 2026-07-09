@@ -24,8 +24,7 @@ Use this for general RotIDE code, docs, and test work when a narrower skill is n
 - Do not regress dirty-state semantics.
 - CI enforces `make lint-check`; keep new code inside the active formatter,
   clang-tidy, and module-prefix gates.
-- For new `.c` files, add an entry to `docs/module-prefixes.md` and
-  `tools/module-prefixes.tsv`.
+- For new `.c` files, add an entry to `tools/module-prefixes.tsv`.
 
 ## Validation
 

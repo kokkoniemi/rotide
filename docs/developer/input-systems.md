@@ -102,11 +102,15 @@ bound under a synthetic `leader` table:
 normal.leader = "space"
 leader.find_file = "p"
 leader.project_search = "f"
-leader.toggle_drawer = "e"
+leader.explorer_drawer = "e"
 leader.main_menu = "m"
 # Unbound by default; Normal mode keeps `gb`.
 leader.git_blame_details = "b"
 ```
+
+Default leader bindings are `p`/`f`/`e`/`m` as above plus `g` (Git drawer),
+`l` (LSP drawer), and `d` (DAP drawer); `toggle_drawer` and
+`git_blame_details` are bindable but unbound.
 
 Leader sub-key names are editor-action names backed by `g_vim_leader_map`; the
 leader trigger sits after count/operator gating so it cannot fire mid-sequence.
@@ -223,5 +227,5 @@ The source layout is:
 - `src/input/system_vim.c` with prefix `vimSystem`
 - `src/config/input_config.{c,h}` with prefix `inputConfig`
 
-New `.c` files must be added to `docs/module-prefixes.md` and
-`tools/module-prefixes.tsv`.
+New `.c` files must be added to `tools/module-prefixes.tsv` (checked in CI
+by `tools/lint-prefixes.sh`).

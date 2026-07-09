@@ -20,8 +20,8 @@ Use for `README.md`, `AGENTS.md`, and `skills/*` docs.
 - Keep config semantics precise (global vs project override behavior).
 - Prefer concrete file/module references over vague descriptions.
 - Keep AGENTS.md code-style wording contract-shaped, not tutorial-shaped.
-- Keep the module-prefix source of truth in `docs/module-prefixes.md`, with
-  `tools/module-prefixes.tsv` as its machine-readable mirror.
+- Keep the module-prefix source of truth in `tools/module-prefixes.tsv`
+  (`docs/module-prefixes.md` no longer exists).
 
 ## References
 

@@ -136,10 +136,11 @@ session state, and a small contract between them: a DAP launch with
 into the launch payload. The pane is closed automatically when the
 session ends.
 
-**Config** loads editor, theme, keymap, LSP, and DAP settings from TOML
-at global (`~/.rotide/`) and project (`<project>/.rotide/`) scope. It
-fans out to consumers at startup; runtime reloads go through the same
-path.
+**Config** loads editor, theme, keymap, LSP, and DAP settings from TOML.
+Most sections read only the global `~/.rotide/config.toml`; the project
+file (`<project>/.rotide.toml`) is consulted only for `[input]`,
+`[keymap.*]`, and `[dap.launch.*]`, where it overrides global. Config fans
+out to consumers at startup; runtime reloads go through the same path.
 
 ## Concurrency and shutdown
 

@@ -5,7 +5,7 @@ description: Review and refactor a single C function (or small cluster) in RotID
 
 # Rotide Function Refactor
 
-Use this when the task targets a specific function, hot spot, or small cluster of related functions and the goal is to understand it deeply, then improve it without breaking behavior. For module/header/ownership splits use [`rotide-domain-refactor`](../rotide-domain-refactor/SKILL.md) instead.
+Use this when the task targets a specific function, hot spot, or small cluster of related functions and the goal is to understand it deeply, then improve it without breaking behavior. Module/header/ownership splits stay with `rotide-maintainer`.
 
 ## First Inspect
 
@@ -41,7 +41,7 @@ Always separate the three. Bugs justify a fix even in a "just refactor" task; sm
 - Syntax and LSP state are tab-local. Do not refactor them into globals.
 - Comment policy ([`AGENTS.md`](../../AGENTS.md)): omit comments that restate code, narrate control flow, or reference plan/task history. Keep only invariants, edge cases, and surprising-behavior notes.
 - Test API ([`tests/editor_test_api.h`](../../tests/editor_test_api.h)) must not gain mutators that production code would not itself call. If a refactor would require one, refactor the production path instead.
-- Naming: public (header-declared) `editorXxx`; file-local `<module>Xxx` per [`docs/module-prefixes.md`](../../docs/module-prefixes.md). New `.c` files must add an entry there and to [`tools/module-prefixes.tsv`](../../tools/module-prefixes.tsv).
+- Naming: public (header-declared) `editorXxx`; file-local `<module>Xxx` per [`tools/module-prefixes.tsv`](../../tools/module-prefixes.tsv). New `.c` files must add an entry there.
 - Cast intentionally-ignored return values to `(void)` to satisfy `cert-err33-c`.
 - Prefer extracting a static helper when it removes duplication or isolates a clear sub-step. Do not extract a helper that is used once and only renames a block — that is noise.
 
@@ -77,5 +77,4 @@ Default to a short, adaptive report. Do not pad with empty sections.
 ## References
 
 - [`AGENTS.md`](../../AGENTS.md) — project-wide non-negotiables, style, comment policy, validation.
-- [`rotide-domain-refactor`](../rotide-domain-refactor/SKILL.md) — use instead when the refactor is about module/header/ownership boundaries rather than a single function.
-- [`docs/module-prefixes.md`](../../docs/module-prefixes.md) — naming for static helpers.
+- [`tools/module-prefixes.tsv`](../../tools/module-prefixes.tsv) — naming for static helpers.

@@ -55,8 +55,8 @@ control flow, reference task history, or document obvious details.
 - K&R; hard tabs (8 columns); same-line braces; pointer asterisks attach to the
   name (`char *name`); ≤100 columns preferred, 120 hard limit.
 - Public header-declared names use `editorXxx`; file-local `.c` names use the
-  module prefix from [`docs/module-prefixes.md`](docs/module-prefixes.md). The
-  `editor` prefix is public-only. Do not rename `main`.
+  module prefix from [`tools/module-prefixes.tsv`](tools/module-prefixes.tsv).
+  The `editor` prefix is public-only. Do not rename `main`.
 - File-local globals: `g_<module>_xxx`; guards: `ROTIDE_<SUBSYS>_<FILE>_H`;
   macros/constants: `UPPER_SNAKE_CASE`, with `ROTIDE_*`/`EDITOR_*` scopes.
 - Out-parameters end in `_out`; borrowed/writable/owned accessors use the
@@ -82,8 +82,8 @@ would not call. Test real code paths or add the missing production path.
 
 ## Skill Routing
 
-Default to `rotide-maintainer`; use the narrower document, search, syntax, LSP,
-domain-refactor, or docs maintainer skill when the task matches. Input systems,
-terminal panes, DAP, drawer/tabs, config, and rendering-only work stay with
-`rotide-maintainer`. Open referenced playbooks only when first inspected files are
-not enough.
+Default to `rotide-maintainer`; use the narrower document, syntax,
+function-refactor, or docs maintainer skill when the task matches. Everything
+else (input systems, terminal panes, LSP, DAP, search, drawer/tabs, config,
+rendering) stays with `rotide-maintainer`. Open referenced playbooks only when
+first inspected files are not enough.

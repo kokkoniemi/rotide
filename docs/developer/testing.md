@@ -167,18 +167,9 @@ repo:
 Fork PRs can't push (read-only `GITHUB_TOKEN`); their step summary falls
 back to embedding `latest/*.svg` as a baseline.
 
-Refresh cadence differs by series. The **test-suite** charts re-render on every
-CI run — each push appends a `test_run` row to the rolling history, and a push
-to `main` updates `latest/`. The **bench** and **fuzz** charts (plus the
-**flakiness** chart from the `--repeat` soak) advance **once per day** at 03:17
-UTC, because their rows come only from the nightly workflow
-([.github/workflows/nightly.yml](../../.github/workflows/nightly.yml)) — bench
-runs there to keep p50/p95 off the noisy per-PR runner, and fuzz/flake-hunt are
-long soaks. Camo proxy caching adds several minutes of further lag on the
-embedded images.
-
-➡ See the live charts in
-[metrics-dashboard.md](metrics-dashboard.md).
+The live charts and per-series refresh cadence are in
+[metrics-dashboard.md](metrics-dashboard.md); bench and fuzz rows come only
+from the nightly workflow, which keeps p50/p95 off the noisy per-PR runner.
 
 Microbenches live in `tests/bench_microbenches.c` and run with `make bench`.
 Storage-specific throughput/RSS checks live in `tests/bench_text_storage.c`
