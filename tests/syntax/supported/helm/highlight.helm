@@ -1,0 +1,6 @@
+{{/* config */}}
+name: {{ .Values.name | quote }}
+count: {{ 3 }}
+{{- if .Values.enabled }}
+enabled: true
+{{- end }}

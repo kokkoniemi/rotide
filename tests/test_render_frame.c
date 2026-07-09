@@ -1533,6 +1533,396 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-dockerfile-XXXXXX.dockerfile";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        path, 11, "tests/syntax/supported/dockerfile/highlight.dockerfile"));
+
+	editorOpen(path);
+	E.window_rows = 16;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Directive comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# syntax=docker/dockerfile:1") != NULL);
+	/* Instruction keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mFROM\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mRUN\x1b[39m") != NULL);
+	/* ENV/ARG names render as properties. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mAPP_HOME\x1b[39m") != NULL);
+	/* Quoted LABEL value is a string. */
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"https://example.com/repo\"\x1b[39m") != NULL);
+	/* EXPOSE port is a number. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m8080\x1b[39m") != NULL);
+	/* Bash injected into the RUN body highlights the command word. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mnpm\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-clojure-XXXXXX.clj";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/clojure/highlight.clj"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Line comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m;; Namespace and requires") != NULL);
+	/* Special forms / definers as keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mns\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mdefn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcond\x1b[39m") != NULL);
+	/* def-introduced name and call-position heads as functions. */
+	ASSERT_TRUE(strstr(output, "\x1b[93marea\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmap\x1b[39m") != NULL);
+	/* Literals: number, string, char, keyword, and builtin constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14159\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Compute circle area.\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\\newline\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m:negative\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mnil\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-r-XXXXXX.R";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/r/highlight.R"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Highlighting sampler") != NULL);
+	/* Call head as a function. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mlibrary\x1b[39m") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunction\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* Function-definition parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[33mr\x1b[39m") != NULL);
+	/* Namespaced access marks the namespace, then the `::` operator. */
+	ASSERT_TRUE(strstr(output, "\x1b[36mstats\x1b[97m::") != NULL);
+	/* Literals: integer suffix, string, and builtin constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m42L\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"world\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mNULL\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-swift-XXXXXX.swift";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
+	                                       "tests/syntax/supported/swift/highlight.swift"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Doc comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m/// Highlighting sampler") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mimport\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mstruct\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mlet\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunc\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	/* Visibility modifier. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mpublic\x1b[39m") != NULL);
+	/* Type identifiers. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mPoint\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mInt\x1b[39m") != NULL);
+	/* Function-definition names and a parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mdistance\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mgreet\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mother\x1b[39m") != NULL);
+	/* String literal and boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-zig-XXXXXX.zig";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/zig/highlight.zig"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Doc comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m//! Highlighting sampler") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94menum\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mtest\x1b[39m") != NULL);
+	/* `const std = @import(...)` marks the binding as a module. */
+	ASSERT_TRUE(strstr(output, "\x1b[36mstd\x1b[39m") != NULL);
+	/* SCREAMING_SNAKE_CASE identifier reads as a constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mMAX_LEN\x1b[39m") != NULL);
+	/* TitleCase identifier reads as a type. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mColor\x1b[39m") != NULL);
+	/* Builtin type. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mi32\x1b[39m") != NULL);
+	/* Function-definition name and its parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[93madd\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mlhs\x1b[39m") != NULL);
+	/* Field-call head as a function. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mprint\x1b[39m") != NULL);
+	/* Literals: number, string, and boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m100\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"sampler\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-gdscript-XXXXXX.gd";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/gdscript/highlight.gd"));
+
+	editorOpen(path);
+	E.window_rows = 32;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Highlighting sampler") != NULL);
+	/* Keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mextends\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunc\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* TitleCase identifier reads as a type. */
+	ASSERT_TRUE(strstr(output, "\x1b[96mNode\x1b[39m") != NULL);
+	/* Annotation renders as a preprocessor-class attribute. */
+	ASSERT_TRUE(strstr(output, "\x1b[91m@export\x1b[39m") != NULL);
+	/* SCREAMING_SNAKE_CASE const name reads as a constant. */
+	ASSERT_TRUE(strstr(output, "\x1b[95mMAX_HP\x1b[39m") != NULL);
+	/* Function-definition name and its parameter. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mspawn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mcount\x1b[39m") != NULL);
+	/* Call head as a function. */
+	ASSERT_TRUE(strstr(output, "\x1b[93mprint\x1b[39m") != NULL);
+	/* Literals: float, string, and boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"hello\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mtrue\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-perl-XXXXXX.pl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/perl/highlight.pl"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Highlighting sampler") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94muse\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mSample\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mgreet\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-scheme-XXXXXX.scm";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/scheme/highlight.scm"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Line comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m; Constants and helpers") != NULL);
+	/* Special forms as keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mdefine\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcond\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	/* Call-position heads and builtins as functions. */
+	ASSERT_TRUE(strstr(output, "\x1b[93msquare\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mdisplay\x1b[39m") != NULL);
+	/* Literals: number, string, boolean. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14159\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m#t\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-erlang-XXXXXX.erl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/erlang/highlight.erl"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m%% Constants and helpers") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcase\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_elixir_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-elixir-XXXXXX.ex";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/elixir/highlight.ex"));
+
+	editorOpen(path);
+	E.window_rows = 40;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Line comment. */
+	ASSERT_TRUE(strstr(output, "\x1b[90m# Constants and helpers") != NULL);
+	/* Definition and control-flow keywords. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mdef\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcond\x1b[39m") != NULL);
+	/* Local function call/definition heads. */
+	ASSERT_TRUE(strstr(output, "\x1b[93msquare\x1b[39m") != NULL);
+	/* Literals: number and string. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m3.14159\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Hello, world") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_elixir_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-injections-elixir-XXXXXX.ex";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/elixir/injections.ex"));
+
+	editorOpen(path);
+	E.window_rows = 20;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* ~JS sigil content is injected and highlighted as JavaScript: the `const`
+	 * keyword resets to the surrounding sigil string color (green), and the
+	 * numeric literal paints as a number. */
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[32m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m0\x1b[39m") != NULL);
+	/* ~r regex sigil content is injected and highlighted by the regex grammar
+	 * (character-class atoms paint as constants). */
+	ASSERT_TRUE(strstr(output, "\x1b[95mA") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_perl_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-injections-perl-XXXXXX.pl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/perl/injections.pl"));
+
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-svelte-XXXXXX.svelte";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 7,
@@ -1662,6 +2052,31 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens
 	ASSERT_TRUE(strstr(output, "\x1b[94mvariable") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[32m\"") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[35m3\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_helm_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-helm-XXXXXX.tpl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/helm/highlight.helm"));
+
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m{{/*") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m.Values") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mquote") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m3\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -2753,12 +3168,38 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_bibtex_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_hcl_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_helm_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_helm_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_lua_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_glsl_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_kotlin_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_dockerfile_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_clojure_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_r_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_r_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_swift_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_zig_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_gdscript_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_perl_tokens},
+        {"editor_refresh_screen_applies_perl_injections",
+         test_editor_refresh_screen_applies_perl_injections},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_elixir_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_elixir_tokens},
+        {"editor_refresh_screen_applies_elixir_injections",
+         test_editor_refresh_screen_applies_elixir_injections},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

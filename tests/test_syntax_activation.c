@@ -770,6 +770,281 @@ static int test_editor_syntax_activation_for_hcl_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_helm_files(void) {
+	char helm_path[] = "/tmp/rotide-test-syntax-helm-XXXXXX.tpl";
+	ASSERT_TRUE(write_fixture_to_temp_path(helm_path, 4,
+	                                       "tests/syntax/supported/helm/activation.helm"));
+
+	editorOpen(helm_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("template", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(helm_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_dockerfile_files(void) {
+	char df_path[] = "/tmp/rotide-test-syntax-dockerfile-XXXXXX.dockerfile";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        df_path, 11, "tests/syntax/supported/dockerfile/activation.dockerfile"));
+
+	editorOpen(df_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(df_path) == 0);
+
+	/* Extensionless canonical basename detection. */
+	char base_dir_template[] = "/tmp/rotide-test-syntax-dockerfile-base-XXXXXX";
+	char *base_dir = mkdtemp(base_dir_template);
+	ASSERT_TRUE(base_dir != NULL);
+
+	char base_path[512];
+	ASSERT_TRUE(path_join(base_path, sizeof(base_path), base_dir, "Dockerfile"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/dockerfile/activation.dockerfile",
+	                                  base_path));
+
+	editorOpen(base_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(base_path) == 0);
+	ASSERT_TRUE(rmdir(base_dir) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_clojure_files(void) {
+	char clj_path[] = "/tmp/rotide-test-syntax-clojure-XXXXXX.clj";
+	ASSERT_TRUE(write_fixture_to_temp_path(clj_path, 4,
+	                                       "tests/syntax/supported/clojure/activation.clj"));
+
+	editorOpen(clj_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(clj_path) == 0);
+
+	/* ClojureScript and EDN share the same grammar. */
+	char cljs_path[] = "/tmp/rotide-test-syntax-cljs-XXXXXX.cljs";
+	ASSERT_TRUE(write_fixture_to_temp_path(cljs_path, 5,
+	                                       "tests/syntax/supported/clojure/activation.clj"));
+	editorOpen(cljs_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(cljs_path) == 0);
+
+	char edn_path[] = "/tmp/rotide-test-syntax-edn-XXXXXX.edn";
+	ASSERT_TRUE(write_fixture_to_temp_path(edn_path, 4,
+	                                       "tests/syntax/supported/clojure/activation.clj"));
+	editorOpen(edn_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(edn_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_perl_files_and_shebang(void) {
+	static const char *const extensions[] = {"pl", "pm", "t"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[64];
+		int written = snprintf(path, sizeof(path), "/tmp/rotide-test-syntax-perl-XXXXXX.%s",
+		                       extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/perl/activation.pl"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, editorSyntaxLanguageActive());
+		ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+
+	char shebang_path[] = "/tmp/rotide-test-syntax-perl-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        shebang_path, 0, "tests/syntax/supported/perl/extensionless_shebang"));
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_scheme_files(void) {
+	static const char *const extensions[] = {"scm", "ss", "sls", "sld", "sps"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[64];
+		int written = snprintf(path, sizeof(path),
+		                       "/tmp/rotide-test-syntax-scheme-XXXXXX.%s", extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/scheme/activation.scm"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, editorSyntaxLanguageActive());
+		ASSERT_TRUE(editorSyntaxRootType() != NULL);
+		ASSERT_EQ_STR("program", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_erlang_files(void) {
+	static const char *const extensions[] = {"erl", "hrl", "app", "app.src", "escript"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[80];
+		int written = snprintf(path, sizeof(path),
+		                       "/tmp/rotide-test-syntax-erlang-XXXXXX.%s", extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/erlang/activation.erl"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, editorSyntaxLanguageActive());
+		ASSERT_TRUE(editorSyntaxRootType() != NULL);
+		ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_elixir_files_and_shebang(void) {
+	static const char *const extensions[] = {"ex", "exs"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[64];
+		int written = snprintf(path, sizeof(path),
+		                       "/tmp/rotide-test-syntax-elixir-XXXXXX.%s", extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/elixir/activation.ex"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, editorSyntaxLanguageActive());
+		ASSERT_TRUE(editorSyntaxRootType() != NULL);
+		ASSERT_EQ_STR("source", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+
+	char shebang_path[] = "/tmp/rotide-test-syntax-elixir-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        shebang_path, 0, "tests/syntax/supported/elixir/extensionless_shebang"));
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_swift_files(void) {
+	char swift_path[] = "/tmp/rotide-test-syntax-swift-XXXXXX.swift";
+	ASSERT_TRUE(write_fixture_to_temp_path(swift_path, 6,
+	                                       "tests/syntax/supported/swift/activation.swift"));
+
+	editorOpen(swift_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(swift_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_zig_files(void) {
+	char zig_path[] = "/tmp/rotide-test-syntax-zig-XXXXXX.zig";
+	ASSERT_TRUE(write_fixture_to_temp_path(zig_path, 4,
+	                                       "tests/syntax/supported/zig/activation.zig"));
+
+	editorOpen(zig_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(zig_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_gdscript_files(void) {
+	char gd_path[] = "/tmp/rotide-test-syntax-gdscript-XXXXXX.gd";
+	ASSERT_TRUE(write_fixture_to_temp_path(gd_path, 3,
+	                                       "tests/syntax/supported/gdscript/activation.gd"));
+
+	editorOpen(gd_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(gd_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_r_files(void) {
+	char r_path[] = "/tmp/rotide-test-syntax-r-XXXXXX.R";
+	ASSERT_TRUE(write_fixture_to_temp_path(r_path, 2, "tests/syntax/supported/r/activation.R"));
+
+	editorOpen(r_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
+	ASSERT_TRUE(unlink(r_path) == 0);
+
+	/* Lowercase extension. */
+	char lower_path[] = "/tmp/rotide-test-syntax-r-lower-XXXXXX.r";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(lower_path, 2, "tests/syntax/supported/r/activation.R"));
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(lower_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(lower_path) == 0);
+
+	/* .Rprofile basename. */
+	char base_dir_template[] = "/tmp/rotide-test-syntax-r-base-XXXXXX";
+	char *base_dir = mkdtemp(base_dir_template);
+	ASSERT_TRUE(base_dir != NULL);
+	char base_path[512];
+	ASSERT_TRUE(path_join(base_path, sizeof(base_path), base_dir, ".Rprofile"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/r/activation.R", base_path));
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(base_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(base_path) == 0);
+	ASSERT_TRUE(rmdir(base_dir) == 0);
+
+	/* Extensionless file with an Rscript shebang. */
+	char shebang_path[] = "/tmp/rotide-test-syntax-r-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
+	                                       "tests/syntax/supported/r/extensionless_shebang"));
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_lua_files(void) {
 	char lua_path[] = "/tmp/rotide-test-syntax-lua-XXXXXX.lua";
 	ASSERT_TRUE(write_fixture_to_temp_path(lua_path, 4,
@@ -1171,6 +1446,24 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_bibtex_files",
          test_editor_syntax_activation_for_bibtex_files},
         {"editor_syntax_activation_for_hcl_files", test_editor_syntax_activation_for_hcl_files},
+        {"editor_syntax_activation_for_helm_files", test_editor_syntax_activation_for_helm_files},
+        {"editor_syntax_activation_for_dockerfile_files",
+         test_editor_syntax_activation_for_dockerfile_files},
+        {"editor_syntax_activation_for_clojure_files",
+         test_editor_syntax_activation_for_clojure_files},
+        {"editor_syntax_activation_for_r_files", test_editor_syntax_activation_for_r_files},
+        {"editor_syntax_activation_for_gdscript_files",
+         test_editor_syntax_activation_for_gdscript_files},
+        {"editor_syntax_activation_for_zig_files", test_editor_syntax_activation_for_zig_files},
+        {"editor_syntax_activation_for_swift_files", test_editor_syntax_activation_for_swift_files},
+        {"editor_syntax_activation_for_perl_files_and_shebang",
+         test_editor_syntax_activation_for_perl_files_and_shebang},
+        {"editor_syntax_activation_for_scheme_files",
+         test_editor_syntax_activation_for_scheme_files},
+        {"editor_syntax_activation_for_erlang_files",
+         test_editor_syntax_activation_for_erlang_files},
+        {"editor_syntax_activation_for_elixir_files_and_shebang",
+         test_editor_syntax_activation_for_elixir_files_and_shebang},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

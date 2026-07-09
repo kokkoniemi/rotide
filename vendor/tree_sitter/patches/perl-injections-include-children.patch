@@ -1,0 +1,14 @@
+diff --git a/vendor/tree_sitter/grammars/perl/queries/injections.scm b/vendor/tree_sitter/grammars/perl/queries/injections.scm
+index 35672fc..ac1b8da 100644
+--- a/vendor/tree_sitter/grammars/perl/queries/injections.scm
++++ b/vendor/tree_sitter/grammars/perl/queries/injections.scm
+@@ -11,7 +11,8 @@
+     ; match if there's a single `e` in the modifiers list
+   (#match? @_modifiers "e")
+   (#not-match? @_modifiers "e.*e")
+-  (#set! injection.language "perl"))
++  (#set! injection.language "perl")
++  (#set! injection.include-children))
+ 
+ ; inject a language into a heredoc body based on its terminator, so
+ ; `my $q = <<SQL; ... SQL` highlights the body as SQL, `<<HTML` as HTML, etc.

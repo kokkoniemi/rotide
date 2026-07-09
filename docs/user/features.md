@@ -36,8 +36,14 @@ are implemented and tested.
 - Tree-sitter syntax highlighting for C/C++, Go, Shell, HTML, JavaScript,
   TypeScript, TSX, CSS/SCSS, JSON/JSONC, Python, PHP, Rust, Java, C#,
   Haskell, Ruby, OCaml, Julia, Scala, EJS, ERB, Markdown, TOML, YAML, XML,
-  Make, Diff, Regex, LaTeX, BibTeX, HCL, Lua, GLSL, Kotlin, Svelte, and Vue
-  (the last two with JavaScript in `<script>` and CSS in `<style>`).
+  Make, Diff, Regex, LaTeX, BibTeX, HCL, Lua, GLSL, Kotlin, Svelte, Vue
+  (the last two with JavaScript in `<script>` and CSS in `<style>`), Helm
+  charts (Go-template actions with the surrounding manifest injected as YAML),
+  Dockerfile/Containerfile (with `RUN` bodies and heredocs injected as Bash,
+  and `COPY` heredocs routed to JSON/YAML/TOML/XML by filename),
+  Clojure/ClojureScript/EDN, R, GDScript, Zig, Swift (with regex literals
+  injected as the regex grammar), Perl, Scheme, Erlang, and Elixir (with
+  sigils injected as regex, JavaScript, Python, Markdown, and Vue).
 - LSP definition lookup for Go, C/C++, HTML, CSS/SCSS, JSON, and JavaScript.
 - LSP-backed document symbols, problems drawer, and autocomplete where enabled.
 - ESLint diagnostics and manual `eslint_fix` action for JavaScript buffers.

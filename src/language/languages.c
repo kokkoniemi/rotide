@@ -47,6 +47,17 @@ extern const TSLanguage *tree_sitter_glsl(void);
 extern const TSLanguage *tree_sitter_kotlin(void);
 extern const TSLanguage *tree_sitter_svelte(void);
 extern const TSLanguage *tree_sitter_vue(void);
+extern const TSLanguage *tree_sitter_helm(void);
+extern const TSLanguage *tree_sitter_containerfile(void);
+extern const TSLanguage *tree_sitter_clojure(void);
+extern const TSLanguage *tree_sitter_r(void);
+extern const TSLanguage *tree_sitter_gdscript(void);
+extern const TSLanguage *tree_sitter_zig(void);
+extern const TSLanguage *tree_sitter_swift(void);
+extern const TSLanguage *tree_sitter_perl(void);
+extern const TSLanguage *tree_sitter_scheme(void);
+extern const TSLanguage *tree_sitter_erlang(void);
+extern const TSLanguage *tree_sitter_elixir(void);
 
 static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -81,6 +92,18 @@ static int languagesRubyShebangMatch(const char *token, size_t len) {
 static int languagesLuaShebangMatch(const char *token, size_t len) {
 	return languagesStringEqualsNoCaseLen(token, len, "lua") ||
 	       languagesStringEqualsNoCaseLen(token, len, "luajit");
+}
+
+static int languagesRShebangMatch(const char *token, size_t len) {
+	return languagesStringEqualsNoCaseLen(token, len, "Rscript");
+}
+
+static int languagesPerlShebangMatch(const char *token, size_t len) {
+	return languagesStringEqualsNoCaseLen(token, len, "perl");
+}
+
+static int languagesElixirShebangMatch(const char *token, size_t len) {
+	return languagesStringEqualsNoCaseLen(token, len, "elixir");
 }
 
 static int languagesPythonShebangMatch(const char *token, size_t len) {
@@ -160,6 +183,22 @@ static const char *const k_glsl_extensions[] = {
 static const char *const k_kotlin_extensions[] = {".kt", ".kts", ".ktm", NULL};
 static const char *const k_svelte_extensions[] = {".svelte", NULL};
 static const char *const k_vue_extensions[] = {".vue", NULL};
+static const char *const k_helm_extensions[] = {".tpl", ".gotmpl", ".helm", NULL};
+static const char *const k_dockerfile_extensions[] = {".dockerfile", ".containerfile", NULL};
+static const char *const k_dockerfile_basenames[] = {"Dockerfile", "dockerfile", "Containerfile",
+                                                     "containerfile", NULL};
+static const char *const k_clojure_extensions[] = {".clj", ".cljs", ".cljc", ".cljd",
+                                                   ".edn", ".bb",   ".boot", NULL};
+static const char *const k_r_extensions[] = {".R", ".r", NULL};
+static const char *const k_r_basenames[] = {".Rprofile", ".Rhistory", NULL};
+static const char *const k_gdscript_extensions[] = {".gd", NULL};
+static const char *const k_zig_extensions[] = {".zig", NULL};
+static const char *const k_swift_extensions[] = {".swift", NULL};
+static const char *const k_perl_extensions[] = {".pl", ".pm", ".t", NULL};
+static const char *const k_scheme_extensions[] = {".scm", ".ss", ".sls", ".sld", ".sps", NULL};
+static const char *const k_erlang_extensions[] = {".erl",     ".hrl",     ".app",
+                                                  ".app.src", ".escript", NULL};
+static const char *const k_elixir_extensions[] = {".ex", ".exs", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};
@@ -190,6 +229,19 @@ static const char *const k_glsl_injection_aliases[] = {"glsl", "vert", "frag", N
 static const char *const k_kotlin_injection_aliases[] = {"kotlin", "kt", NULL};
 static const char *const k_svelte_injection_aliases[] = {"svelte", NULL};
 static const char *const k_vue_injection_aliases[] = {"vue", NULL};
+static const char *const k_helm_injection_aliases[] = {"helm", "gotmpl", "go-template", NULL};
+static const char *const k_dockerfile_injection_aliases[] = {"dockerfile", "containerfile",
+                                                             "docker", "container", NULL};
+static const char *const k_clojure_injection_aliases[] = {"clojure", "clj", "cljs", "cljc",
+                                                          "cljd",    "edn", NULL};
+static const char *const k_r_injection_aliases[] = {"r", NULL};
+static const char *const k_gdscript_injection_aliases[] = {"gdscript", "gd", NULL};
+static const char *const k_zig_injection_aliases[] = {"zig", NULL};
+static const char *const k_swift_injection_aliases[] = {"swift", NULL};
+static const char *const k_perl_injection_aliases[] = {"perl", "pl", NULL};
+static const char *const k_scheme_injection_aliases[] = {"scheme", "scm", "ss", "guile", NULL};
+static const char *const k_erlang_injection_aliases[] = {"erlang", "erl", "hrl", NULL};
+static const char *const k_elixir_injection_aliases[] = {"elixir", "ex", "exs", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
         {.id = EDITOR_SYNTAX_C,
@@ -507,7 +559,101 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .injection_parts = editor_query_vue_injection_parts,
          .injection_part_count = EDITOR_QUERY_VUE_INJECTION_PART_COUNT,
          .extensions = k_vue_extensions,
-         .injection_aliases = k_vue_injection_aliases}};
+         .injection_aliases = k_vue_injection_aliases},
+        {.id = EDITOR_SYNTAX_HELM,
+         .name = "helm",
+         .ts_factory = tree_sitter_helm,
+         .highlight_parts = editor_query_helm_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_HELM_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_helm_injection_parts,
+         .injection_part_count = EDITOR_QUERY_HELM_INJECTION_PART_COUNT,
+         .extensions = k_helm_extensions,
+         .injection_aliases = k_helm_injection_aliases},
+        {.id = EDITOR_SYNTAX_DOCKERFILE,
+         .name = "dockerfile",
+         .ts_factory = tree_sitter_containerfile,
+         .highlight_parts = editor_query_dockerfile_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_DOCKERFILE_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_dockerfile_injection_parts,
+         .injection_part_count = EDITOR_QUERY_DOCKERFILE_INJECTION_PART_COUNT,
+         .extensions = k_dockerfile_extensions,
+         .basenames = k_dockerfile_basenames,
+         .injection_aliases = k_dockerfile_injection_aliases},
+        {.id = EDITOR_SYNTAX_CLOJURE,
+         .name = "clojure",
+         .ts_factory = tree_sitter_clojure,
+         .highlight_parts = editor_query_clojure_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_CLOJURE_HIGHLIGHT_PART_COUNT,
+         .extensions = k_clojure_extensions,
+         .injection_aliases = k_clojure_injection_aliases},
+        {.id = EDITOR_SYNTAX_R,
+         .name = "r",
+         .ts_factory = tree_sitter_r,
+         .highlight_parts = editor_query_r_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_R_HIGHLIGHT_PART_COUNT,
+         .locals_parts = editor_query_r_locals_parts,
+         .locals_part_count = EDITOR_QUERY_R_LOCALS_PART_COUNT,
+         .extensions = k_r_extensions,
+         .basenames = k_r_basenames,
+         .shebang_matches = languagesRShebangMatch,
+         .injection_aliases = k_r_injection_aliases},
+        {.id = EDITOR_SYNTAX_GDSCRIPT,
+         .name = "gdscript",
+         .ts_factory = tree_sitter_gdscript,
+         .highlight_parts = editor_query_gdscript_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_GDSCRIPT_HIGHLIGHT_PART_COUNT,
+         .extensions = k_gdscript_extensions,
+         .injection_aliases = k_gdscript_injection_aliases},
+        {.id = EDITOR_SYNTAX_ZIG,
+         .name = "zig",
+         .ts_factory = tree_sitter_zig,
+         .highlight_parts = editor_query_zig_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_ZIG_HIGHLIGHT_PART_COUNT,
+         .extensions = k_zig_extensions,
+         .injection_aliases = k_zig_injection_aliases},
+        {.id = EDITOR_SYNTAX_SWIFT,
+         .name = "swift",
+         .ts_factory = tree_sitter_swift,
+         .highlight_parts = editor_query_swift_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_SWIFT_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_swift_injection_parts,
+         .injection_part_count = EDITOR_QUERY_SWIFT_INJECTION_PART_COUNT,
+         .extensions = k_swift_extensions,
+         .injection_aliases = k_swift_injection_aliases},
+        {.id = EDITOR_SYNTAX_PERL,
+         .name = "perl",
+         .ts_factory = tree_sitter_perl,
+         .highlight_parts = editor_query_perl_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_PERL_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_perl_injection_parts,
+         .injection_part_count = EDITOR_QUERY_PERL_INJECTION_PART_COUNT,
+         .extensions = k_perl_extensions,
+         .shebang_matches = languagesPerlShebangMatch,
+         .injection_aliases = k_perl_injection_aliases},
+        {.id = EDITOR_SYNTAX_SCHEME,
+         .name = "scheme",
+         .ts_factory = tree_sitter_scheme,
+         .highlight_parts = editor_query_scheme_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_SCHEME_HIGHLIGHT_PART_COUNT,
+         .extensions = k_scheme_extensions,
+         .injection_aliases = k_scheme_injection_aliases},
+        {.id = EDITOR_SYNTAX_ERLANG,
+         .name = "erlang",
+         .ts_factory = tree_sitter_erlang,
+         .highlight_parts = editor_query_erlang_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_ERLANG_HIGHLIGHT_PART_COUNT,
+         .extensions = k_erlang_extensions,
+         .injection_aliases = k_erlang_injection_aliases},
+        {.id = EDITOR_SYNTAX_ELIXIR,
+         .name = "elixir",
+         .ts_factory = tree_sitter_elixir,
+         .highlight_parts = editor_query_elixir_highlight_parts,
+         .highlight_part_count = EDITOR_QUERY_ELIXIR_HIGHLIGHT_PART_COUNT,
+         .injection_parts = editor_query_elixir_injection_parts,
+         .injection_part_count = EDITOR_QUERY_ELIXIR_INJECTION_PART_COUNT,
+         .extensions = k_elixir_extensions,
+         .shebang_matches = languagesElixirShebangMatch,
+         .injection_aliases = k_elixir_injection_aliases}};
 
 #define ROTIDE_LANGUAGE_DEF_COUNT ((int)(sizeof(g_languages) / sizeof(g_languages[0])))
 

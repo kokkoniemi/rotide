@@ -201,6 +201,97 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_VUE, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".tpl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".gotmpl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".dockerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".containerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".clj");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".cljs");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".edn");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".R");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".r");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".gd");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".zig");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".swift");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, (int)def->id);
+	def = editorSyntaxLookupLanguageByExtension(".pl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".pm");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".t");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".scm");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".ss");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".sld");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".erl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".hrl");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".app.src");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".ex");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByExtension(".exs");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -219,6 +310,18 @@ static int test_editor_syntax_registry_lookup_by_basename(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByBasename("Dockerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByBasename("Containerfile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByBasename(".Rprofile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByBasename("noresult") == NULL);
 	return 0;
 }
@@ -230,6 +333,11 @@ static int test_editor_syntax_registry_lookup_by_shebang(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, (int)def->id);
 
+	const char *rscript = "Rscript";
+	def = editorSyntaxLookupLanguageByShebangToken(rscript, strlen(rscript));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
 	const char *bash = "bash";
 	def = editorSyntaxLookupLanguageByShebangToken(bash, strlen(bash));
 	ASSERT_TRUE(def != NULL);
@@ -240,7 +348,12 @@ static int test_editor_syntax_registry_lookup_by_shebang(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_LUA, (int)def->id);
 
-	const char *unknown = "perl";
+	const char *perl = "perl";
+	def = editorSyntaxLookupLanguageByShebangToken(perl, strlen(perl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	const char *unknown = "pythonx";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByShebangToken(unknown, strlen(unknown)) == NULL);
 	return 0;
 }
@@ -321,6 +434,78 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(vue, strlen(vue));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_VUE, (int)def->id);
+
+	const char *gotmpl = "gotmpl";
+	def = editorSyntaxLookupLanguageByInjectionName(gotmpl, strlen(gotmpl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, (int)def->id);
+
+	const char *docker = "docker";
+	def = editorSyntaxLookupLanguageByInjectionName(docker, strlen(docker));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, (int)def->id);
+
+	const char *clj = "clj";
+	def = editorSyntaxLookupLanguageByInjectionName(clj, strlen(clj));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, (int)def->id);
+
+	/* Injection-name lookup is case-insensitive, so "R" resolves via "r". */
+	const char *r_upper = "R";
+	def = editorSyntaxLookupLanguageByInjectionName(r_upper, strlen(r_upper));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, (int)def->id);
+
+	const char *gdscript = "gdscript";
+	def = editorSyntaxLookupLanguageByInjectionName(gdscript, strlen(gdscript));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
+
+	/* Injection alias resolves the shorthand. */
+	const char *gd_alias = "gd";
+	def = editorSyntaxLookupLanguageByInjectionName(gd_alias, strlen(gd_alias));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, (int)def->id);
+
+	const char *zig = "zig";
+	def = editorSyntaxLookupLanguageByInjectionName(zig, strlen(zig));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, (int)def->id);
+
+	const char *swift = "swift";
+	def = editorSyntaxLookupLanguageByInjectionName(swift, strlen(swift));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, (int)def->id);
+
+	const char *pl = "pl";
+	def = editorSyntaxLookupLanguageByInjectionName(pl, strlen(pl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, (int)def->id);
+
+	const char *scheme = "scheme";
+	def = editorSyntaxLookupLanguageByInjectionName(scheme, strlen(scheme));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	const char *scm = "scm";
+	def = editorSyntaxLookupLanguageByInjectionName(scm, strlen(scm));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, (int)def->id);
+
+	const char *erl = "erl";
+	def = editorSyntaxLookupLanguageByInjectionName(erl, strlen(erl));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, (int)def->id);
+
+	const char *elixir = "elixir";
+	def = editorSyntaxLookupLanguageByInjectionName(elixir, strlen(elixir));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
+
+	const char *ex = "ex";
+	def = editorSyntaxLookupLanguageByInjectionName(ex, strlen(ex));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

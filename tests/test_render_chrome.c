@@ -1,4 +1,6 @@
 #include "input/input_system.h"
+#include "render/display_text.h"
+#include "render/status_bar.h"
 #include "render/tab_bar.h"
 #include "render/viewport.h"
 #include "render/write_buf.h"
@@ -1265,6 +1267,71 @@ static int test_editor_refresh_screen_status_bar_input_segment_truncates(void) {
 	return 0;
 }
 
+/*
+ * Strips CSI escape sequences (ESC '[' … final-byte) from `src` in place,
+ * returning the number of on-screen display columns of the remaining visible
+ * text. Used to assert the status bar fills its row edge to edge regardless of
+ * how many color/style escapes it emits.
+ */
+static int status_row_visible_cols(const char *src) {
+	char *plain = strdup(src);
+	if (plain == NULL) {
+		return -1;
+	}
+	size_t w = 0;
+	for (size_t r = 0; src[r] != '\0';) {
+		if (src[r] == '\x1b' && src[r + 1] == '[') {
+			r += 2;
+			while (src[r] != '\0' && (src[r] < 0x40 || src[r] > 0x7E)) {
+				r++;
+			}
+			if (src[r] != '\0') {
+				r++;
+			}
+			continue;
+		}
+		plain[w++] = src[r++];
+	}
+	plain[w] = '\0';
+	int cols = editorDisplayTextCols(plain);
+	free(plain);
+	return cols;
+}
+
+/*
+ * The ahead/behind markers use multi-byte ↑/↓ glyphs, so the right segment's
+ * byte length overstates its width. The status background must still reach the
+ * right edge: the rendered row must be exactly window_cols display columns.
+ */
+static int test_editor_refresh_screen_status_bar_fills_width_with_ahead_behind(void) {
+	add_row("body");
+	E.window_rows = 3;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("file.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.git_branch = strdup("main");
+	ASSERT_TRUE(E.git_branch != NULL);
+	E.git_entry_count = 3; /* uncommitted changes -> "+" dirty marker */
+	E.git_ahead = 2;
+	E.git_behind = 1;
+
+	struct writeBuf wb = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawStatusBar(&wb, 100));
+	ASSERT_TRUE(wb.b != NULL);
+	/* editorDrawStatusBar ends the row with a trailing CRLF; drop it. */
+	ASSERT_TRUE(wb.len >= 2);
+	wb.b[wb.len - 2] = '\0';
+	ASSERT_TRUE(strstr(wb.b, "\xE2\x86\x91"
+	                         "2") != NULL); /* ↑2 present */
+	ASSERT_TRUE(strstr(wb.b, "\xE2\x86\x93"
+	                         "1") != NULL); /* ↓1 present */
+	ASSERT_EQ_INT(E.window_cols, status_row_visible_cols(wb.b));
+	wbFree(&wb);
+	return 0;
+}
+
 static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void) {
 	ASSERT_TRUE(editorTabsInit());
 	E.filename = strdup("/tmp/aaaaaaaaaaabbbbbbbbbbbccccccccccc");
@@ -1348,6 +1415,8 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_refresh_screen_status_bar_input_segment},
         {"editor_refresh_screen_status_bar_input_segment_truncates",
          test_editor_refresh_screen_status_bar_input_segment_truncates},
+        {"editor_refresh_screen_status_bar_fills_width_with_ahead_behind",
+         test_editor_refresh_screen_status_bar_fills_width_with_ahead_behind},
         {"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols",
          test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
 };

@@ -819,6 +819,181 @@ static int test_editor_syntax_vue_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_helm_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/helm/highlight.helm", 26, UINT64_C(0x6d6db7e91b4e359f)},
+	        {"tests/syntax/supported/helm/contract.helm", 79, UINT64_C(0x52bf24ccce20f507)},
+	        {"tests/syntax/supported/helm/incomplete.helm", 12, UINT64_C(0xfa6588f7679f8090)},
+	        {"tests/syntax/supported/helm/injections.helm", 36, UINT64_C(0x269059bc70028783)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_HELM, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_dockerfile_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/dockerfile/highlight.dockerfile", 31,
+	         UINT64_C(0xe626ad5e5752df12)},
+	        {"tests/syntax/supported/dockerfile/contract.dockerfile", 101,
+	         UINT64_C(0xab80d0d4cf846242)},
+	        {"tests/syntax/supported/dockerfile/incomplete.dockerfile", 9,
+	         UINT64_C(0x0ca7981c9afac19f)},
+	        {"tests/syntax/supported/dockerfile/injections.dockerfile", 57,
+	         UINT64_C(0x2cf7b1d938338970)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_DOCKERFILE, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_clojure_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/clojure/highlight.clj", 44, UINT64_C(0xaeb674bf69e0f068)},
+	        {"tests/syntax/supported/clojure/contract.clj", 129, UINT64_C(0x1f96edd1f2e0b503)},
+	        {"tests/syntax/supported/clojure/incomplete.clj", 4, UINT64_C(0xf28edcedca28ddbb)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_CLOJURE, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_r_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/r/highlight.R", 140, UINT64_C(0x621c666e55adf106)},
+	        {"tests/syntax/supported/r/contract.R", 409, UINT64_C(0x4d56ef09190fba30)},
+	        {"tests/syntax/supported/r/incomplete.R", 31, UINT64_C(0x3b7742d4ffd9eba5)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_R, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_gdscript_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/gdscript/highlight.gd", 52, UINT64_C(0x28abe71543590a41)},
+	        {"tests/syntax/supported/gdscript/contract.gd", 405, UINT64_C(0xc3a4c46e6844f361)},
+	        {"tests/syntax/supported/gdscript/incomplete.gd", 18, UINT64_C(0xb62ce11e513d3563)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_GDSCRIPT, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_zig_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/zig/highlight.zig", 97, UINT64_C(0x3ad2058e66ad7584)},
+	        {"tests/syntax/supported/zig/contract.zig", 452, UINT64_C(0x37881fb2dbd9d07a)},
+	        {"tests/syntax/supported/zig/incomplete.zig", 28, UINT64_C(0x34b5b1548e1ab9e1)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_ZIG, source, cases[i].count,
+		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_swift_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/swift/highlight.swift", 78, UINT64_C(0xddabc635785bb294)},
+	        {"tests/syntax/supported/swift/contract.swift", 390, UINT64_C(0xb0cf032bd1da04d2)},
+	        {"tests/syntax/supported/swift/incomplete.swift", 18, UINT64_C(0xfc1279a50124bd4d)},
+	        {"tests/syntax/supported/swift/injections.swift", 43, UINT64_C(0x52247974122af562)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SWIFT, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_cpp_capture_contract(void) {
 	static const struct {
 		const char *path;
@@ -839,6 +1014,104 @@ static int test_editor_syntax_cpp_capture_contract(void) {
 		ASSERT_TRUE(source_len == strlen(source));
 		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_CPP, source, cases[i].count,
 		                                          cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_perl_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/perl/highlight.pl", 81, UINT64_C(0xcbfd2963fd9311bf)},
+	        {"tests/syntax/supported/perl/contract.pl", 253, UINT64_C(0x443fa63aad218eba)},
+	        {"tests/syntax/supported/perl/incomplete.pl", 9, UINT64_C(0xfb8a233beaae8152)},
+	        {"tests/syntax/supported/perl/injections.pl", 40, UINT64_C(0xba2bacc4e374cf75)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_PERL, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_scheme_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/scheme/highlight.scm", 179, UINT64_C(0x85835d5a2d3d4778)},
+	        {"tests/syntax/supported/scheme/contract.scm", 455, UINT64_C(0xe2df82d1dee198e3)},
+	        {"tests/syntax/supported/scheme/incomplete.scm", 28, UINT64_C(0xced261a9e2e2077e)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_SCHEME, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_erlang_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/erlang/highlight.erl", 142, UINT64_C(0x080954d1bb540c5f)},
+	        {"tests/syntax/supported/erlang/contract.erl", 235, UINT64_C(0xc699a5936421b8f2)},
+	        {"tests/syntax/supported/erlang/incomplete.erl", 41, UINT64_C(0xe1218664a9bff7e6)},
+	        {"tests/syntax/supported/erlang/sigil.erl", 53, UINT64_C(0xe8aacf529350221a)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_ERLANG, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
+static int test_editor_syntax_elixir_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/elixir/highlight.ex", 129, UINT64_C(0x269b38c15d189e0d)},
+	        {"tests/syntax/supported/elixir/contract.ex", 450, UINT64_C(0xafd446743afcb55b)},
+	        {"tests/syntax/supported/elixir/incomplete.ex", 21, UINT64_C(0x86d27648bbe5eb91)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_ELIXIR, source,
+		                                          cases[i].count, cases[i].digest);
 		free(source);
 		ASSERT_EQ_INT(0, result);
 	}
@@ -1184,6 +1457,18 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_kotlin_capture_contract", test_editor_syntax_kotlin_capture_contract},
         {"editor_syntax_svelte_capture_contract", test_editor_syntax_svelte_capture_contract},
         {"editor_syntax_vue_capture_contract", test_editor_syntax_vue_capture_contract},
+        {"editor_syntax_helm_capture_contract", test_editor_syntax_helm_capture_contract},
+        {"editor_syntax_dockerfile_capture_contract",
+         test_editor_syntax_dockerfile_capture_contract},
+        {"editor_syntax_clojure_capture_contract", test_editor_syntax_clojure_capture_contract},
+        {"editor_syntax_r_capture_contract", test_editor_syntax_r_capture_contract},
+        {"editor_syntax_gdscript_capture_contract", test_editor_syntax_gdscript_capture_contract},
+        {"editor_syntax_zig_capture_contract", test_editor_syntax_zig_capture_contract},
+        {"editor_syntax_swift_capture_contract", test_editor_syntax_swift_capture_contract},
+        {"editor_syntax_perl_capture_contract", test_editor_syntax_perl_capture_contract},
+        {"editor_syntax_scheme_capture_contract", test_editor_syntax_scheme_capture_contract},
+        {"editor_syntax_erlang_capture_contract", test_editor_syntax_erlang_capture_contract},
+        {"editor_syntax_elixir_capture_contract", test_editor_syntax_elixir_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",

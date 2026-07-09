@@ -1,0 +1,11 @@
+diff --git a/vendor/tree_sitter/grammars/xml/src/scanner.c b/vendor/tree_sitter/grammars/xml/src/scanner.c
+index 894f706..0d7e445 100644
+--- a/vendor/tree_sitter/grammars/xml/src/scanner.c
++++ b/vendor/tree_sitter/grammars/xml/src/scanner.c
+@@ -1,5 +1,5 @@
+ #define TS_XML
+-#include "../../common/scanner.h"
++#include "../common/scanner.h"
+ #include "tree_sitter/array.h"
+ 
+ #include <string.h>

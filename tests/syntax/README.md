@@ -16,6 +16,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/css/` maps to `EDITOR_SYNTAX_CSS`
 - `supported/diff/` maps to `EDITOR_SYNTAX_DIFF`
 - `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
+- `supported/erlang/` maps to `EDITOR_SYNTAX_ERLANG`
 - `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
 - `supported/glsl/` maps to `EDITOR_SYNTAX_GLSL`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`
@@ -32,6 +33,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
 - `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
+- `supported/perl/` maps to `EDITOR_SYNTAX_PERL`
 - `supported/php/` maps to `EDITOR_SYNTAX_PHP`
 - `supported/python/` maps to `EDITOR_SYNTAX_PYTHON`
 - `supported/regex/` maps to `EDITOR_SYNTAX_REGEX`
@@ -42,6 +44,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
 - `supported/vue/` maps to `EDITOR_SYNTAX_VUE`
+- `supported/helm/` maps to `EDITOR_SYNTAX_HELM`
 - `supported/xml/` maps to `EDITOR_SYNTAX_XML`
 
 Notes:
@@ -72,12 +75,17 @@ Notes:
   - Vue: `<script>` bodies as JavaScript, `<style>` bodies as CSS, and
     `{{ ... }}` interpolation expressions as JavaScript, layered on the HTML
     markup grammar Vue extends.
+  - Helm: the literal chart body between `{{ ... }}` Go-template actions is
+    combined and injected as YAML, so the surrounding manifest still
+    highlights while the template actions are colored by the helm grammar.
   - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB: same shape as EJS, with `code` injected as Ruby.
   - Markdown: fenced code blocks routed by their info-string (e.g.
     ```` ```python ```` -> Python), plus the inline grammar overlay for
     emphasis, links, and code spans inside paragraphs.
+  - Perl: evaluated substitution replacements reparse as Perl, and heredoc
+    terminators dynamically select registered languages such as HTML.
 - Git diff tabs use `EDITOR_SYNTAX_DIFF` directly; they do not rely on a
   filename extension because generated diff tabs are read-only buffers with
   display titles instead of real file paths.

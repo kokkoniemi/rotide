@@ -66,3 +66,20 @@ svelte_highlight          vendor/tree_sitter/grammars/html/queries/highlights.sc
 svelte_injection          src/language/queries/svelte/injections.scm
 vue_highlight             vendor/tree_sitter/grammars/html/queries/highlights.scm src/language/queries/vue/highlights.scm
 vue_injection             src/language/queries/vue/injections.scm
+helm_highlight            src/language/queries/helm/highlights.scm
+helm_injection            src/language/queries/helm/injections.scm
+dockerfile_highlight      vendor/tree_sitter/grammars/dockerfile/queries/highlights.scm
+dockerfile_injection      vendor/tree_sitter/grammars/dockerfile/queries/injections.scm
+clojure_highlight         src/language/queries/clojure/highlights.scm
+r_highlight               vendor/tree_sitter/grammars/r/queries/highlights.scm
+r_locals                  vendor/tree_sitter/grammars/r/queries/locals.scm
+gdscript_highlight        src/language/queries/gdscript/highlights.scm
+zig_highlight             src/language/queries/zig/highlights.scm
+swift_highlight           vendor/tree_sitter/grammars/swift/queries/highlights.scm
+swift_injection           vendor/tree_sitter/grammars/swift/queries/injections.scm
+perl_highlight            vendor/tree_sitter/grammars/perl/queries/highlights.scm
+perl_injection            vendor/tree_sitter/grammars/perl/queries/injections.scm
+scheme_highlight          vendor/tree_sitter/grammars/scheme/queries/highlights.scm
+erlang_highlight          vendor/tree_sitter/grammars/erlang/queries/highlights.scm
+elixir_highlight          vendor/tree_sitter/grammars/elixir/queries/highlights.scm
+elixir_injection          vendor/tree_sitter/grammars/elixir/queries/injections.scm

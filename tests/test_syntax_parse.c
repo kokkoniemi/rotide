@@ -994,6 +994,32 @@ static int test_editor_syntax_incremental_edits_keep_hcl_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_helm_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-helm-XXXXXX.tpl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/helm/incremental.helm"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HELM, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 12;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_lua_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-lua-XXXXXX.lua";
 	ASSERT_TRUE(
@@ -1110,6 +1136,265 @@ static int test_editor_syntax_incremental_edits_keep_vue_tree_valid(void) {
 
 	E.cy = 5;
 	E.cx = 4;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_dockerfile_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-dockerfile-XXXXXX.dockerfile";
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        path, 11, "tests/syntax/supported/dockerfile/incremental.dockerfile"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DOCKERFILE, editorSyntaxLanguageActive());
+
+	E.cy = 4;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_clojure_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-clojure-XXXXXX.clj";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/clojure/incremental.clj"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CLOJURE, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 8;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_r_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-r-XXXXXX.R";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/r/incremental.R"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_R, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 5;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_perl_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-perl-XXXXXX.pl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/perl/incremental.pl"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERL, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 5;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_scheme_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-scheme-XXXXXX.scm";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/scheme/incremental.scm"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SCHEME, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 6;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_erlang_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-erlang-XXXXXX.erl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/erlang/incremental.erl"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 4;
+	editorInsertChar('Z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_elixir_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-elixir-XXXXXX.ex";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/elixir/incremental.ex"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ELIXIR, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 6;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_swift_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-swift-XXXXXX.swift";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
+	                                       "tests/syntax/supported/swift/incremental.swift"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SWIFT, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 5;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_zig_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-zig-XXXXXX.zig";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/zig/incremental.zig"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ZIG, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 5;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_gdscript_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-gdscript-XXXXXX.gd";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+	                                       "tests/syntax/supported/gdscript/incremental.gd"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GDSCRIPT, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 5;
 	editorInsertChar('z');
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	editorDelChar();
@@ -1252,12 +1537,34 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_bibtex_tree_valid},
         {"editor_syntax_incremental_edits_keep_hcl_tree_valid",
          test_editor_syntax_incremental_edits_keep_hcl_tree_valid},
+        {"editor_syntax_incremental_edits_keep_helm_tree_valid",
+         test_editor_syntax_incremental_edits_keep_helm_tree_valid},
         {"editor_syntax_incremental_edits_keep_lua_tree_valid",
          test_editor_syntax_incremental_edits_keep_lua_tree_valid},
         {"editor_syntax_incremental_edits_keep_glsl_tree_valid",
          test_editor_syntax_incremental_edits_keep_glsl_tree_valid},
         {"editor_syntax_incremental_edits_keep_kotlin_tree_valid",
          test_editor_syntax_incremental_edits_keep_kotlin_tree_valid},
+        {"editor_syntax_incremental_edits_keep_dockerfile_tree_valid",
+         test_editor_syntax_incremental_edits_keep_dockerfile_tree_valid},
+        {"editor_syntax_incremental_edits_keep_clojure_tree_valid",
+         test_editor_syntax_incremental_edits_keep_clojure_tree_valid},
+        {"editor_syntax_incremental_edits_keep_gdscript_tree_valid",
+         test_editor_syntax_incremental_edits_keep_gdscript_tree_valid},
+        {"editor_syntax_incremental_edits_keep_zig_tree_valid",
+         test_editor_syntax_incremental_edits_keep_zig_tree_valid},
+        {"editor_syntax_incremental_edits_keep_swift_tree_valid",
+         test_editor_syntax_incremental_edits_keep_swift_tree_valid},
+        {"editor_syntax_incremental_edits_keep_perl_tree_valid",
+         test_editor_syntax_incremental_edits_keep_perl_tree_valid},
+        {"editor_syntax_incremental_edits_keep_scheme_tree_valid",
+         test_editor_syntax_incremental_edits_keep_scheme_tree_valid},
+        {"editor_syntax_incremental_edits_keep_erlang_tree_valid",
+         test_editor_syntax_incremental_edits_keep_erlang_tree_valid},
+        {"editor_syntax_incremental_edits_keep_elixir_tree_valid",
+         test_editor_syntax_incremental_edits_keep_elixir_tree_valid},
+        {"editor_syntax_incremental_edits_keep_r_tree_valid",
+         test_editor_syntax_incremental_edits_keep_r_tree_valid},
         {"editor_syntax_incremental_edits_keep_svelte_tree_valid",
          test_editor_syntax_incremental_edits_keep_svelte_tree_valid},
         {"editor_syntax_incremental_edits_keep_vue_tree_valid",
