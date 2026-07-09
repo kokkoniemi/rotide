@@ -4,7 +4,6 @@ Regenerate:
 
 ```bash
 make docs-media
-make docs-media DOCS_MEDIA_FLAGS=--skip-lsp
 ```
 
 ## Features
