@@ -23,7 +23,7 @@ Use for Tree-sitter activation, query wiring, incremental parse behavior, and sy
 - Keep broad behavior-preserving style and complexity cleanup separate from
   syntax feature changes.
 - New file-local helpers follow the module prefix in
-  `docs/module-prefixes.md` once the naming migration is accepted.
+  `tools/module-prefixes.tsv`.
 
 ## Vendoring a new grammar
 

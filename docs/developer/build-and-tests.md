@@ -16,8 +16,6 @@ make test-sanitize
 make test-tsan
 make test-determinism
 make test-crash-handler
-make test-quarantine-age
-make test-quarantine-passing
 make bench
 make bench-buffer
 make bench-render-once
@@ -50,11 +48,6 @@ make docs-diagrams
   `CRASH` line, writes the artifact under
   `tests/artifacts/crashes/<suite>/<test>.crash`, and exits non-zero.
   Use this whenever the crash-handler code path changes.
-- `make test-quarantine-age`: fails if an active
-  `tests/QUARANTINE.md` entry is older than the configured window
-  (`ROTIDE_QUARANTINE_MAX_AGE_DAYS`, default 30).
-- `make test-quarantine-passing`: runs the quarantined set with
-  `--no-quarantine` and fails if any quarantined test now passes.
 - `make bench`: runs `build/tests/rotide_bench` microbenches and prints
   min/p50/p95/IQR nanoseconds.
 - `make bench-buffer`: runs storage throughput/RSS checks.
@@ -99,10 +92,6 @@ make docs-diagrams
 - `--update-golden [path]`: make `ASSERT_GRID_EQ` mismatches append to a
   stash instead of failing. The default path is
   `tests/artifacts/goldens.jsonl`; pair with `make update-goldens`.
-- `--no-quarantine` / `--quarantine <path>`: bypass or override
-  `tests/QUARANTINE.md`. The nightly CI run should use
-  `--no-quarantine` so flakes that have started passing again surface
-  loudly.
 
 If LeakSanitizer is flaky locally:
 

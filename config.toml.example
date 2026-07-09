@@ -1,6 +1,7 @@
 # Rotide global config.
 # Lives at ~/.rotide/config.toml. Auto-created on first launch.
-# Project-local config files are intentionally not loaded.
+# A project-local <project>/.rotide.toml is read only for [input], [keymap.cua],
+# [keymap.vim], and [dap.launch.*]; every other section here is global-only.
 # This file is the canonical reference; every value below mirrors the
 # built-in default. Edit values to customize.
 
@@ -450,9 +451,10 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # Leader sequences (Normal mode): "<leader>" then one key runs an editor action.
 # Set the leader key with "normal.leader" (default "space"; "space" and a literal
 # " " both work). Bind sub-keys with "leader.<command>". Built-in leader commands:
-#   find_file (default "p"), project_search ("f"), toggle_drawer ("e"),
-#   main_menu ("m"), git_drawer ("g"), git_blame_details (unbound by default;
-#   Normal mode uses "gb"). Sub-keys relocate like other commands. The Git
+#   find_file (default "p"), project_search ("f"), explorer_drawer ("e"),
+#   main_menu ("m"), git_drawer ("g"), lsp_drawer ("l"), dap_drawer ("d"),
+#   toggle_drawer and git_blame_details (both unbound by default; Normal mode
+#   uses "gb" for blame). Sub-keys relocate like other commands. The Git
 #   views open from inside the Git drawer (B/L/S or the Actions rows).
 #
 # Built-in Vim window commands are not configurable yet: Ctrl-W s/v splits,

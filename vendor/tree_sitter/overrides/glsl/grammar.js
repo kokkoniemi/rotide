@@ -1,20 +1,6 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-// Rotide permissive GLSL grammar. Replaces the upstream
-// tree-sitter-grammars/tree-sitter-glsl v0.2.0 grammar (which extends the full
-// C grammar and produces a 5.5 MB parser.c → ~900 KB object) with a
-// self-contained highlight-only grammar. Keeps the nodes/fields our
-// highlights.scm consumes:
-//   identifier, comment, preproc_directive, string_literal, system_lib_string,
-//   null, number_literal, char_literal,
-//   call_expression.function, field_expression.field, field_identifier,
-//   function_declarator.declarator, preproc_function_def.name,
-//   statement_identifier, type_identifier, primitive_type,
-//   sized_type_specifier, extension_storage_class,
-// plus every C / GLSL keyword and operator anonymous token the query lists.
-// No external scanner — GLSL has none.
-
 const C_KEYWORDS = [
   'break', 'case', 'const', 'continue', 'default', 'do', 'else', 'enum',
   'extern', 'for', 'if', 'inline', 'return', 'sizeof', 'static', 'struct',
@@ -97,20 +83,13 @@ module.exports = grammar({
       ...PREPROC_KEYWORDS,
     ),
 
-    // Comments
     comment: $ => token(choice(
       seq('//', /[^\r\n]*/),
       seq('/*', repeat(choice(/[^*]+/, /\*[^/]/)), optional('*/')),
     )),
 
-    // GLSL is a C-family language, so #version / #extension / #pragma lines
-    // surface as `preproc_directive` in the upstream grammar — the highlight
-    // rule catches those. Preserve the node name for the fallthrough case.
     preproc_directive: $ => token(seq('#', /[a-z]+/)),
 
-    // Full preprocessor line so `#pragma` etc. get colored via
-    // `(preproc_directive) @keyword`. Wrapped in a distinct rule so we can
-    // consume the identifier + args in one item.
     preproc_directive_line: $ => prec.right(seq(
       $.preproc_directive,
       repeat(choice($.identifier, $.number_literal, $.string_literal, $.system_lib_string, $._punctuation_token)),
@@ -124,10 +103,6 @@ module.exports = grammar({
       ')',
     )),
 
-    // GLSL-only: `#extension name : behavior` — we surface the whole tail as
-    // a single node so the highlight rule `(extension_storage_class)
-    // @keyword.storage` fires. The behavior word ("require", "enable", etc.)
-    // is folded in for simplicity.
     extension_storage_class: $ => prec(2, seq(
       '#extension',
       $.identifier,
@@ -135,9 +110,6 @@ module.exports = grammar({
       $.identifier,
     )),
 
-    // Call and field expressions. The `function:` and `field:` fields let the
-    // highlight query pin @function on both bare-identifier and
-    // `object.method(...)` call sites.
     call_expression: $ => prec.left(1, seq(
       field('function', choice($.identifier, $.field_expression)),
       '(',
@@ -154,9 +126,6 @@ module.exports = grammar({
       field('field', $.field_identifier),
     )),
 
-    // Function declaration: `type name(params)` — we only need the name to
-    // get @function, so match just `identifier ( ... )` when it looks like a
-    // declaration head. The prec keeps it distinct from a call.
     function_declarator: $ => prec(2, seq(
       field('declarator', $.identifier),
       '(',
@@ -164,19 +133,11 @@ module.exports = grammar({
       ')',
     )),
 
-    // Distinct identifier flavors. We can't tell types from variables from
-    // fields at parse time in a permissive grammar, so we lean on suffixes
-    // and syntactic hints. `type_identifier` matches names ending in `_t`
-    // (C convention), `field_identifier` and `statement_identifier` never
-    // fire from the rules but keep the node types present so the query
-    // compiles.
     type_identifier: $ => /[A-Za-z_][A-Za-z0-9_]*_t/,
 
     field_identifier: $ => token(prec(-1, /_ROTIDE_field_[A-Za-z0-9_]*/)),
     statement_identifier: $ => token(prec(-1, /_ROTIDE_stmt_[A-Za-z0-9_]*/)),
 
-    // GLSL primitive and sized type keywords. Matched as tokens so they emit
-    // named nodes the highlight query targets.
     primitive_type: $ => choice(...PRIMITIVE_TYPES),
     sized_type_specifier: $ => choice(...SIZED_TYPE_SPECIFIERS),
 
@@ -211,8 +172,6 @@ module.exports = grammar({
       '"',
     ),
 
-    // `#include <foo.h>` style. Kept even though GLSL does not use it, so
-    // (system_lib_string) @string in the query still resolves at compile time.
     system_lib_string: $ => token(seq('<', /[^>\r\n]*/, '>')),
 
     string_content: $ => token.immediate(prec(1, /[^"\\\n]+/)),

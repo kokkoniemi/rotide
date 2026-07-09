@@ -2,8 +2,10 @@
 
 These are the CUA system's bindings (`[input] system = "cua"`). The default
 system is Vim, whose modal keys (motions, operators, `:` ex commands, etc.) are
-summarized in [`docs/developer/input-systems.md`](../developer/input-systems.md);
-many of these chords (save/quit/tabs/drawer/panes) still apply in Vim too.
+summarized in [`docs/developer/input-systems.md`](../developer/input-systems.md).
+In Vim the system owns the Ctrl range, so the Ctrl chords below do not fire
+while editing (use `:w`, `:q`, the leader, etc. instead); the Alt chords and
+navigation keys still apply.
 
 - `Ctrl-S`: save
 - `Ctrl-Q`: quit, confirming when dirty or a task is running
@@ -13,15 +15,21 @@ many of these chords (save/quit/tabs/drawer/panes) still apply in Vim too.
 - `Ctrl-Shift-Alt-Left` / `-Right` / `-Up` / `-Down`: move the active tab to the neighbouring pane
 - `Ctrl-E`: toggle focus between editor and drawer
 - `Ctrl-B`: toggle the drawer (collapse/expand the sidebar)
-- `Alt-M`: open the main menu in the drawer
+- `Alt-M`: open the main menu in the drawer; `Ctrl-Alt-M`: context menu
 - `Ctrl-P`: search files in the drawer
 - `Ctrl-Alt-F`: search text across the project
-- `Ctrl-Alt-L`: show LSP Problems/Symbols drawer
-- `Ctrl-F`: search
+- `Ctrl-Alt-G` / `Ctrl-Alt-L` / `Ctrl-Alt-B`: open the Git / LSP
+  Problems-Symbols / Debugger drawer
+- `Ctrl-Alt-N` / `Ctrl-Alt-D` / `Ctrl-Alt-R` / `Ctrl-Alt-K`: create file /
+  create folder / rename / delete in the drawer
+- `Ctrl-F`: search; `Ctrl-R`: find and replace
 - `Ctrl-G`: go to line
 - `Ctrl-]`: jump to matching bracket
 - `Ctrl-O` / `Ctrl + left click`: go to definition for supported source buffers
+- `Alt-I` / `Alt-S`: go to implementation / go to symbol
 - `Alt-B`: show Git blame details for the current line
+- `Alt-C`: toggle line comment
+- `Alt-Up` / `Alt-Down`: move the current line up/down
 - `Alt-Z`: toggle soft line wrapping
 - `Alt-N`: toggle absolute line numbers
 - `Alt-H`: toggle current-line highlight
@@ -41,11 +49,12 @@ by one key:
 
 - `<leader>p`: search files by name
 - `<leader>f`: search text across the project
-- `<leader>e`: toggle the drawer (explorer)
+- `<leader>e`: open the explorer drawer (file tree)
 - `<leader>m`: open the main menu
 - `<leader>g`: open the Git drawer (`B`/`L`/`S` inside it open the Git views)
-- `leader.git_blame_details`: configurable Git blame details action; unbound by
-  default because Normal mode already uses `gb`
+- `<leader>l` / `<leader>d`: open the LSP Problems/Symbols / Debugger drawer
+- `leader.toggle_drawer` and `leader.git_blame_details`: bindable but unbound
+  by default (Normal mode already has `gb` for blame)
 
 The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
 configurable under `[keymap.vim]`; see `config.toml.example`.

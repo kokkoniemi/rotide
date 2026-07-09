@@ -1,18 +1,6 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-// Rotide permissive Kotlin grammar. Replaces the upstream
-// tree-sitter-grammars/tree-sitter-kotlin v1.1.0 grammar before parser
-// regeneration so highlight-only trees stay tiny (~3.5 MB object → ~200 KB).
-// Keeps the nodes/fields our highlights.scm consumes:
-//   identifier, line_comment, block_comment, number_literal, float_literal,
-//   character_literal, escape_sequence, string_literal,
-//   multiline_string_literal, string_content, user_type,
-//   function_declaration.name, class_declaration.name, object_declaration.name,
-// plus every keyword/operator anonymous token the query lists.
-// No external scanner — Kotlin semicolon-insertion is irrelevant to
-// highlighting; whitespace/newlines are just extras here.
-
 const KEYWORDS = [
   'package', 'import', 'class', 'interface', 'object', 'enum', 'annotation',
   'typealias', 'companion', 'constructor', 'init', 'fun', 'val', 'var', 'this',
@@ -65,8 +53,6 @@ module.exports = grammar({
       $.function_declaration,
       $._expression,
       $._punctuation_token,
-      // Filter out keywords that start declarations — they only appear at
-      // the head of class/object/function nodes.
       ...KEYWORDS.filter(k =>
         k !== 'class' && k !== 'interface' && k !== 'enum' &&
         k !== 'object' && k !== 'fun'),
@@ -76,11 +62,6 @@ module.exports = grammar({
     line_comment: $ => token(seq('//', /[^\r\n]*/)),
     block_comment: $ => token(seq('/*', repeat(choice(/[^*]+/, /\*[^/]/)), optional('*/'))),
 
-    // Declarations. Each production tags the identifier that comes right after
-    // the `class` / `object` / `fun` keyword so the highlight query can hit
-    // (function_declaration name: (identifier) @function) etc. The body is
-    // deliberately permissive — anything that fits as a top-level item is fine
-    // as a nested item too.
     class_declaration: $ => prec.right(seq(
       choice('class', 'interface', 'enum'),
       field('name', $.identifier),
@@ -99,9 +80,6 @@ module.exports = grammar({
       optional($._decl_tail),
     )),
 
-    // Everything after the header until the next top-level anchor is folded
-    // into the declaration node. Braces recurse via `_item`, so nested class
-    // bodies still surface their inner declaration/identifier nodes.
     _decl_tail: $ => prec.right(repeat1(choice(
       $.block,
       $._expression,
@@ -114,9 +92,6 @@ module.exports = grammar({
 
     block: $ => seq('{', repeat($._item), '}'),
 
-    // Expressions collapse into a permissive set of literals and identifier
-    // references. Precedence is unimportant — we only need a tree so highlights
-    // can pin captures to nodes.
     _expression: $ => choice(
       $.call_expression,
       $.user_type,
@@ -132,17 +107,8 @@ module.exports = grammar({
 
     arguments: $ => seq('(', optional(seq($._expression, repeat(seq(',', $._expression)))), ')'),
 
-    // Wraps a bare identifier used in type position so the highlight query
-    // `(user_type (identifier) @type)` matches. Rare in a permissive grammar
-    // (identifiers are ambiguous with call callees and expressions), so we
-    // gate emission behind an explicit `type:` token that never appears in
-    // real Kotlin source. This keeps the node type present so highlights.scm
-    // still compiles even though it will not fire in practice.
     user_type: $ => seq('__rotide_type__', $.identifier),
 
-    // Punctuation and operators surface as anonymous tokens the query picks
-    // up directly. Group them into a dummy `_punctuation_token` so they only
-    // appear at the same slots `_item` and `_decl_tail` mention them.
     _punctuation_token: $ => choice(
       ...OPERATORS,
       '(', ')', '[', ']',
@@ -150,7 +116,6 @@ module.exports = grammar({
       '@', ':',
     ),
 
-    // Literals
     number_literal: $ => token(choice(
       /0[xX][0-9a-fA-F][0-9a-fA-F_]*[uUlL]*/,
       /0[bB][01][01_]*[uUlL]*/,

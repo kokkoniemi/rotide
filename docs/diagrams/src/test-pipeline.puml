@@ -9,11 +9,6 @@ start
 (filter, tag, repeat, seed,
 jobs, metrics, golden update);
 :select tests;
-if (--no-quarantine?) then (yes)
-	:include quarantined tests;
-else (no)
-	:skip tests/QUARANTINE.md entries;
-endif
 :order by suite index
 (shuffle flag permutes the order);
 

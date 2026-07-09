@@ -33,16 +33,6 @@ jobs:
           path: tests/artifacts/
           if-no-files-found: ignore
 
-  quarantine-passing:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check no quarantined test now passes
-        run: make test-quarantine-passing
-
   bench:
     # Microbenches run nightly only — the runner is quieter at 03:17 UTC so
     # the p50/p95 history doesn't get drowned in contention noise. Both
