@@ -191,8 +191,8 @@ static const char *const k_zig_extensions[] = {".zig", NULL};
 static const char *const k_swift_extensions[] = {".swift", NULL};
 static const char *const k_perl_extensions[] = {".pl", ".pm", ".t", NULL};
 static const char *const k_scheme_extensions[] = {".scm", ".ss", ".sls", ".sld", ".sps", NULL};
-static const char *const k_erlang_extensions[] = {".erl", ".hrl", ".app", ".app.src", ".escript",
-                                                  NULL};
+static const char *const k_erlang_extensions[] = {".erl",     ".hrl",     ".app",
+                                                  ".app.src", ".escript", NULL};
 
 static const char *const k_html_injection_aliases[] = {"html",     "hamlet",  "xhamlet", "shamlet",
                                                        "xshamlet", "ihamlet", "hsx",     NULL};

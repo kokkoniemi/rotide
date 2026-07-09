@@ -1075,9 +1075,10 @@ static int test_editor_syntax_erlang_capture_contract(void) {
 		int count;
 		uint64_t digest;
 	} cases[] = {
-	        {"tests/syntax/supported/erlang/highlight.erl", 68, UINT64_C(0x0080d0e8a2530d28)},
-	        {"tests/syntax/supported/erlang/contract.erl", 109, UINT64_C(0x5ee7755729fa7ba4)},
-	        {"tests/syntax/supported/erlang/incomplete.erl", 23, UINT64_C(0xc70b26c5fd30daa6)},
+	        {"tests/syntax/supported/erlang/highlight.erl", 142, UINT64_C(0x080954d1bb540c5f)},
+	        {"tests/syntax/supported/erlang/contract.erl", 235, UINT64_C(0xc699a5936421b8f2)},
+	        {"tests/syntax/supported/erlang/incomplete.erl", 41, UINT64_C(0xe1218664a9bff7e6)},
+	        {"tests/syntax/supported/erlang/sigil.erl", 53, UINT64_C(0xe8aacf529350221a)},
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {

@@ -181,7 +181,7 @@
 
 ;; Punctuation
 ["," "." ";"] @punctuation.delimiter
-["(" ")" "{" "}" "[" "]" "<<" ">>"] @punctuation.bracket
+["(" ")" "{" "}" "[" "]" "<<" ">>" "#{"] @punctuation.bracket
 
 ;; Operators
 ["!"

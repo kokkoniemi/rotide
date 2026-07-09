@@ -885,8 +885,8 @@ static int test_editor_syntax_activation_for_scheme_files(void) {
 	static const char *const extensions[] = {"scm", "ss", "sls", "sld", "sps"};
 	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
 		char path[64];
-		int written = snprintf(path, sizeof(path), "/tmp/rotide-test-syntax-scheme-XXXXXX.%s",
-		                       extensions[i]);
+		int written = snprintf(path, sizeof(path),
+		                       "/tmp/rotide-test-syntax-scheme-XXXXXX.%s", extensions[i]);
 		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
 		ASSERT_TRUE(
 		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
@@ -906,8 +906,8 @@ static int test_editor_syntax_activation_for_erlang_files(void) {
 	static const char *const extensions[] = {"erl", "hrl", "app", "app.src", "escript"};
 	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
 		char path[80];
-		int written = snprintf(path, sizeof(path), "/tmp/rotide-test-syntax-erlang-XXXXXX.%s",
-		                       extensions[i]);
+		int written = snprintf(path, sizeof(path),
+		                       "/tmp/rotide-test-syntax-erlang-XXXXXX.%s", extensions[i]);
 		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
 		ASSERT_TRUE(
 		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,

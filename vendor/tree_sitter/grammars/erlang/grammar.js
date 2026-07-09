@@ -175,11 +175,13 @@ module.exports = grammar({
     string: _ => token(choice(
       seq('"""', repeat(choice(/[^"]/, /"[^"]/, /""[^"]/)), '"""'),
       seq('"', repeat(choice(/[^"\\\n]/, /\\./)), '"'),
-      seq(/[A-Za-z]*[qQ]?"/, repeat(choice(/[^"\\\n]/, /\\./)), '"'),
-      seq(/[A-Za-z]*[qQ]?\(/, /[^)]*/, ')'),
-      seq(/[A-Za-z]*[qQ]?\[/, /[^\]]*/, ']'),
-      seq(/[A-Za-z]*[qQ]?\{/, /[^}]*/, '}'),
-      seq(/[A-Za-z]*[qQ]?</, /[^>]*/, '>')
+      // Sigils (OTP 27+) require a leading `~`; without it these delimiter
+      // forms would swallow bare tuples, lists, maps, binaries, and parens.
+      seq(/~[A-Za-z]*"/, repeat(choice(/[^"\\\n]/, /\\./)), '"'),
+      seq(/~[A-Za-z]*\(/, /[^)]*/, ')'),
+      seq(/~[A-Za-z]*\[/, /[^\]]*/, ']'),
+      seq(/~[A-Za-z]*\{/, /[^}]*/, '}'),
+      seq(/~[A-Za-z]*</, /[^>]*/, '>')
     )),
     char: _ => token(seq('$', choice(/\\./, /[^\s]/))),
     integer: _ => token(choice(/[0-9]+#[0-9A-Za-z]+/, /[0-9]+/)),

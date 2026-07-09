@@ -2269,7 +2269,7 @@
             "members": [
               {
                 "type": "PATTERN",
-                "value": "[A-Za-z]*[qQ]?\""
+                "value": "~[A-Za-z]*\""
               },
               {
                 "type": "REPEAT",
@@ -2298,7 +2298,7 @@
             "members": [
               {
                 "type": "PATTERN",
-                "value": "[A-Za-z]*[qQ]?\\("
+                "value": "~[A-Za-z]*\\("
               },
               {
                 "type": "PATTERN",
@@ -2315,7 +2315,7 @@
             "members": [
               {
                 "type": "PATTERN",
-                "value": "[A-Za-z]*[qQ]?\\["
+                "value": "~[A-Za-z]*\\["
               },
               {
                 "type": "PATTERN",
@@ -2332,7 +2332,7 @@
             "members": [
               {
                 "type": "PATTERN",
-                "value": "[A-Za-z]*[qQ]?\\{"
+                "value": "~[A-Za-z]*\\{"
               },
               {
                 "type": "PATTERN",
@@ -2349,7 +2349,7 @@
             "members": [
               {
                 "type": "PATTERN",
-                "value": "[A-Za-z]*[qQ]?<"
+                "value": "~[A-Za-z]*<"
               },
               {
                 "type": "PATTERN",
