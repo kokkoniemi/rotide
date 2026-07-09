@@ -1,34 +1,6 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-// ---------------------------------------------------------------------------------------
-// RotIDE reduced R highlight grammar.
-//
-// This replaces the pinned r-lib/tree-sitter-r grammar before generation. RotIDE consumes
-// R trees only through the vendored highlight and locals queries, so this override keeps
-// exactly the nodes, fields, operators, literals, and error recovery those queries target
-// while dropping machinery that only matters for a faithful R AST.
-//
-// The two big size reductions versus upstream:
-//
-//   1. No external scanner. Upstream ships a 16-token external scanner that makes newlines
-//      and `;` statement separators, matches raw strings, and emits bracket tokens so the
-//      parser can consume newlines inside `(`/`[`. Highlighting does not depend on any of
-//      that, so here newlines and semicolons are plain whitespace/separators, brackets are
-//      literals, and raw strings are a single regex token. Refresh removes the upstream
-//      `scanner.c` because this grammar declares no externals.
-//
-//   2. The operator precedence table is preserved so real R still parses without spurious
-//      ERROR nodes (which would wreck highlighting), but all the `repeat($._newline)`
-//      states scattered through the upstream rules are gone.
-//
-// Because newlines are no longer significant, this grammar is intentionally more lenient
-// than R: it happily parses across line breaks. That only ever produces a *more* connected
-// tree, never a worse-highlighted one.
-// ---------------------------------------------------------------------------------------
-
-// Higher RANK binds tighter. Mirrors R's operator precedence closely enough that ordinary
-// scripts parse into the same node/field shapes the queries expect.
 const PREC = {
   HELP: { ASSOC: prec.left, RANK: 1 },
   FUNCTION_OR_LOOP: { ASSOC: prec.left, RANK: 2 },
@@ -55,7 +27,6 @@ const PREC = {
 module.exports = grammar({
   name: 'r',
 
-  // Newlines carry no meaning in this reduced grammar, so they are ordinary whitespace.
   extras: $ => [$.comment, /\s/],
 
   inline: $ => [$._identifier, $._string_or_identifier],
@@ -63,7 +34,6 @@ module.exports = grammar({
   word: $ => $.identifier,
 
   rules: {
-    // `;` is an accepted-but-ignored statement separator.
     program: $ => repeat(choice($._expression, ';')),
 
     function_definition: $ => withPrec(PREC.FUNCTION_OR_LOOP, seq(
@@ -259,7 +229,6 @@ module.exports = grammar({
       ))));
     },
 
-    // Numeric literals.
     integer: $ => seq($._float_literal, 'L'),
     complex: $ => seq($._float_literal, 'i'),
     float: $ => $._float_literal,
@@ -267,8 +236,6 @@ module.exports = grammar({
     _number_literal: $ => /(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d*)?/,
     _float_literal: $ => choice($._hex_literal, $._number_literal),
 
-    // Strings. Raw strings (`r"(...)"`) become a single-line regex token; the quoted forms
-    // keep their string_content/escape_sequence structure so `@string.escape` still fires.
     string: $ => choice(
       $._raw_string,
       seq(
@@ -322,7 +289,6 @@ module.exports = grammar({
       $.null,
     )),
 
-    // Keywords / reserved constants.
     next: $ => 'next',
     break: $ => 'break',
     true: $ => 'TRUE',

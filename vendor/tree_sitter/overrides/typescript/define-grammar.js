@@ -1,3 +1,5 @@
+/// <reference types="tree-sitter-cli/dsl" />
+// @ts-check
 const JavaScript = require('../node_modules/tree-sitter-javascript/grammar');
 
 module.exports = function defineGrammar(dialect) {

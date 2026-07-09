@@ -1,43 +1,6 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-// ---------------------------------------------------------------------------------------
-// RotIDE reduced Swift highlight grammar.
-//
-// This replaces the pinned alex-pinkus/tree-sitter-swift grammar before generation.
-// RotIDE consumes Swift trees only through the vendored highlight and injection queries,
-// so this override keeps exactly the nodes, fields, keywords, operators, literals, and
-// string/regex internals those queries target while dropping the machinery that only
-// matters for a faithful Swift AST.
-//
-// The big size reductions versus upstream:
-//
-//   1. No external scanner. Upstream ships a stateful C scanner for nested block
-//      comments, `#`-balanced raw strings, and newline-as-implicit-semicolon lookahead
-//      (plus a dozen semi-suppressing operator tokens). Here block comments are a single
-//      non-nesting token, raw strings are matched with regex tokens (single-line, the
-//      closing `#` count is not balance-checked), and statement separation uses the
-//      tree-sitter-go newline trick described at `extras` below. Refresh removes the
-//      upstream `scanner.c` because this grammar declares no externals.
-//
-//   2. A collapsed expression grammar. Upstream models every Swift operator tier as its
-//      own GLR-heavy rule, which is where most of its 20 MB parser table comes from.
-//      Highlighting only needs the postfix shapes the queries match (navigation, call,
-//      prefix), so all infix forms collapse into one flat rule.
-//
-//   3. Funneled containers. Call arguments, subscripts, tuples, array/dictionary
-//      literals, string interpolations, and the `#selector`-style bodies all route
-//      through one value_argument list; every type annotation shares one `: type` rule;
-//      declaration signatures and type-declaration headers are loose element loops
-//      instead of ordered optionals. Each distinct expression/type context otherwise
-//      costs hundreds of LR states.
-//
-// Known degradations versus upstream, all confined to token shapes or rare constructs:
-// nested block comments end at the first `*/`, raw strings are single-line and do not
-// balance `#` counts, multiline regex literals are not modeled, attribute arguments are
-// a shallow token soup, and accessor-level attributes are not modeled.
-// ---------------------------------------------------------------------------------------
-
 const DEC_DIGITS = token(sep1(/[0-9]+/, /_+/));
 const HEX_DIGITS = token(sep1(/[0-9a-fA-F]+/, /_+/));
 const OCT_DIGITS = token(sep1(/[0-7]+/, /_+/));
@@ -49,28 +12,15 @@ const RAW_STR_CONTENT_CHAR = choice(/[^"\\\r\n]/, /\\[^#\r\n]/, /"[^#"\\\r\n]/);
 const RAW_STR_CONTENT = repeat(RAW_STR_CONTENT_CHAR);
 const RAW_STR_CONTENT_NONEMPTY = repeat1(RAW_STR_CONTENT_CHAR);
 
-// Token-level precedence mirrors upstream where the lexer has to arbitrate:
-// comments beat the `/` operator and regex literals; regex literals sit below
-// everything else so `/` only becomes a regex when nothing better matches.
 const TOKEN_PRECS = {
   comment: -3,
   regex: -4,
 };
 
-// Rule precedence. Higher binds tighter. The exact tiering is unimportant for
-// highlighting (captures ride on tokens and postfix shapes), it just has to be
-// self-consistent so LR generation stays small.
 const PRECS = {
-  // Prefix outranks navigation/call so `.foo` reduces before a `(` or `.`
-  // extends it; that is what makes `.foo()` come out as
-  // (call_expression (prefix_expression (simple_identifier))) like upstream.
   prefix: 16,
   navigation: 15,
   postfix: 13,
-  // Exactly ties the hidden `_expression → _postfix_expression` reduce so
-  // `expr • {` is a declared GLR fork: the trailing-lambda call and the
-  // "expression finished, `{` belongs to the statement/willSet block" parses
-  // both proceed and the error-free one wins.
   call: 0,
   binary: 3,
   expr: -1,
@@ -79,56 +29,28 @@ const PRECS = {
   switch: -1,
   do: -1,
   block: 2,
-  // Ties the hidden _expression chain reduce for the same `expr • {` fork.
   lambda: 0,
 };
 
 module.exports = grammar({
   name: 'swift',
 
-  // /\s/ must stay single-character: a newline in statement-separator position
-  // is shifted as the explicit '\n' token (string beats regex on the
-  // same-length tie), anywhere else it is skipped as whitespace. This is the
-  // tree-sitter-go trick, and it replaces upstream's implicit-semicolon
-  // external scanner: without required separators, every after-expression
-  // state must admit both "expression continues" and "new statement starts",
-  // which roughly doubles the parse table.
   extras: $ => [$.comment, $.multiline_comment, /\s/],
 
   conflicts: $ => [
-    // `foo(...) { ... }` / `foo { ... }`: trailing-lambda call vs. the block of
-    // the enclosing if/for/while statement (GLR sorts it out, like upstream).
     [$.call_suffix],
-    // `expr • {`: finishing the expression (an if/guard condition or an
-    // initializer before a willSet block) versus starting a trailing-lambda
-    // call; fork and let the surviving parse win.
     [$._expression, $.call_expression],
-    // `foo(with:and:)` reference vs. `foo(with: x, and: y)` call arguments.
     [$.value_argument],
-    // `case foo` / `case .foo`: a switch pattern and an expression look alike.
     [$.pattern, $._primary_expression],
     [$._case_dot_pattern, $._primary_expression],
-    // `case Direction.north`: the head identifier may be a bound name or the
-    // user_type qualifier of a dot pattern.
     [$.pattern, $._simple_user_type],
-    // `{ (a: b, ...`: an identifier after a label may be a lambda parameter
-    // type or a labeled tuple value (upstream's [_simple_user_type, _expression]).
     [$._primary_expression, $._simple_user_type],
-    // `{ [weak self] in` capture list vs. `{ [1, 2] ... }` array literal.
     [$.capture_list_item, $._primary_expression],
-    // `{ x, y in` lambda parameters vs. `{ x }` expression statement, and
-    // `{ (a, b) in` vs. a tuple-shaped expression statement.
     [$._lambda_parameters, $._primary_expression],
     [$._lambda_parameters, $.value_arguments],
-    // Adjacent modifier keywords fold into one repeat1.
     [$.modifiers],
-    // `foo<...>(...)` generic constructor vs. `foo < bar` comparison.
     [$._primary_expression],
-    // `throws(E)` typed throws vs. bare `throws` followed by a parenthesized
-    // expression/tuple.
     [$.throws, $._throws_clause],
-    // `catch Module.Error.case(...)`: where the dotted user_type qualifier
-    // stops and the pattern's `.case` begins (upstream declares the same).
     [$.user_type],
   ],
 
@@ -138,11 +60,8 @@ module.exports = grammar({
     shebang_line: $ => token(/#![^\r\n]*/),
 
     comment: $ => token(prec(TOKEN_PRECS.comment, seq('//', /.*/))),
-    // Non-nesting approximation of upstream's scanner-matched nested comments.
     multiline_comment: $ =>
       token(prec(TOKEN_PRECS.comment, seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
-
-    // ==== Statements =====================================================
 
     statements: $ => prec.right(seq(
       $._statement,
@@ -175,9 +94,6 @@ module.exports = grammar({
       ),
     ),
 
-    // Not a single token: `default:` / `case ...:` must win the lex race via
-    // keyword-over-identifier preference, which a longer label token would
-    // defeat.
     statement_label: $ => seq($.simple_identifier, token.immediate(':')),
 
     _control_transfer_statement: $ => prec.right(seq(
@@ -206,7 +122,6 @@ module.exports = grammar({
       $._block,
     )),
 
-    // Shared by if/guard/while so the condition automaton exists once.
     _condition_clause: $ => sep1(field('condition', $._condition), ','),
 
     _condition: $ => choice(
@@ -215,7 +130,6 @@ module.exports = grammar({
       $.availability_condition,
     ),
 
-    // `case let x` reaches the let/var prefix through pattern itself.
     _binding_condition: $ => seq(
       choice('case', 'let', 'var'),
       $.pattern,
@@ -287,8 +201,6 @@ module.exports = grammar({
 
     _switch_pattern: $ => choice(prec.dynamic(1, $.pattern), $._expression),
 
-    // Token soup: the whole node paints as one @function.macro span, so the
-    // platform/version list needs no expression machinery.
     availability_condition: $ => seq(
       token(choice('#available', '#unavailable')),
       '(',
@@ -296,16 +208,12 @@ module.exports = grammar({
       ')',
     ),
 
-    // Single-token compiler directives: RotIDE paints the whole node, so the
-    // structured condition upstream parses is unnecessary.
     directive: $ => token(seq(choice('#if', '#elseif', '#else', '#endif'), /[^\r\n]*/)),
     diagnostic: $ => token(seq('#', choice(
       seq('error', /[^\r\n]*/),
       seq('warning', /[^\r\n]*/),
       seq('sourceLocation', /[^\r\n]*/),
     ))),
-
-    // ==== Patterns =======================================================
 
     pattern: $ => prec.right(choice(
       $.wildcard_pattern,
@@ -330,14 +238,6 @@ module.exports = grammar({
       ')',
     ),
 
-    // ==== Declarations ===================================================
-
-    // Declarations do NOT own their modifiers here: a modifiers run precedes
-    // the declaration inside the statement/member item. Every modifier capture
-    // in the highlight query is parent-agnostic — (modifiers (attribute ...)),
-    // (visibility_modifier), etc. — so the paint is identical, and factoring
-    // them out removes the modifiers × declaration item cross-product from
-    // every container state.
     _declaration: $ => choice(
       $.property_declaration,
       $.function_declaration,
@@ -398,8 +298,6 @@ module.exports = grammar({
       )),
       '}',
     ),
-    // Upstream also allows attributes before accessor specifiers; that shape is
-    // rare and collides with statement modifiers, so it is not modeled here.
     computed_getter: $ => seq($.getter_specifier, optional($._block)),
     computed_setter: $ => seq(
       $.setter_specifier,
@@ -433,11 +331,6 @@ module.exports = grammar({
       optional(seq('=', $._type)),
     )),
 
-    // Everything after a function-ish declaration's name is a loose loop of
-    // signature elements rather than upstream's ordered optionals: the ordered
-    // form multiplies LR item positions across every container the declaration
-    // can appear in, while the captures (parameters, throws, ->, where, types)
-    // are position-independent.
     _function_signature: $ => repeat1(choice(
       $.type_parameters,
       $._parameter_clause,
@@ -448,10 +341,6 @@ module.exports = grammar({
       $.type_constraints,
     )),
 
-    // The body is optional so the same rule covers protocol requirements;
-    // (function_declaration (simple_identifier) @function.method) captures the
-    // name either way, exactly like upstream's protocol_function_declaration
-    // name field did.
     function_declaration: $ => prec.right(seq(
       'func',
       field('name', choice($.simple_identifier, $._referenceable_operator)),
@@ -503,19 +392,12 @@ module.exports = grammar({
       '++', '--', $.bang, '~', '|', '^', '<<', '>>', '&', '??',
     ),
 
-    // Same loop trick as _function_signature for everything between a type
-    // declaration's name and its body.
     _type_declaration_tail: $ => repeat1(choice(
       $.type_parameters,
       seq(':', $._inheritance_specifiers),
       $.type_constraints,
     )),
 
-    // One rule and one body for every type-shaped declaration. The query only
-    // cares about the kind keywords, the name's type_identifier, and
-    // class_body as the parent that turns stored-property patterns into
-    // @variable.member — protocol/enum members captured through the same body
-    // paint identically to upstream's dedicated bodies.
     class_declaration: $ => prec.right(seq(
       optional('indirect'),
       field('declaration_kind',
@@ -525,9 +407,6 @@ module.exports = grammar({
       field('body', $.class_body),
     )),
 
-    // Dotted like an extension name, but with no generic-argument suffix: the
-    // `<` after the name must go to type_parameters, whose entries allow
-    // `T: Bound` constraints.
     _declaration_name: $ => sep1(alias($.simple_identifier, $.type_identifier), '.'),
 
     _inheritance_specifiers: $ => prec.left(sep1($.inheritance_specifier, choice(',', '&'))),
@@ -550,10 +429,6 @@ module.exports = grammar({
       $.protocol_property_declaration,
     ),
 
-    // Never produced by real input: the guard tokens cannot occur in Swift
-    // source. These exist only so the upstream highlight query, which names
-    // both node types, still compiles (their captures are covered by
-    // function_declaration / class_body property patterns instead).
     protocol_function_declaration: $ => seq(
       '__rotide_protocol_function__',
       field('name', $.simple_identifier),
@@ -575,7 +450,6 @@ module.exports = grammar({
       ), ','),
     )),
 
-    // `prefix`/`infix`/`postfix` before `operator` arrive via a modifiers item.
     operator_declaration: $ => prec.right(seq(
       'operator',
       $._referenceable_operator,
@@ -589,8 +463,6 @@ module.exports = grammar({
       repeat(choice($.simple_identifier, ':', $.boolean_literal)),
       '}',
     ),
-
-    // ==== Generics and type constraints ==================================
 
     type_parameters: $ => seq(
       '<',
@@ -616,10 +488,6 @@ module.exports = grammar({
       field('must_equal', $._type),
     ),
 
-    // ==== Modifiers and attributes =======================================
-
-    // No prec.right: `final class X` must fork between extending the modifier
-    // run (`final class var`) and letting `class` start the declaration.
     modifiers: $ => repeat1(choice(
       $.attribute,
       $.visibility_modifier,
@@ -633,10 +501,6 @@ module.exports = grammar({
       $.property_behavior_modifier,
     )),
 
-    // Attribute arguments are a shallow token soup rather than expressions:
-    // whole-argument fidelity is irrelevant (nothing inside is captured beyond
-    // literals/identifiers) and expression states here would replicate the
-    // entire expression table into every modifier context.
     attribute: $ => prec.right(seq(
       '@',
       $.user_type,
@@ -653,9 +517,6 @@ module.exports = grammar({
       $._attribute_arguments,
     ),
 
-    // Modifier keywords the query names as anonymous tokens ('override',
-    // 'weak', 'nonisolated', ...) must stay distinct tokens; the rest merge
-    // into one token per modifier node to keep the symbol table narrow.
     visibility_modifier: $ => token(seq(
       choice('public', 'private', 'internal', 'fileprivate', 'open', 'package'),
       optional(seq(/\s*/, '(', /\s*/, 'set', /\s*/, ')')),
@@ -666,7 +527,6 @@ module.exports = grammar({
     )),
     function_modifier: $ => token(choice('infix', 'postfix', 'prefix')),
     mutation_modifier: $ => token(choice('mutating', 'nonmutating')),
-    // `class` prefers the declaration reading when an identifier follows.
     property_modifier: $ => choice(
       token(choice('static', 'dynamic', 'optional', 'distributed')),
       prec(-1, 'class'),
@@ -676,22 +536,10 @@ module.exports = grammar({
     ownership_modifier: $ => choice('weak', 'unowned', token(/unowned\((safe|unsafe)\)/)),
     property_behavior_modifier: $ => 'lazy',
 
-    // ==== Types ==========================================================
-
-    // The one `: type` rule shared by parameters, properties, patterns, type
-    // parameters, and constraints, so the type automaton hangs off a single
-    // goto instead of one per context.
     _type_annotation: $ => seq(':', field('type', $._type)),
 
     _return_type: $ => seq('->', $._type),
 
-    // Types are a prefix*/core/suffix* loop instead of upstream's rule-per-form
-    // tier (optional_type, function_type, protocol composition, opaque types,
-    // metatypes): every tier re-splits each of the many type contexts, and the
-    // query only ever captures type_identifier, type_arguments brackets, and
-    // the some/any/throws/arrow tokens — all of which survive the collapse.
-    // Parameter modifiers and attributes ride the same prefix loop so
-    // `inout`/`@escaping`/`@Sendable` types need no dedicated contexts.
     _type: $ => prec.right(seq(
       repeat(choice('some', 'any', $.parameter_modifier, $.attribute)),
       $._core_type,
@@ -704,11 +552,8 @@ module.exports = grammar({
       $._bracket_type,
     ),
 
-    // Array and dictionary types in one shape.
     _bracket_type: $ => seq('[', $._type, optional(seq(':', $._type)), ']'),
 
-    // `?`/`!` optionals, `& P` compositions, and `-> T` function returns
-    // (with their async/throws effects) all extend a finished core type.
     _type_suffix: $ => prec.right(2, choice(
       '?',
       token.immediate('!'),
@@ -718,8 +563,6 @@ module.exports = grammar({
       $.throws,
     )),
 
-    // No prec.right: in `catch Foo.bar(...)` the dotted run must fork between
-    // extending the user_type and handing `.bar` to the enclosing dot pattern.
     user_type: $ => sep1($._simple_user_type, '.'),
     _simple_user_type: $ => prec.right(seq(
       alias($.simple_identifier, $.type_identifier),
@@ -740,11 +583,6 @@ module.exports = grammar({
     throws: $ => choice('throws', 'rethrows'),
     _throws_clause: $ => seq('throws', '(', $._type, ')'),
 
-    // ==== Expressions ====================================================
-
-    // try/await ride along as prefix operators and as/is as binary operators
-    // with a type right-hand side: their upstream wrapper nodes are not query
-    // targets, and separate tiers re-split every expression context.
     _expression: $ => choice(
       $._postfix_expression,
       $.prefix_expression,
@@ -784,13 +622,6 @@ module.exports = grammar({
       repeat(seq(field('name', $.simple_identifier), ':', $.lambda_literal)),
     )),
 
-    // value_arguments is the single funnel for every parenthesized/bracketed
-    // expression list in the grammar: call arguments, subscripts, tuples,
-    // array/dictionary literals, string interpolations, and the # expression
-    // bodies all route through _value_argument_list, so the expression
-    // automaton is instantiated once instead of once per container. Upstream's
-    // tuple_expression / array_literal / dictionary_literal node names are not
-    // query targets, so nothing is lost visually.
     value_arguments: $ => choice(
       seq('(', optional($._value_argument_list), ')'),
       seq('[', optional(choice(':', $._value_argument_list)), ']'),
@@ -798,9 +629,7 @@ module.exports = grammar({
 
     _value_argument_list: $ => sep1Opt($.value_argument, ','),
 
-    // The trailing `: expression` makes dictionary entries with non-identifier
-    // keys (`["a": 1]`) fit the same item shape.
-    value_argument: $ => prec.left(choice(
+   value_argument: $ => prec.left(choice(
       repeat1(seq(field('reference_specifier', $.value_argument_label), ':')),
       seq(
         optional(seq(field('name', $.value_argument_label), ':')),
@@ -809,9 +638,7 @@ module.exports = grammar({
       ),
     )),
 
-    // Wins the `identifier :` race against the expression-key form so call
-    // argument labels keep their upstream shape.
-    value_argument_label: $ => prec(1, $.simple_identifier),
+   value_argument_label: $ => prec(1, $.simple_identifier),
 
     postfix_expression: $ => prec.left(PRECS.postfix, seq(
       $._postfix_expression,
@@ -829,12 +656,7 @@ module.exports = grammar({
       field('target', $._postfix_expression),
     )),
 
-    // One flat rule for every infix continuation: operator precedence never
-    // changes which token a capture rides on, and each extra tier or sibling
-    // rule multiplies LR states across all expression contexts. The ternary
-    // and as/is forms are alternatives of the same rule; the aliased ternary
-    // tail keeps the (ternary_expression ["?" ":"]) query pattern matching.
-    binary_expression: $ => prec.left(PRECS.binary, seq(
+   binary_expression: $ => prec.left(PRECS.binary, seq(
       field('lhs', $._expression),
       choice(
         seq(
@@ -868,10 +690,7 @@ module.exports = grammar({
 
     _primary_expression: $ => choice(
       $.simple_identifier,
-      // `NSCache<NSString, AnyObject>()`: a generic constructor reference in
-      // expression position; forks against `a < b` comparisons and wins only
-      // when the argument list closes like one.
-      prec.dynamic(1, seq(alias($.simple_identifier, $.type_identifier), $.type_arguments)),
+     prec.dynamic(1, seq(alias($.simple_identifier, $.type_identifier), $.type_arguments)),
       $.self_expression,
       $.super_expression,
       $._basic_literal,
@@ -914,9 +733,7 @@ module.exports = grammar({
       )),
     ),
 
-    // Parenthesized (and typed) lambda parameter lists ride the
-    // value_arguments funnel; only bare `a, b in` needs its own list.
-    _lambda_parameters: $ => choice(
+   _lambda_parameters: $ => choice(
       sep1($.simple_identifier, ','),
       $.value_arguments,
     ),
@@ -942,8 +759,6 @@ module.exports = grammar({
       token(choice('#colorLiteral', '#fileLiteral', '#imageLiteral')),
       $.value_arguments,
     ),
-
-    // ==== Literals =======================================================
 
     _basic_literal: $ => choice(
       $.integer_literal,
@@ -997,20 +812,13 @@ module.exports = grammar({
     ),
     multi_line_str_text: $ => /[^\\"]+/,
 
-    // Interpolations reuse the value_argument funnel; the alias only renames
-    // the produced node, the parse states are shared.
-    _interpolation: $ => seq(
+   _interpolation: $ => seq(
       '\\(',
       optional(alias($._value_argument_list, $.interpolated_expression)),
       ')',
     ),
 
-    // Raw strings are single-line regex approximations of the scanner-matched
-    // originals: the opening and closing `#` runs are not balance-checked. The
-    // opening segment tokens are anchored on `#"` so they cannot fire outside
-    // a raw string; the unanchored continuation tokens are aliased separately
-    // and only become valid immediately after an interpolation's `)`.
-    _raw_string_literal: $ => choice(
+   _raw_string_literal: $ => choice(
       field('text', $.raw_str_end_part),
       seq(
         field('text', $.raw_str_part),
@@ -1036,17 +844,13 @@ module.exports = grammar({
     raw_str_interpolation_start: $ => /\\#*\(/,
 
     regex_literal: $ => choice(
-      // Extended one-line literal: #/ ... /#
       token(seq('#/', /[^\r\n]*/, '/#')),
-      // Bare one-line literal, token-precedence-guarded like upstream.
       token(prec(TOKEN_PRECS.regex, seq(
         '/',
         token.immediate(/[^ \t\n]?[^/\n]*[^ \t\n/]/),
         token.immediate('/'),
       ))),
     ),
-
-    // ==== Identifiers and operators ======================================
 
     simple_identifier: $ => choice(
       LEXICAL_IDENTIFIER,
@@ -1055,10 +859,7 @@ module.exports = grammar({
       token(seq('$', LEXICAL_IDENTIFIER)),
     ),
 
-    // Slash-free so `//` comments and `/.../` regex literals stay untouched
-    // (operators that begin with `/` degrade to a `/` token plus the rest), and
-    // `?`-free at the head so `x?.y` optional chaining lexes as `?` then `.`.
-    custom_operator: $ => token(/[+\-*%<>=!&|^~][+\-*\/%<>=!&|^~?]*/),
+   custom_operator: $ => token(/[+\-*%<>=!&|^~][+\-*\/%<>=!&|^~?]*/),
   },
 });
 

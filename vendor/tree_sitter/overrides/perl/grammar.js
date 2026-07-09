@@ -1,47 +1,9 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-// ---------------------------------------------------------------------------------------
-// RotIDE reduced Perl highlight grammar.
-//
-// This replaces the pinned tree-sitter-perl grammar before generation. RotIDE consumes
-// Perl trees only through the vendored highlight and injection queries, so this override
-// keeps exactly the nodes, fields, keywords, operators, sigils, and quote-like internals
-// those queries target while dropping the machinery that only matters for a faithful
-// Perl AST.
-//
-// The big size reductions versus upstream (same recipe as the Swift override):
-//
-//   1. A minimal external scanner. Upstream ships 54 external tokens (quote-like
-//      operators with arbitrary delimiters, autoquote lookahead, keyword intuition,
-//      recovery synthetics). Only heredocs and POD genuinely need cross-line state, so
-//      the replacement scanner handles exactly those five tokens; quote-like operators
-//      become regex tokens over the common delimiters ((), {}, [], <>, //, '', "", !!).
-//      Statements are `;`-separated in Perl, so no newline machinery is needed at all.
-//
-//   2. A collapsed expression grammar: one flat binary_expression rule carries every
-//      infix operator in an `operator:` field — which is all the highlight query looks
-//      at (`(_ operator: _ @operator)`); the ternary tail is aliased to
-//      conditional_expression and `isa` keeps its relational_expression node for the
-//      query's `right:` capture.
-//
-//   3. Funneled containers: one argument-list rule serves parenthesised calls, one
-//      `_term`-driven subscript family serves element/slice access with the
-//      `array:`/`hash:` fields the query paints, and the builtin word lists
-//      (func0op/func1op/list operators) are single DFA tokens instead of dozens of
-//      keyword symbols.
-//
-// Known degradations, all rare or token-level: quote-like operators only support the
-// common delimiters (exotic ones degrade to plain tokens/ERROR), `qq{}`/`qx{}` bodies
-// and heredoc bodies do not highlight interpolated variables, prototypes parse through
-// the lenient signature rule, formats and given/when are not modeled.
-// ---------------------------------------------------------------------------------------
-
 const IDENT = /[_a-zA-Z][a-zA-Z0-9_]*/;
 const PKG_IDENT = /(::)?[_a-zA-Z][a-zA-Z0-9_]*(::[_a-zA-Z][a-zA-Z0-9_]*)*/;
 
-// Interior of the common quote-like delimiter pairs; braces and parens allow
-// one nesting level, which covers almost all real q{}/qw{} usage.
 const Q_BRACE = /\{([^{}\\]|\\.|\{([^{}\\]|\\.)*\})*\}/;
 const Q_PAREN = /\(([^()\\]|\\.|\(([^()\\]|\\.)*\))*\)/;
 const Q_BRACKET = /\[([^\[\]\\]|\\.|\[([^\[\]\\]|\\.)*\])*\]/;
@@ -90,28 +52,16 @@ module.exports = grammar({
   word: $ => $._bareword,
 
   conflicts: $ => [
-    // `foo => 1` autoquotes foo; `foo, 1` keeps it a bareword term; `{foo}`
-    // hash keys autoquote through _hash_key.
     [$.autoquoted_bareword, $.bareword],
     [$.autoquoted_bareword, $._hash_key, $.bareword],
-    // `foo(...)`: a call, not a bareword term next to a parenthesized list.
     [$.function, $.bareword],
-    // `map { ... } LIST` block callback vs. `{ ... }` hashref term: fork at
-    // the closing brace; block carries prec.dynamic so it wins where both
-    // parses complete.
     [$.block, $.anonymous_hash_expression],
     [$.expression_statement, $.anonymous_hash_expression],
-    // `print(...)`: the paren form is one call, not a no-paren call whose
-    // first argument happens to be parenthesized.
     [$._primary_expression, $.function_call_expression],
-    // `$x{k}` / `$x[i]` container access vs. plain `$x` scalar.
     [$.scalar, $.container_variable],
-    // `@x[...]` slice vs. plain `@x` array; `%x{...}` keyval vs. `%x` hash.
     [$.array, $.slice_container_variable],
     [$.hash, $.keyval_container_variable],
-    // `for (EXPR; ...)` C-style vs. `for (LIST)` foreach.
     [$.cstyle_for_statement, $.for_statement],
-    // `print $fh $x` / `print STDERR ...`: filehandle slot vs. first argument.
     [$._indirect_object, $._term],
     [$._indirect_object, $._primary_expression],
     [$._indirect_object, $._variables],
@@ -126,8 +76,6 @@ module.exports = grammar({
 
     comment: $ => token(/#.*/),
 
-    // prec.dynamic: where a `{ ... }` merges block and hashref readings (after
-    // map/grep/sort, statement level), prefer the block subtree.
     block: $ => prec.dynamic(1, seq('{', repeat($._fullstmt), optional($.expression_statement), '}')),
 
     _fullstmt: $ => choice($._barestmt, $.statement_label),
@@ -138,8 +86,6 @@ module.exports = grammar({
       field('statement', $._fullstmt),
     ),
 
-    // Shares the _bareword token: a second word-shaped regex would race the
-    // keywords in every statement-start state.
     identifier: $ => $._bareword,
 
     _barestmt: $ => choice(
@@ -220,9 +166,6 @@ module.exports = grammar({
       choice(field('body', $.block), ';'),
     ),
 
-    // Signatures are just an expression list here (`$x, $y = default()`);
-    // legacy prototypes parse only as far as their sigil-runs resemble
-    // variables and otherwise degrade.
     signature: $ => seq('(', optional($._expr), ')'),
 
     attrlist: $ => prec.left(seq(
@@ -313,9 +256,6 @@ module.exports = grammar({
       optional(alias(token(/[\s\S]+/), $.data_section)),
     ),
 
-    // ==== Expressions ====================================================
-
-    // One flat comma level: `a, b => c,` — items may be empty between commas.
     _expr: $ => prec.right(seq(
       $._list_item,
       repeat(seq($._comma, optional($._list_item))),
@@ -324,9 +264,6 @@ module.exports = grammar({
 
     _list_item: $ => choice($._term, $.autoquoted_bareword),
 
-    // A bareword immediately before `=>` autoquotes (GLR-forked against the
-    // plain bareword term; dynamic precedence prefers this reading and the
-    // fork dies unless `=>` actually follows).
     autoquoted_bareword: $ => prec.dynamic(1, $._bareword),
 
     _term: $ => choice(
@@ -336,10 +273,6 @@ module.exports = grammar({
       $._primary_expression,
     ),
 
-    // Every infix operator in one flat tier: the query only reads the
-    // `operator:` field. Assignment, ranges, logic, string ops, and the
-    // low-precedence word operators all land here; `**=`/`*=`/`%=`/`&&`/`&=`
-    // and friends outrank the `*`/`%`/`&` sigils like upstream.
     binary_expression: $ => choice(
       prec.left(PRECS.binary, binop(choice(
         token(prec(2, '**')),
@@ -358,7 +291,6 @@ module.exports = grammar({
         token(prec(2, '&&=')), '||=', '//=',
         'and', 'or', 'xor',
       ), $._term)),
-      // Ternary tail aliased so (conditional_expression ["?" ":"]) matches.
       prec.left(PRECS.binary, seq(
         field('condition', $._term),
         alias($._ternary_tail, $.conditional_expression),
@@ -369,8 +301,6 @@ module.exports = grammar({
       '?', field('consequent', $._term), ':', field('alternative', $._term),
     ),
 
-    // Kept as its own node for (relational_expression operator: "isa"
-    // right: (bareword) @type).
     relational_expression: $ => prec.left(PRECS.binary, seq(
       field('left', $._term),
       field('operator', 'isa'),
@@ -468,8 +398,6 @@ module.exports = grammar({
       field('operator', token.immediate('>')),
     ),
 
-    // ==== Calls ==========================================================
-
     function: $ => $._bareword,
     method: $ => choice($._bareword, $.scalar),
 
@@ -488,7 +416,6 @@ module.exports = grammar({
       ')',
     )),
 
-    // No-paren list operator calls: `print $fh $x`, `say "hi"`, `push @a, 1`.
     ambiguous_function_call_expression: $ => prec.right(PRECS.listop, seq(
       field('function', alias($._listop_word, $.function)),
       optional($._indirect_object),
@@ -502,8 +429,6 @@ module.exports = grammar({
 
     _builtin_filehandle: $ => token(prec(1, choice('STDIN', 'STDOUT', 'STDERR'))),
 
-    // The full builtin list-operator vocabulary as one DFA token: the query
-    // captures these via the aliased (function) node, never individually.
     _listop_word: $ => token(choice(
       'accept', 'atan2', 'bind', 'binmode', 'bless', 'crypt', 'chmod', 'chown',
       'connect', 'die', 'dbmopen', 'fcntl', 'flock', 'getpriority',
@@ -559,8 +484,6 @@ module.exports = grammar({
       ),
     )),
 
-    // ==== Variables and subscripts =======================================
-
     _variables: $ => choice($.scalar, $.array, $.hash, $.arraylen, $.glob),
 
     scalar: $ => seq('$', $._var_indirob),
@@ -573,7 +496,6 @@ module.exports = grammar({
     _GLOB_STAR: $ => alias(token(prec(TOKEN_PRECS.sigil, '*')), '*'),
     _SUB_AMPER: $ => alias(token(prec(TOKEN_PRECS.sigil, '&')), '&'),
 
-    // `&foo` / `&$code` sub calls.
     amper_sub: $ => prec.right(seq(
       $._SUB_AMPER,
       choice(alias($._bareword, $.varname), $.scalar),
@@ -586,8 +508,6 @@ module.exports = grammar({
       $._var_brace_block,
     ),
 
-    // ${name} / @{ EXPR } — the braces paint as punctuation.special via the
-    // query's (_ "{" (varname) "}") pattern.
     _var_brace_block: $ => prec(1, seq(
       '{',
       choice(alias($._bareword, $.varname), $._term),
@@ -603,8 +523,6 @@ module.exports = grammar({
       '_',
     )),
 
-    // `$x{k}` / `$x[i]`-style container heads: a distinct node so the query's
-    // array:/hash: fields paint the sigil-variable with the container colour.
     container_variable: $ => prec(TOKEN_PRECS.sigil, seq('$', $._var_indirob)),
     slice_container_variable: $ => prec(TOKEN_PRECS.sigil, seq('@', $._var_indirob)),
     keyval_container_variable: $ => prec(TOKEN_PRECS.sigil, seq($._HASH_PERCENT, $._var_indirob)),
@@ -669,14 +587,10 @@ module.exports = grammar({
     glob_deref_expression: $ => prec.left(PRECS.arrow, seq($._term, '->', '*', '*')),
     glob_slot_expression: $ => seq($.glob, '{', $._hash_key, '}'),
 
-    // require as an expression; the hidden _term chain leaves (bareword) a
-    // direct child, which is what (require_expression (bareword) @type) needs.
     require_expression: $ => prec.right(seq('require', $._term)),
 
     bareword: $ => $._bareword,
     _bareword: $ => token(PKG_IDENT),
-
-    // ==== Quote-like literals ============================================
 
     _literal: $ => choice(
       $.string_literal,
@@ -716,8 +630,6 @@ module.exports = grammar({
     ),
     _bt_text: $ => token.immediate(prec(1, /[^`\\$@]+|\\./)),
 
-    // Interpolated fragments reuse the real variable/element node names so the
-    // query paints them identically inside and outside strings.
     _interp_content: $ => choice(
       $._dq_text,
       $.escape_sequence,
@@ -748,14 +660,6 @@ module.exports = grammar({
 
     quoted_word_list: $ => token(seq('qw', choice(Q_BRACE, Q_PAREN, Q_BRACKET, Q_ANGLE, Q_SLASH, Q_BANG))),
 
-    // Regexps: `m` + common delimiters, bare `//`, and `qr`. The whole
-    // pattern (delimiters included) is one token aliased to regexp_content —
-    // the wrapper node and the content carry the same @string.regex class, so
-    // the coarser span paints identically. Modifiers ride the query's
-    // `modifiers:` field.
-    // Slash forms split into operator/content/closer so only the interior
-    // paints as regex, like upstream; the rarer paired-delimiter forms stay
-    // single tokens.
     match_regexp: $ => seq(
       choice(
         seq(
@@ -785,7 +689,6 @@ module.exports = grammar({
       optional(field('modifiers', alias(token.immediate(REGEX_MODS), $.match_regexp_modifiers))),
     ),
 
-    // s/PAT/REP/mods and s{PAT}{REP}mods (the two dominant forms).
     substitution_regexp: $ => choice(
       seq(
         field('operator', alias(token(seq('s', '/')), 's')),

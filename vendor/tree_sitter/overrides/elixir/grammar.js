@@ -1,39 +1,5 @@
-// ---------------------------------------------------------------------------------------
-// RotIDE reduced Elixir highlight grammar.
-//
-// This replaces the pinned elixir-lang/tree-sitter-elixir grammar before generation.
-// RotIDE consumes Elixir trees only through the vendored highlight and injection queries,
-// so this override keeps exactly the nodes, fields, keywords, operators, literals, sigil,
-// string, and call shapes those queries target while dropping the machinery that only
-// costs parser states without changing the paint.
-//
-// It is a small, surgical diff against upstream (unlike the full rewrites in
-// overrides/swift or overrides/perl) because Elixir is homoiconic: its highlighting is
-// driven almost entirely by the call/dot/operator tree shape, which cannot be flattened
-// away the way a C-style expression grammar can. Two changes carry the reduction:
-//
-//   1. Flattened operator table. Upstream models 20 precedence tiers as 20 separate
-//      `binary_operator` alternatives. Highlighting only needs the `operator:` field
-//      captured, not a precedence-correct tree, so every plain infix operator collapses
-//      into one left- and one right-associative alternative at a single precedence.
-//      `when`/`|` keep their own alternatives (their RHS may be a keyword list) and the
-//      arity form `name/2` keeps its dedicated alternative. See `binary_operator` below.
-//
-//   2. Non-interpolating sigils. Upstream lets lowercase sigils (`~s`, `~r`, `~w`, …)
-//      interpolate `#{...}`, which embeds a full expression context inside each of the
-//      ten delimiter variants and is the single largest source of parser states. Both
-//      the lower- and upper-case sigil branches here use the non-interpolating quoted
-//      rules, so a sigil body is one opaque `quoted_content` span (still exactly what the
-//      injection query extracts). All ten delimiters are kept. See `sigil` below.
-//
-// Result: upstream's ~13.2 MB / 7001-state parser.c becomes ~9.4 MB / 4823 states
-// (object ~1.6 MB -> ~1.17 MB) with the same highlight/injection surface. The external
-// scanner is unchanged and kept (it still delivers all quoted-content tokens).
-//
-// Known degradation versus upstream: `#{...}` interpolation inside a *sigil* body is not
-// separately highlighted (it is part of quoted_content / the injected sub-language).
-// Interpolation inside ordinary strings and charlists is unaffected.
-// ---------------------------------------------------------------------------------------
+/// <reference types="tree-sitter-cli/dsl" />
+// @ts-check
 
 const PREC = {
   // See https://github.com/elixir-lang/elixir/blob/master/lib/elixir/src/elixir_parser.yrl
@@ -98,7 +64,6 @@ const ATOM_OPERATOR_LITERALS = ALL_OPS.filter(
 
 const ATOM_SPECIAL_LITERALS = ["...", "%{}", "{}", "%", "<<>>", "..//"];
 
-// See Ref 6. in the docs
 const ATOM_WORD_LITERAL = /[\p{ID_Start}_][\p{ID_Continue}@]*[?!]?/u;
 
 // Word tokens used directly in the grammar
@@ -132,7 +97,6 @@ module.exports = grammar({
   name: "elixir",
 
   externals: ($) => [
-    // See Ref 1. in the docs
     $._quoted_content_i_single,
     $._quoted_content_i_double,
     $._quoted_content_i_heredoc_single,
@@ -154,18 +118,14 @@ module.exports = grammar({
     $._quoted_content_bar,
     $._quoted_content_slash,
 
-    // See Ref 2. in the docs
     $._newline_before_do,
     $._newline_before_binary_operator,
     $._newline_before_comment,
 
-    // See Ref 3. in the docs
     $._before_unary_op,
 
-    // See Ref 4. in the docs
     $._not_in,
 
-    // See Ref 5. in the docs
     $._quoted_atom_start,
   ],
 
@@ -174,49 +134,18 @@ module.exports = grammar({
     /[ \t]|\r?\n|\\\r?\n/,
     $.comment,
     $._newline_before_comment,
-    // Placing this directly in the binary operator rule leads
-    // to conflicts, but we can place it here without any drawbacks.
-    // If we detect binary operator and the previous line is not a
-    // valid expression, it's a syntax error either way
     $._newline_before_binary_operator,
   ],
 
   conflicts: ($) => [
-    // Given `left • *`, `left` identifier can be either:
-    //   * expression in `left * right`
-    //   * call identifier in `left * / 2`
     [$._expression, $._local_call_without_parentheses],
-
-    // Given `left • when`, `left` expression can be either:
-    //   * binary operator operand in `left when right`
-    //   * stab arguments item in `left when right ->`
-    //
-    // Given `arg1, left • when`, `left` expression can be either:
-    //   * binary operator operand in `arg1, left when right, arg3`
-    //   * stab arguments item in `arg1, left when right ->`
     [$.binary_operator, $._stab_clause_arguments_without_parentheses],
-
-    // Given `((arg1, arg2 • ,`, `arg3` expression can be either:
-    //   * stab parenthesised arguments item in `((arg1, arg2, arg3) ->)`
-    //   * stab non-parenthesised arguments item in `((arg1, arg2, arg3 ->))`
     [
       $._stab_clause_arguments_without_parentheses,
       $._stab_clause_arguments_with_parentheses,
     ],
-
-    // Given `(-> • /`, stab can be either:
-    //   * stab clause operator in `(-> / / 2)`
-    //   * operator identifier in `(-> / 2)`
     [$.operator_identifier, $.stab_clause],
-
-    // Given `& • /`, ampersand can be either:
-    //   * capture operator in `& / / 2`
-    //   * operator identifier in `& / 1`
     [$.unary_operator, $.operator_identifier],
-
-    // Given `(arg -> expression • \n`, the newline could be either:
-    //   * terminator separating expressions in `(arg -> expression \n expression)`
-    //   * terminator separating clauses in `(arg -> expression \n arg -> expression)`
     [$.body],
   ],
 
@@ -315,8 +244,6 @@ module.exports = grammar({
         choice($._quoted_i_double, $._quoted_i_single),
       ),
 
-    // Defines $._quoted_content_i_{name} and $._quoted_content_{name} rules,
-    // content with and without interpolation respectively
     ...defineQuoted(`"`, `"`, "double"),
     ...defineQuoted(`'`, `'`, "single"),
     ...defineQuoted(`'''`, `'''`, "heredoc_single"),
@@ -352,14 +279,6 @@ module.exports = grammar({
       ),
 
     sigil: ($) =>
-      // RotIDE override: both lower- and upper-case sigils use the
-      // *non-interpolating* quoted content rules. Upstream lets lowercase
-      // sigils (`~s`, `~r`, `~w`, …) interpolate `#{...}`, which embeds a full
-      // expression context inside all ten delimiter variants and is the single
-      // largest source of parser states. Highlighting/injection only need the
-      // `sigil_name` + `quoted_content` span, so we treat sigil bodies as
-      // opaque: `#{...}` inside a sigil is part of quoted_content (and the
-      // injected sub-language) rather than a separately highlighted expression.
       seq(
         "~",
         seq(
@@ -384,8 +303,6 @@ module.exports = grammar({
       ),
 
     keywords: ($) =>
-      // Right precedence, because we want to consume next items as long
-      // as there is a comma ahead
       prec.right(sep1($.pair, ",")),
 
     _keywords_with_trailing_separator: ($) =>
@@ -396,7 +313,6 @@ module.exports = grammar({
     _keyword: ($) => choice($.keyword, $.quoted_keyword),
 
     keyword: ($) =>
-      // See Ref 7. in the docs
       token(
         seq(
           choice(
@@ -435,8 +351,6 @@ module.exports = grammar({
       ),
 
     struct: ($) =>
-      // Left precedence, because if there is a conflict involving `{}`,
-      // we want to treat it as map continuation rather than tuple
       prec.left(
         choice(
           $.alias,
@@ -460,8 +374,6 @@ module.exports = grammar({
       ),
 
     _nullary_operator: ($) =>
-      // Nullary operators don't have any child nodes, so we reuse the
-      // operator_identifier node
       alias(prec(PREC.RANGE_OP, ".."), $.operator_identifier),
 
     unary_operator: ($) =>
@@ -469,27 +381,17 @@ module.exports = grammar({
         unaryOp($, prec, PREC.CAPTURE_OP, "&", $._capture_expression),
         unaryOp($, prec, PREC.UNARY_OPS, choice(...UNARY_OPS)),
         unaryOp($, prec, PREC.AT_OP, "@"),
-        // Capture operand like &1 is a special case with higher precedence
         unaryOp($, prec, PREC.CAPTURE_OPERAND, "&", $.integer),
       ),
 
     _capture_expression: ($) =>
       choice(
-        // Note that block expression is not allowed as capture operand,
-        // so we have an explicit sequence with the parentheses and higher
-        // precedence
         prec(1, seq("(", $._expression, ")")),
         $._expression,
       ),
 
     binary_operator: ($) =>
       choice(
-        // RotIDE override: the upstream 20-tier operator precedence table is
-        // collapsed into a handful of alternatives. Highlighting only needs the
-        // `operator:` field captured, not a precedence-correct tree, so every
-        // plain infix operator shares one low precedence. `when` and `|` keep
-        // their own alternatives because their right-hand side may be a keyword
-        // list. The arity form `name/2` keeps its dedicated alternative.
         binaryOp(
           $,
           prec.right,
@@ -542,15 +444,6 @@ module.exports = grammar({
       ),
 
     operator_identifier: ($) =>
-      // Operators with the following changes:
-      //
-      //   * exclude "=>" since it's not a valid operator identifier
-      //   * exclude // since it's only valid after ..
-      //   * exclude binary "-" and "+" as they are handled as unary below
-      //
-      // For unary operator identifiers we use the same precedence as
-      // operators, so that we get conflicts and resolve them dynamically
-      // (see grammar.conflicts for more details)
       choice(
         // Unary operators
         prec(PREC.CAPTURE_OP, "&"),
@@ -571,10 +464,6 @@ module.exports = grammar({
         alias($._not_in, "not in"),
         "^^^",
         ...CONCAT_OPS,
-        // The range operator has both a binary and a nullary version.
-        // The nullary version is already parsed as operator_identifier,
-        // so it covers this case
-        // ".."
         ...MULT_OPS,
         "**",
         "->",
@@ -607,9 +496,6 @@ module.exports = grammar({
         $._double_call,
       ),
 
-    // Note, calls have left precedence, so that `do end` block sticks to
-    // the outermost call
-
     _local_call_without_parentheses: ($) =>
       prec.left(
         seq(
@@ -629,7 +515,6 @@ module.exports = grammar({
       ),
 
     _local_call_just_do_block: ($) =>
-      // Lower precedence than identifier, because `foo bar do` is `foo(bar) do end`
       prec(-1, seq(field("target", $.identifier), $.do_block)),
 
     _remote_call_without_parentheses: ($) =>
@@ -722,14 +607,6 @@ module.exports = grammar({
       ),
 
     _call_arguments_without_parentheses: ($) =>
-      // In stab clauses a newline can either separate multiple body expressions
-      // or multiple stab clauses, this falls under the $.body conflict. Given a
-      // multiline stab clause with trailing identifier like `1 -> 1 \n x \n 2 -> x`,
-      // there are two matching interpretations:
-      //   * `x` as identifier and `2` as stab argument
-      //   * `x 2` call as stab argument
-      // Similarly for `Mod.fun` or `mod.fun` the newline should terminate the call.
-      // Consequently, we reject the second interpretation using dynamic precedence
       prec.dynamic(
         -1,
         // Right precedence, because `fun1 fun2 x, y` is `fun1(fun2(x, y))`
@@ -767,7 +644,6 @@ module.exports = grammar({
       ),
 
     stab_clause: ($) =>
-      // Right precedence, because we want to consume body if any
       prec.right(
         seq(
           optional(field("left", $._stab_clause_left)),
@@ -791,7 +667,6 @@ module.exports = grammar({
       ),
 
     _stab_clause_arguments_with_parentheses: ($) =>
-      // Precedence over block expression
       prec(
         1,
         seq(
@@ -799,9 +674,6 @@ module.exports = grammar({
           optional(
             choice(
               seq(
-                // We need the same expression precedence as below, so that we don't
-                // discard this rule in favour of the one below. We use right precedence,
-                // because in this case we can consume expression until the next comma
                 sep1(prec.right(PREC.WHEN_OP, $._expression), ","),
                 optional(seq(",", $.keywords)),
               ),
@@ -813,9 +685,6 @@ module.exports = grammar({
       ),
 
     _stab_clause_arguments_without_parentheses: ($) =>
-      // We give the arguments and expression the same precedence as "when"
-      // binary operator, so that we get conflicts and resolve them dynamically
-      // (see the grammar.conflicts for more details)
       prec(
         PREC.WHEN_OP,
         choice(
@@ -838,10 +707,6 @@ module.exports = grammar({
       ),
 
     _stab_clause_arguments_without_parentheses_with_guard: ($) =>
-      // Given `a when b ->`, the left stab operand can be interpreted either
-      // as a single argument item, or as binary operator with arguments on
-      // the left and guard expression on the right. Using dynamic precedence
-      // we favour the latter interpretation during dynamic conflict resolution
       prec.dynamic(
         1,
         seq(
@@ -873,8 +738,6 @@ module.exports = grammar({
         "end",
       ),
 
-    // A comment may be anywhere, we give it a lower precedence,
-    // so it doesn't intercept interpolation
     comment: ($) => token(prec(-1, seq("#", /.*/))),
   },
 });
@@ -884,10 +747,6 @@ function sep1(rule, separator) {
 }
 
 function unaryOp($, assoc, precedence, operator, right = null) {
-  // Expression such as `x + y` falls under the "expression vs local call"
-  // conflict that we already have. By using dynamic precedence we penalize
-  // unary operator, so `x + y` is interpreted as binary operator (unless
-  // _before_unary_op is tokenized and forces unary operator interpretation)
   return prec.dynamic(
     -1,
     assoc(
@@ -949,7 +808,6 @@ function defineQuoted(start, end, name) {
         optional(alias($[`_quoted_content_${name}`], $.quoted_content)),
         repeat(
           seq(
-            // The end delimiter may be escaped in non-interpolating strings too
             $.escape_sequence,
             optional(alias($[`_quoted_content_${name}`], $.quoted_content)),
           ),

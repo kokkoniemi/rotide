@@ -19,5 +19,3 @@ keywords still highlight, but some full-AST semantic captures such as module
 attribute keyword grouping, function-clause names, record type names, and strings
 inside flat expression bodies are intentionally reduced.
 
-Current result: `parser.c` is ~1.28 MB / 484 states with no `scanner.c`, down
-from ~2.18 MB / 1567 states plus the upstream scanner.
