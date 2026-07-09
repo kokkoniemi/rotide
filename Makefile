@@ -23,7 +23,7 @@ TS_GRAMMARS_DIR := $(TS_DIR)/grammars
 TS_GRAMMARS := \
 	c cpp go bash html javascript jsdoc css json typescript tsx \
 	python php rust java regex csharp haskell ruby ocaml julia scala \
-	embedded_template markdown markdown_inline toml yaml xml make diff latex bibtex hcl lua glsl kotlin svelte vue helm dockerfile clojure r gdscript zig swift perl scheme
+	embedded_template markdown markdown_inline toml yaml xml make diff latex bibtex hcl lua glsl kotlin svelte vue helm dockerfile clojure r gdscript zig swift perl scheme erlang
 
 # ============================================================================
 # Compiler flags

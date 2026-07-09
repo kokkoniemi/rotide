@@ -212,9 +212,9 @@ ONLY_GRAMMAR=""
 if [[ $# -gt 0 ]]; then
 	if [[ $# -ne 2 || "$1" != "--grammar" || \
 		( "$2" != "bash" && "$2" != "bibtex" && "$2" != "clojure" && "$2" != "cpp" && "$2" != "csharp" && "$2" != "dockerfile" && "$2" != "gdscript" && "$2" != "glsl" && "$2" != "haskell" && "$2" != "hcl" && "$2" != "helm" && "$2" != "julia" && \
-		"$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "r" && "$2" != "ruby" && \
+		"$2" != "erlang" && "$2" != "kotlin" && "$2" != "latex" && "$2" != "lua" && "$2" != "ocaml" && "$2" != "php" && "$2" != "r" && "$2" != "ruby" && \
 		"$2" != "perl" && "$2" != "rust" && "$2" != "scala" && "$2" != "scheme" && "$2" != "svelte" && "$2" != "swift" && "$2" != "typescript" && "$2" != "vue" && "$2" != "zig" ) ]]; then
-		echo "Usage: $0 [--grammar bash|bibtex|clojure|cpp|csharp|dockerfile|gdscript|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|perl|php|r|ruby|rust|scala|scheme|svelte|swift|typescript|vue|zig]" >&2
+		echo "Usage: $0 [--grammar bash|bibtex|clojure|cpp|csharp|dockerfile|erlang|gdscript|glsl|haskell|hcl|helm|julia|kotlin|latex|lua|ocaml|perl|php|r|ruby|rust|scala|scheme|svelte|swift|typescript|vue|zig]" >&2
 		exit 2
 	fi
 	ONLY_GRAMMAR="$2"
@@ -424,6 +424,22 @@ if [[ "${ONLY_GRAMMAR}" == "scheme" ]]; then
 	sync_grammar_vendor "${SCHEME_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/scheme"
 	echo "Tree-sitter Scheme vendor refresh complete." >&2
+	exit 0
+fi
+
+if [[ "${ONLY_GRAMMAR}" == "erlang" ]]; then
+	ERLANG_GRAMMAR_SRC=""
+	download_repo_tarball "WhatsApp/tree-sitter-erlang" \
+		"${TREE_SITTER_ERLANG_GRAMMAR_REF}" ERLANG_GRAMMAR_SRC
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/erlang/grammar.js" \
+		"${ERLANG_GRAMMAR_SRC}/grammar.js"
+	cp "${REPO_ROOT}/vendor/tree_sitter/overrides/erlang/highlights.scm" \
+		"${ERLANG_GRAMMAR_SRC}/queries/highlights.scm"
+	regenerate_parser "${ERLANG_GRAMMAR_SRC}" "Erlang"
+	rm -f "${ERLANG_GRAMMAR_SRC}/src/scanner.c"
+	sync_grammar_vendor "${ERLANG_GRAMMAR_SRC}" \
+		"${REPO_ROOT}/vendor/tree_sitter/grammars/erlang"
+	echo "Tree-sitter Erlang vendor refresh complete." >&2
 	exit 0
 fi
 
@@ -667,6 +683,7 @@ ZIG_GRAMMAR_SRC=""
 SWIFT_GRAMMAR_SRC=""
 PERL_GRAMMAR_SRC=""
 SCHEME_GRAMMAR_SRC=""
+ERLANG_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -713,6 +730,7 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-zig" "${TREE_SITTER_ZIG_
 download_repo_tarball "alex-pinkus/tree-sitter-swift" "${TREE_SITTER_SWIFT_GRAMMAR_REF}" SWIFT_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-perl/tree-sitter-perl" "${TREE_SITTER_PERL_GRAMMAR_REF}" PERL_GRAMMAR_SRC
 download_repo_tarball "6cdh/tree-sitter-scheme" "${TREE_SITTER_SCHEME_GRAMMAR_REF}" SCHEME_GRAMMAR_SRC
+download_repo_tarball "WhatsApp/tree-sitter-erlang" "${TREE_SITTER_ERLANG_GRAMMAR_REF}" ERLANG_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -849,6 +867,15 @@ rm -f "${PERL_GRAMMAR_SRC}"/src/tsp_*.h "${PERL_GRAMMAR_SRC}/src/bsearch.h"
 
 # 6cdh/tree-sitter-scheme: parser-only, no external scanner.
 regenerate_parser "${SCHEME_GRAMMAR_SRC}" "Scheme"
+# WhatsApp/tree-sitter-erlang: replace with RotIDE's reduced highlight grammar
+# (no external scanner) before regenerating, then drop the now-unused upstream
+# scanner.
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/erlang/grammar.js" \
+	"${ERLANG_GRAMMAR_SRC}/grammar.js"
+cp "${REPO_ROOT}/vendor/tree_sitter/overrides/erlang/highlights.scm" \
+	"${ERLANG_GRAMMAR_SRC}/queries/highlights.scm"
+regenerate_parser "${ERLANG_GRAMMAR_SRC}" "Erlang"
+rm -f "${ERLANG_GRAMMAR_SRC}/src/scanner.c"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -958,6 +985,7 @@ sync_grammar_vendor "${PERL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 git -C "${REPO_ROOT}" apply \
 	"${REPO_ROOT}/vendor/tree_sitter/patches/perl-injections-include-children.patch"
 sync_grammar_vendor "${SCHEME_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/scheme"
+sync_grammar_vendor "${ERLANG_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/erlang"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

@@ -18,7 +18,7 @@ implemented and tested.
 - Project drawer: file search, project-wide text search, Git changes, and LSP
   Problems/Symbols.
 - Modal **Vim** input system (the default) or **CUA**, both configurable.
-- Tree-sitter highlighting for 30+ languages; LSP definitions, symbols,
+- Tree-sitter highlighting for Erlang and 30+ other languages; LSP definitions, symbols,
   problems, and autocomplete where enabled.
 - Atomic saves with crash-recovery snapshots; built-in and custom TOML themes.
 

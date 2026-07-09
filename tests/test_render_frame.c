@@ -1821,6 +1821,28 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-erlang-XXXXXX.erl";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/erlang/highlight.erl"));
+
+	editorOpen(path);
+	E.window_rows = 24;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m%% Constants and helpers") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mcase\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_perl_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-injections-perl-XXXXXX.pl";
 	ASSERT_TRUE(
@@ -3114,6 +3136,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_perl_injections},
         {"editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_scheme_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_erlang_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_svelte_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_vue_tokens",

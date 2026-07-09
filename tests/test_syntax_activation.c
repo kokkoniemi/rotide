@@ -902,6 +902,27 @@ static int test_editor_syntax_activation_for_scheme_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_erlang_files(void) {
+	static const char *const extensions[] = {"erl", "hrl", "app", "app.src", "escript"};
+	for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+		char path[80];
+		int written = snprintf(path, sizeof(path), "/tmp/rotide-test-syntax-erlang-XXXXXX.%s",
+		                       extensions[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(path));
+		ASSERT_TRUE(
+		        write_fixture_to_temp_path(path, strlen(extensions[i]) + 1,
+		                                   "tests/syntax/supported/erlang/activation.erl"));
+		editorOpen(path);
+		ASSERT_TRUE(editorSyntaxEnabled());
+		ASSERT_TRUE(editorSyntaxTreeExists());
+		ASSERT_EQ_INT(EDITOR_SYNTAX_ERLANG, editorSyntaxLanguageActive());
+		ASSERT_TRUE(editorSyntaxRootType() != NULL);
+		ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_swift_files(void) {
 	char swift_path[] = "/tmp/rotide-test-syntax-swift-XXXXXX.swift";
 	ASSERT_TRUE(write_fixture_to_temp_path(swift_path, 6,
@@ -1410,6 +1431,8 @@ const struct editorTestCase g_syntax_activation_tests[] = {
          test_editor_syntax_activation_for_perl_files_and_shebang},
         {"editor_syntax_activation_for_scheme_files",
          test_editor_syntax_activation_for_scheme_files},
+        {"editor_syntax_activation_for_erlang_files",
+         test_editor_syntax_activation_for_erlang_files},
         {"editor_syntax_activation_for_lua_files", test_editor_syntax_activation_for_lua_files},
         {"editor_syntax_activation_for_glsl_files", test_editor_syntax_activation_for_glsl_files},
         {"editor_syntax_activation_for_kotlin_files",

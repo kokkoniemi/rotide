@@ -16,6 +16,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/css/` maps to `EDITOR_SYNTAX_CSS`
 - `supported/diff/` maps to `EDITOR_SYNTAX_DIFF`
 - `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
+- `supported/erlang/` maps to `EDITOR_SYNTAX_ERLANG`
 - `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
 - `supported/glsl/` maps to `EDITOR_SYNTAX_GLSL`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`

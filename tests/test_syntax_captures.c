@@ -1069,6 +1069,30 @@ static int test_editor_syntax_scheme_capture_contract(void) {
 	return 0;
 }
 
+static int test_editor_syntax_erlang_capture_contract(void) {
+	static const struct {
+		const char *path;
+		int count;
+		uint64_t digest;
+	} cases[] = {
+	        {"tests/syntax/supported/erlang/highlight.erl", 68, UINT64_C(0x0080d0e8a2530d28)},
+	        {"tests/syntax/supported/erlang/contract.erl", 109, UINT64_C(0x5ee7755729fa7ba4)},
+	        {"tests/syntax/supported/erlang/incomplete.erl", 23, UINT64_C(0xc70b26c5fd30daa6)},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		size_t source_len = 0;
+		char *source = read_file_contents(cases[i].path, &source_len);
+		ASSERT_TRUE(source != NULL);
+		ASSERT_TRUE(source_len == strlen(source));
+		int result = assert_syntax_capture_digest(EDITOR_SYNTAX_ERLANG, source,
+		                                          cases[i].count, cases[i].digest);
+		free(source);
+		ASSERT_EQ_INT(0, result);
+	}
+	return 0;
+}
+
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
@@ -1418,6 +1442,7 @@ const struct editorTestCase g_syntax_captures_tests[] = {
         {"editor_syntax_swift_capture_contract", test_editor_syntax_swift_capture_contract},
         {"editor_syntax_perl_capture_contract", test_editor_syntax_perl_capture_contract},
         {"editor_syntax_scheme_capture_contract", test_editor_syntax_scheme_capture_contract},
+        {"editor_syntax_erlang_capture_contract", test_editor_syntax_erlang_capture_contract},
         {"editor_syntax_query_budget_match_limit_is_graceful",
          test_editor_syntax_query_budget_match_limit_is_graceful},
         {"editor_syntax_query_compile_failure_records_diagnostics",
