@@ -207,7 +207,6 @@ int main(int argc, char **argv) {
 		              opts.update_golden_stash);
 	}
 
-
 	int total_candidates = 0;
 	for (int s = 0; s < K_SUITE_COUNT; s++) {
 		total_candidates += *k_suites[s].count;
