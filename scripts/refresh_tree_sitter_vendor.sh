@@ -437,6 +437,8 @@ if [[ "${ONLY_GRAMMAR}" == "gdscript" ]]; then
 	regenerate_parser "${GDSCRIPT_GRAMMAR_SRC}" "GDScript"
 	sync_grammar_vendor "${GDSCRIPT_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/gdscript"
+	git -C "${REPO_ROOT}" apply \
+		"${REPO_ROOT}/vendor/tree_sitter/patches/gdscript-scanner-drop-unused-within-brackets.patch"
 	echo "Tree-sitter GDScript vendor refresh complete." >&2
 	exit 0
 fi
@@ -478,12 +480,8 @@ if [[ "${ONLY_GRAMMAR}" == "perl" ]]; then
 	rm -f "${PERL_GRAMMAR_SRC}"/src/tsp_*.h "${PERL_GRAMMAR_SRC}/src/bsearch.h"
 	sync_grammar_vendor "${PERL_GRAMMAR_SRC}" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl"
-	sed -i.bak 's/#lua-match?/#match?/' \
-		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm"
-	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm.bak"
-	sed -i.bak -e 's/[[:space:]]*$//' -e 's/(#set! injection.language "perl"))/(#set! injection.language "perl")\n  (#set! injection.include-children))/' \
-		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm"
-	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm.bak"
+	git -C "${REPO_ROOT}" apply \
+		"${REPO_ROOT}/vendor/tree_sitter/patches/perl-injections-include-children.patch"
 	echo "Tree-sitter Perl vendor refresh complete." >&2
 	exit 0
 fi
@@ -532,9 +530,8 @@ if [[ "${ONLY_GRAMMAR}" == "php" ]]; then
 	rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
 	cp -R "${PHP_GRAMMAR_SRC}/common" \
 		"${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
-	sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-		"${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c"
-	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
+	git -C "${REPO_ROOT}" apply \
+		"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-common-include.patch"
 	git -C "${REPO_ROOT}" apply \
 		"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-array-pop-lvalue.patch"
 	git -C "${REPO_ROOT}" apply \
@@ -567,10 +564,9 @@ if [[ "${ONLY_GRAMMAR}" == "typescript" ]]; then
 		rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/common"
 		cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" \
 			"${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/common"
-		sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-			"${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/src/scanner.c"
-		rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/${grammar_name}/src/scanner.c.bak"
 	done
+	git -C "${REPO_ROOT}" apply \
+		"${REPO_ROOT}/vendor/tree_sitter/patches/typescript-scanner-common-include.patch"
 	echo "Tree-sitter TypeScript/TSX vendor refresh complete." >&2
 	exit 0
 fi
@@ -864,14 +860,10 @@ sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "${REPO_ROOT}/vendor/tree_si
 # typescript/ and repoint the include so each grammar owns its common/.
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/common"
 cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/common"
-sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/src/scanner.c"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/src/scanner.c.bak"
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/common"
 cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/common"
-sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/src/scanner.c"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/src/scanner.c.bak"
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/typescript-scanner-common-include.patch"
 sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
 sync_grammar_vendor "${JSON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/json"
 sync_grammar_vendor "${PYTHON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/python"
@@ -883,9 +875,8 @@ sync_grammar_vendor "${PHP_GRAMMAR_SRC}/php" "${REPO_ROOT}/vendor/tree_sitter/gr
 # php/ and repoint the include so each grammar owns its common/.
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
 cp -R "${PHP_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
-sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-common-include.patch"
 # Local fix for an lvalue use of array_pop() in the PHP scanner
 git -C "${REPO_ROOT}" apply \
 	"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-array-pop-lvalue.patch"
@@ -924,11 +915,8 @@ cp -R "${XML_GRAMMAR_SRC}/queries/xml/." "${XML_GRAMMAR_SRC}/xml/queries/"
 sync_grammar_vendor "${XML_GRAMMAR_SRC}/xml" "${REPO_ROOT}/vendor/tree_sitter/grammars/xml"
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/xml/common"
 cp -R "${XML_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/xml/common"
-sed -i.bak \
-	-e 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
-	-e 's|\.\./common/scanner\.h|../common/scanner.h|' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/xml/src/scanner.c"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/xml/src/scanner.c.bak"
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/xml-scanner-common-include.patch"
 # Preserve XML scanner tag-stack state during Tree-sitter serialization.
 git -C "${REPO_ROOT}" apply \
 	"${REPO_ROOT}/vendor/tree_sitter/patches/xml-scanner-serialize-preserve-tags.patch"
@@ -946,15 +934,13 @@ sync_grammar_vendor "${DOCKERFILE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter
 sync_grammar_vendor "${CLOJURE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/clojure"
 sync_grammar_vendor "${R_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/r"
 sync_grammar_vendor "${GDSCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/gdscript"
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/gdscript-scanner-drop-unused-within-brackets.patch"
 sync_grammar_vendor "${ZIG_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/zig"
 sync_grammar_vendor "${SWIFT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/swift"
 sync_grammar_vendor "${PERL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/perl"
-sed -i.bak 's/#lua-match?/#match?/' \
-	"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm"
-rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/highlights.scm.bak"
-	sed -i.bak -e 's/[[:space:]]*$//' -e 's/(#set! injection.language "perl"))/(#set! injection.language "perl")\n  (#set! injection.include-children))/' \
-		"${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm"
-	rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/perl/queries/injections.scm.bak"
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/perl-injections-include-children.patch"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

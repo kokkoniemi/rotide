@@ -1,0 +1,10 @@
+diff --git a/vendor/tree_sitter/grammars/php/src/scanner.c b/vendor/tree_sitter/grammars/php/src/scanner.c
+index 4b090ad..28c53da 100644
+--- a/vendor/tree_sitter/grammars/php/src/scanner.c
++++ b/vendor/tree_sitter/grammars/php/src/scanner.c
+@@ -1,4 +1,4 @@
+-#include "../../common/scanner.h"
++#include "../common/scanner.h"
+ 
+ void *tree_sitter_php_external_scanner_create() {
+     return external_scanner_create();
