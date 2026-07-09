@@ -3,9 +3,9 @@
 RotIDE is a terminal text editor focuses on predictable behavior, explicit data
 flow, and strong regression coverage.
 
-The current status: RotIDE is under active development and in pre-alpha stage.
+_The current status_: RotIDE is under active development and in pre alpha stage.
 The core functionality is in place, and I already use it as my main code editor.
-For anyone else, I don't yet recommend to use it in any serious work.
+For anyone else, I don't yet recommend to use it for any serious work.
 
 ![RotIDE editing its own source](docs/media/screenshots/theme-github-dark.png)
 
