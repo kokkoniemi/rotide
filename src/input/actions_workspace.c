@@ -932,9 +932,21 @@ int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction)
 
 static void actionsWorkspaceSplit(enum editorSplitOrientation orientation) {
 	editorHistoryBreakGroup();
-	if (editorLayoutSplitFocused(orientation, 0.5) != NULL) {
-		editorPaneAnnounceFocus();
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(orientation, 0.5);
+	if (sibling == NULL) {
+		return;
 	}
+	/* editorLayoutSplitFocused leaves the sibling empty when the source pane's
+	 * active tab is a single-host terminal (the terminal is kept in the source
+	 * pane). Seed the new pane with a fresh empty editor tab and make it the
+	 * active tab so the focused pane has content. */
+	if (!sibling->is_split && sibling->as.leaf.view.active_tab_idx < 0) {
+		int empty_idx = editorTabAppendEmptyForPane(sibling);
+		if (empty_idx >= 0) {
+			(void)editorTabSwitchToIndex(empty_idx);
+		}
+	}
+	editorPaneAnnounceFocus();
 }
 
 static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {

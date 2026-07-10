@@ -54,12 +54,6 @@ struct editorTerminalPane {
 	 * draw, so refreshes don't malloc per drawn row. */
 	VTermScreenCell *render_row_scratch;
 	int render_row_scratch_cap;
-
-	/* Per-row dirty bits for the live screen. 0 means the cells are
-	 * unchanged since the last frame, so the renderer may skip the emit and
-	 * leave the terminal's previous output in place. */
-	unsigned char *row_dirty;
-	int row_dirty_cap;
 };
 
 /* Spawn command in PTY + vterm. Caller owns returned pane. */
@@ -141,11 +135,6 @@ struct editorPaneNode;
 /* The active terminal of `pane`: the payload of its active tab when that tab is
  * a TERMINAL tab, else NULL. */
 struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane);
-
-/* Force a full repaint of `terminal` on the next frame. Needed when a terminal
- * tab becomes visible again: its rows are otherwise "clean" and the partial-
- * repaint path would leave whatever the previously-active tab painted. */
-void editorTerminalPaneMarkDirty(struct editorTerminalPane *terminal);
 
 /* Pump every live terminal (the TERMINAL tabs in E.tabs); returns total
  * bytes/activity count. `root` is unused, kept for call-site symmetry. */

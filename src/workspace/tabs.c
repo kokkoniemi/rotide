@@ -16,7 +16,6 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
-#include "terminal/terminal_pane.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
@@ -352,14 +351,10 @@ static void tabsLoadActiveTab(int tab_idx) {
 		(void)editorPaneViewActivateTab(&E.focused_leaf->as.leaf.view, tab_idx);
 	}
 	/* Non-editor active tab: E.active_buffer stays detached/empty and no editor
-	 * (syntax/LSP/document) setup runs. The payload owns the tab's real state. */
+	 * (syntax/LSP/document) setup runs. The payload owns the tab's real state.
+	 * A re-shown terminal tab needs no explicit repaint hint: the renderer
+	 * composites its whole slice from libvterm every frame. */
 	if (E.tabs[tab_idx].kind != EDITOR_PANE_KIND_EDITOR) {
-		/* A re-shown terminal tab must fully repaint: its rows are "clean" but
-		 * the previously-active tab painted over them. */
-		if (E.tabs[tab_idx].kind == EDITOR_PANE_KIND_TERMINAL) {
-			editorTerminalPaneMarkDirty(
-			        (struct editorTerminalPane *)E.tabs[tab_idx].payload);
-		}
 		editorResetActiveBufferFields();
 		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 		return;

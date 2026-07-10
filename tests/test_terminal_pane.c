@@ -1,3 +1,4 @@
+#include "input/actions_workspace.h"
 #include "input/mouse.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
@@ -784,12 +785,101 @@ static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
 	return failed;
 }
 
-static int test_terminal_pane_tab_switch_marks_terminal_dirty(void) {
+/* After the frame-level reconcile, the terminal's libvterm grid and stored
+ * dimensions must match the exact bordered leaf rect the renderer draws into,
+ * so the painted slice and the PTY/vterm size cannot drift. */
+static int test_terminal_pane_resize_all_matches_layout_rect(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
 	}
-	E.window_cols = 60;
-	E.window_rows = 10;
+	E.window_cols = 120;
+	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
+	if (t == NULL) {
+		return 1;
+	}
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	if (!editorLayoutEditorViewport(&viewport) ||
+	    !editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                  terminal_leaf, &rect)) {
+		return 1;
+	}
+	int vrows = 0;
+	int vcols = 0;
+	vterm_get_size(t->vt, &vrows, &vcols);
+	int failed = t->cols != rect.w || t->rows != rect.h || vcols != rect.w || vrows != rect.h;
+	return failed;
+}
+
+/* editorPaneMoveTab does not resize a moved terminal; the frame reconcile must.
+ * Move a terminal from a small pane into a larger neighbor and confirm its grid
+ * fills the larger target rect after the reconcile. */
+static int test_terminal_pane_move_to_neighbor_matches_target_rect(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	/* Left = original editor pane, right = new terminal pane (focused). */
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
+	if (terminal_leaf == NULL || !E.layout_root->is_split) {
+		return 1;
+	}
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
+	if (t == NULL) {
+		return 1;
+	}
+	/* Make the terminal's pane the small one so the target (left) is larger. */
+	E.layout_root->as.split.ratio = 0.75;
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+	int small_cols = t->cols;
+
+	if (!editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_LEFT)) {
+		return 1;
+	}
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+
+	/* The right pane emptied and the tree collapsed to the single left pane,
+	 * which now hosts the terminal as its active tab. */
+	struct editorTerminalPane *moved = editorTerminalPaneForPane(E.focused_leaf);
+	if (moved != t) {
+		return 1;
+	}
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	if (!editorLayoutEditorViewport(&viewport) ||
+	    !editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                  E.focused_leaf, &rect)) {
+		return 1;
+	}
+	int failed = t->cols != rect.w || t->rows != rect.h || t->cols <= small_cols;
+	return failed;
+}
+
+/* Splitting a pane whose active tab is a terminal must not mirror the single-
+ * host terminal into the sibling: it stays in the source pane, and the sibling
+ * is left empty for the caller to seed. */
+static int test_terminal_pane_split_keeps_terminal_single_host(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
 	if (!editorTabsInit()) {
 		return 1;
 	}
@@ -802,29 +892,29 @@ static int test_terminal_pane_tab_switch_marks_terminal_dirty(void) {
 		editorTerminalPaneFree(t);
 		return 1;
 	}
-	if (!editorPaneViewAddTab(&E.layout_root->as.leaf.view, term_idx) ||
-	    !editorTabSwitchToIndex(term_idx) || t->row_dirty == NULL) {
+	struct editorPaneNode *source = E.focused_leaf;
+	if (!editorPaneViewAddTab(&source->as.leaf.view, term_idx) ||
+	    !editorTabSwitchToIndex(term_idx)) {
 		return 1;
 	}
-	/* Pretend the terminal is fully painted, then switch away (the editor tab
-	 * paints over it) and back. The re-shown terminal must be marked dirty so it
-	 * repaints over the editor content instead of leaving it on screen. */
-	memset(t->row_dirty, 0, (size_t)t->row_dirty_cap);
-	(void)editorTabSwitchToIndex(0);
-	(void)editorTabSwitchToIndex(term_idx);
-	int any_dirty = 0;
-	for (int i = 0; i < t->row_dirty_cap; i++) {
-		if (t->row_dirty[i]) {
-			any_dirty = 1;
-			break;
-		}
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL || sibling->is_split) {
+		return 1;
 	}
-	return any_dirty ? 0 : 1;
+	int failed = editorPaneViewHasTab(&sibling->as.leaf.view, term_idx) ||
+	             sibling->as.leaf.view.pane_tab_count != 0 ||
+	             sibling->as.leaf.view.active_tab_idx != -1 ||
+	             !editorPaneViewHasTab(&source->as.leaf.view, term_idx);
+	return failed;
 }
 
 const struct editorTestCase g_terminal_pane_tests[] = {
-        {"terminal_pane_tab_switch_marks_terminal_dirty",
-         test_terminal_pane_tab_switch_marks_terminal_dirty},
+        {"terminal_pane_resize_all_matches_layout_rect",
+         test_terminal_pane_resize_all_matches_layout_rect},
+        {"terminal_pane_move_to_neighbor_matches_target_rect",
+         test_terminal_pane_move_to_neighbor_matches_target_rect},
+        {"terminal_pane_split_keeps_terminal_single_host",
+         test_terminal_pane_split_keeps_terminal_single_host},
         {"terminal_pane_open_split_creates_labeled_terminal_tab",
          test_terminal_pane_open_split_creates_labeled_terminal_tab},
         {"terminal_pane_create_rejects_null_command",

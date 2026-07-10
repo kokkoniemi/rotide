@@ -142,36 +142,6 @@ static int terminalViewDrawExitStatusRow(struct writeBuf *wb,
 	return editorAppendThemeReset(wb);
 }
 
-static int terminalViewTryAdvanceCleanRow(struct writeBuf *wb,
-                                          const struct editorTerminalPane *terminal,
-                                          int row_in_pane, int slice_cols, int *advanced_out) {
-	*advanced_out = 0;
-	if (terminal->row_dirty == NULL || row_in_pane < 0 ||
-	    row_in_pane >= terminal->row_dirty_cap || terminal->row_dirty[row_in_pane]) {
-		return 1;
-	}
-	if (!editorAppendThemeReset(wb)) {
-		return 0;
-	}
-	char esc[16];
-	int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
-	if (n <= 0 || n >= (int)sizeof(esc)) {
-		return 1;
-	}
-	if (!wbAppend(wb, esc, (size_t)n)) {
-		return 0;
-	}
-	*advanced_out = 1;
-	return 1;
-}
-
-static void terminalViewMarkRowClean(struct editorTerminalPane *terminal, int row_in_pane) {
-	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
-	    row_in_pane < terminal->row_dirty_cap) {
-		terminal->row_dirty[row_in_pane] = 0;
-	}
-}
-
 struct terminalViewRowCtx {
 	int log_row;
 	int row_cols;
@@ -288,32 +258,15 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
 		return 1;
 	}
+	/* Composite the whole slice from VTermScreen every frame. There is no
+	 * host-screen clean-row shortcut: the pane origin can move (drawer, tab
+	 * move, overlay) between frames, so a skipped row would leave stale cells. */
 	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
-		int advanced = 0;
-		if (!terminalViewTryAdvanceCleanRow(wb, terminal, row_in_pane, slice_cols,
-		                                    &advanced)) {
-			return 0;
-		}
-		if (advanced) {
-			return 1;
-		}
-		int ok = terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
-		if (ok) {
-			terminalViewMarkRowClean(terminal, row_in_pane);
-		}
-		return ok;
-	}
-	int advanced = 0;
-	if (!terminalViewTryAdvanceCleanRow(wb, terminal, row_in_pane, slice_cols, &advanced)) {
-		return 0;
-	}
-	if (advanced) {
-		return 1;
+		return terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
-	terminalViewMarkRowClean(terminal, row_in_pane);
 	struct terminalViewRowCtx row_ctx =
 	        terminalViewBuildRowCtx(terminal, row_in_pane, slice_cols);
 	if (!terminalViewDrawRowCells(wb, terminal, &row_ctx, col_in_pane, slice_cols)) {

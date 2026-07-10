@@ -65,72 +65,6 @@ static void terminalPaneOutputCallback(const char *s, size_t len, void *user) {
 	(void)written;
 }
 
-/* (Re)allocate row_dirty to hold `rows` entries, init all to dirty so the next
- * frame paints from scratch. Returns 1 on success, 0 on OOM (row_dirty kept
- * at its prior size; caller falls back to "everything dirty" via row_dirty==NULL). */
-static int terminalPaneAllocRowDirty(struct editorTerminalPane *t, int rows) {
-	if (t == NULL || rows <= 0) {
-		return 1;
-	}
-	if (t->row_dirty != NULL && t->row_dirty_cap >= rows) {
-		memset(t->row_dirty, 1, (size_t)rows);
-		return 1;
-	}
-	unsigned char *grown = realloc(t->row_dirty, (size_t)rows);
-	if (grown == NULL) {
-		return 0;
-	}
-	memset(grown, 1, (size_t)rows);
-	t->row_dirty = grown;
-	t->row_dirty_cap = rows;
-	return 1;
-}
-
-static void terminalPaneMarkAllRowsDirty(struct editorTerminalPane *t) {
-	if (t == NULL || t->row_dirty == NULL) {
-		return;
-	}
-	int n = t->rows < t->row_dirty_cap ? t->rows : t->row_dirty_cap;
-	if (n > 0) {
-		memset(t->row_dirty, 1, (size_t)n);
-	}
-}
-
-static int terminalPaneDamage(VTermRect rect, void *user) {
-	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
-	if (t == NULL || t->row_dirty == NULL) {
-		return 1;
-	}
-	int r0 = rect.start_row < 0 ? 0 : rect.start_row;
-	int r1 = rect.end_row;
-	if (r1 > t->row_dirty_cap) {
-		r1 = t->row_dirty_cap;
-	}
-	for (int r = r0; r < r1; r++) {
-		t->row_dirty[r] = 1;
-	}
-	return 1;
-}
-
-static int terminalPaneMoverect(VTermRect dest, VTermRect src, void *user) {
-	(void)dest;
-	(void)src;
-	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
-	/* Internal scrolls touch large rectangles and libvterm follows up with
-	 * damage events for the new content, but the simplest correct thing is
-	 * to repaint every row this frame. */
-	terminalPaneMarkAllRowsDirty(t);
-	return 1;
-}
-
-static int terminalPaneResizeCb(int rows, int cols, void *user) {
-	(void)rows;
-	(void)cols;
-	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
-	terminalPaneMarkAllRowsDirty(t);
-	return 1;
-}
-
 static int terminalPaneSetTermProp(VTermProp prop, VTermValue *val, void *user) {
 	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
 	if (t == NULL || val == NULL) {
@@ -191,9 +125,6 @@ static int terminalPaneSbPushline(int cols, const VTermScreenCell *cells, void *
 	if (t->scroll_offset > t->sb_size) {
 		t->scroll_offset = t->sb_size;
 	}
-	/* Live cells shifted up under the user's view (or selection rows shifted
-	 * if scrolled), so the whole pane needs a fresh paint this frame. */
-	terminalPaneMarkAllRowsDirty(t);
 	return 1;
 }
 
@@ -222,7 +153,6 @@ static int terminalPaneSbPopline(int cols, VTermScreenCell *cells, void *user) {
 	}
 	t->sb_head = back_idx;
 	t->sb_size -= 1;
-	terminalPaneMarkAllRowsDirty(t);
 	return 1;
 }
 
@@ -240,15 +170,15 @@ static int terminalPaneSbClear(void *user) {
 	t->sb_head = 0;
 	t->scroll_offset = 0;
 	t->sel_active = 0;
-	terminalPaneMarkAllRowsDirty(t);
 	return 1;
 }
 
+/* The renderer composites every terminal slice from VTermScreen each frame, so
+ * no damage/moverect/resize callback is needed: those existed only to drive the
+ * removed per-row dirty tracking. Scrollback and term-prop callbacks remain
+ * because libvterm requires them for screen/scrollback semantics. */
 static const VTermScreenCallbacks g_terminal_pane_screen_callbacks = {
-        .damage = terminalPaneDamage,
-        .moverect = terminalPaneMoverect,
         .settermprop = terminalPaneSetTermProp,
-        .resize = terminalPaneResizeCb,
         .sb_pushline = terminalPaneSbPushline,
         .sb_popline = terminalPaneSbPopline,
         .sb_clear = terminalPaneSbClear,
@@ -280,7 +210,6 @@ static struct editorTerminalPane *terminalPaneAlloc(int cols, int rows) {
 			t->sb_cap = sb_cap;
 		}
 	}
-	(void)terminalPaneAllocRowDirty(t, rows);
 
 	t->vt = vterm_new(rows, cols);
 	if (t->vt == NULL) {
@@ -352,8 +281,6 @@ void editorTerminalPaneFree(void *pane) {
 	}
 	free(t->render_row_scratch);
 	t->render_row_scratch = NULL;
-	free(t->row_dirty);
-	t->row_dirty = NULL;
 	free(t);
 }
 
@@ -431,10 +358,15 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int 
 	}
 	cols = terminalPaneClampDim(cols);
 	rows = terminalPaneClampDim(rows);
+	/* Idempotent: skip the libvterm reflow and the child SIGWINCH when the grid
+	 * already matches. This lets the frame-level reconcile in screenDrawRows()
+	 * call us every frame cheaply. */
+	if (cols == terminal->cols && rows == terminal->rows) {
+		return 1;
+	}
 	vterm_set_size(terminal->vt, rows, cols);
 	terminal->cols = cols;
 	terminal->rows = rows;
-	(void)terminalPaneAllocRowDirty(terminal, rows);
 	if (terminal->child.master_fd >= 0) {
 		(void)editorPtyResize(&terminal->child, cols, rows);
 	}
@@ -512,7 +444,6 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_ke
 	if (terminal->sel_active || terminal->scroll_offset != 0) {
 		terminal->sel_active = 0;
 		terminal->scroll_offset = 0;
-		terminalPaneMarkAllRowsDirty(terminal);
 	}
 	/* Route printables through vterm. */
 	if (rotide_key >= 0x20 && rotide_key < 0x7f) {
@@ -593,7 +524,6 @@ int editorTerminalPaneScrollBy(struct editorTerminalPane *terminal, int lines) {
 		return 0;
 	}
 	terminal->scroll_offset = target;
-	terminalPaneMarkAllRowsDirty(terminal);
 	return 1;
 }
 
@@ -602,7 +532,6 @@ int editorTerminalPaneScrollReset(struct editorTerminalPane *terminal) {
 		return 0;
 	}
 	terminal->scroll_offset = 0;
-	terminalPaneMarkAllRowsDirty(terminal);
 	return 1;
 }
 
@@ -668,7 +597,6 @@ void editorTerminalPaneSelectionBegin(struct editorTerminalPane *terminal, int r
 	terminal->sel_anchor_col = col;
 	terminal->sel_cursor_row = row;
 	terminal->sel_cursor_col = col;
-	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 void editorTerminalPaneSelectionUpdate(struct editorTerminalPane *terminal, int row, int col) {
@@ -680,7 +608,6 @@ void editorTerminalPaneSelectionUpdate(struct editorTerminalPane *terminal, int 
 	}
 	terminal->sel_cursor_row = row;
 	terminal->sel_cursor_col = col;
-	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 void editorTerminalPaneSelectionClear(struct editorTerminalPane *terminal) {
@@ -688,7 +615,6 @@ void editorTerminalPaneSelectionClear(struct editorTerminalPane *terminal) {
 		return;
 	}
 	terminal->sel_active = 0;
-	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 int editorTerminalPaneSelectionContains(const struct editorTerminalPane *terminal, int row,
@@ -903,64 +829,6 @@ int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out
 	return count;
 }
 
-static void terminalPaneResizeRecursive(struct editorPaneNode *node, struct editorRect rect,
-                                        int border_size) {
-	if (node == NULL) {
-		return;
-	}
-	if (!node->is_split) {
-		/* A pane's active TERMINAL tab sizes to the full content rect; its tab
-		 * strip lives in the border row above. */
-		struct editorTerminalPane *tab_term = editorTerminalPaneForPane(node);
-		if (tab_term != NULL && rect.w > 0 && rect.h > 0) {
-			(void)editorTerminalPaneResize(tab_term, rect.w, rect.h);
-		}
-		return;
-	}
-	/* Keep split math aligned with layout renderer. */
-	struct editorRect first_rect = rect;
-	struct editorRect second_rect = rect;
-	double ratio = node->as.split.ratio;
-	if (ratio < 0.0) {
-		ratio = 0.0;
-	} else if (ratio > 1.0) {
-		ratio = 1.0;
-	}
-	if (node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
-		int available = rect.w - border_size;
-		if (available < 0) {
-			available = 0;
-		}
-		int first_w = (int)((double)available * ratio);
-		if (first_w < 0) {
-			first_w = 0;
-		}
-		if (first_w > available) {
-			first_w = available;
-		}
-		first_rect.w = first_w;
-		second_rect.x = rect.x + first_w + border_size;
-		second_rect.w = available - first_w;
-	} else {
-		int available = rect.h - border_size;
-		if (available < 0) {
-			available = 0;
-		}
-		int first_h = (int)((double)available * ratio);
-		if (first_h < 0) {
-			first_h = 0;
-		}
-		if (first_h > available) {
-			first_h = available;
-		}
-		first_rect.h = first_h;
-		second_rect.y = rect.y + first_h + border_size;
-		second_rect.h = available - first_h;
-	}
-	terminalPaneResizeRecursive(node->as.split.first, first_rect, border_size);
-	terminalPaneResizeRecursive(node->as.split.second, second_rect, border_size);
-}
-
 void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
 	if (root == NULL) {
 		return;
@@ -969,7 +837,25 @@ void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return;
 	}
-	terminalPaneResizeRecursive(root, viewport, ROTIDE_PANE_BORDER_SIZE);
+	/* Consume the exact leaf rectangles the renderer draws into rather than
+	 * re-deriving split math here, so the libvterm grid and the painted slice
+	 * cannot drift. editorTerminalPaneResize() is idempotent, so this is a cheap
+	 * no-op for every terminal whose rect is unchanged. */
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(root, viewport, ROTIDE_PANE_BORDER_SIZE, &layout)) {
+		return;
+	}
+	for (int i = 0; i < layout.count; i++) {
+		struct editorTerminalPane *tab_term =
+		        editorTerminalPaneForPane(layout.rects[i].node);
+		struct editorRect rect = layout.rects[i].rect;
+		/* The active TERMINAL tab sizes to the full content rect; its tab strip
+		 * lives in the border row above. */
+		if (tab_term != NULL && rect.w > 0 && rect.h > 0) {
+			(void)editorTerminalPaneResize(tab_term, rect.w, rect.h);
+		}
+	}
+	editorLeafLayoutFree(&layout);
 }
 
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
@@ -1018,10 +904,6 @@ struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode
 		return NULL;
 	}
 	return (struct editorTerminalPane *)editorTabPayloadAt(pane->as.leaf.view.active_tab_idx);
-}
-
-void editorTerminalPaneMarkDirty(struct editorTerminalPane *terminal) {
-	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orientation) {

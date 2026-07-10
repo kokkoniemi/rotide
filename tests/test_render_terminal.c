@@ -370,6 +370,58 @@ static int test_editor_refresh_screen_renders_terminal_pane(void) {
 	return found ? 0 : 1;
 }
 
+/* Regression for the removed host-screen clean-row shortcut: a second frame
+ * with no terminal change must still composite the whole slice from libvterm.
+ * The old row_dirty path marked unchanged rows "clean" and emitted a cursor-
+ * forward instead of the content, which left stale cells whenever the pane
+ * origin moved. Here the content must appear in both consecutive frames. */
+static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	struct editorTerminalPane *t =
+	        open_terminal_tab_in_root("printf 'rotide-stale-marker\\n'; sleep 3");
+	if (t == NULL) {
+		return 1;
+	}
+	int waited = 0;
+	int saw_marker = 0;
+	while (waited < 2000 && !saw_marker) {
+		(void)editorTerminalPanePump(t);
+		char buf[4096];
+		VTermRect rect = {
+		        .start_row = 0, .end_row = t->rows, .start_col = 0, .end_col = t->cols};
+		size_t n = vterm_screen_get_text(t->screen, buf, sizeof(buf) - 1, rect);
+		if (n >= sizeof(buf)) {
+			n = sizeof(buf) - 1;
+		}
+		buf[n] = '\0';
+		saw_marker = strstr(buf, "rotide-stale-marker") != NULL;
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	if (!saw_marker) {
+		return 1;
+	}
+
+	size_t first_len = 0;
+	char *first = refresh_screen_and_capture(&first_len);
+	ASSERT_TRUE(first != NULL);
+	int in_first = strstr(first, "rotide-stale-marker") != NULL;
+	free(first);
+
+	/* No pump / no change between frames: under the old clean-row skip the
+	 * second frame would omit the content. */
+	size_t second_len = 0;
+	char *second = refresh_screen_and_capture(&second_len);
+	ASSERT_TRUE(second != NULL);
+	int in_second = strstr(second, "rotide-stale-marker") != NULL;
+	free(second);
+
+	return (in_first && in_second) ? 0 : 1;
+}
+
 static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
@@ -525,6 +577,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
          test_editor_refresh_screen_hides_git_blame_indicator_for_dirty_buffer},
         {"editor_refresh_screen_renders_terminal_pane",
          test_editor_refresh_screen_renders_terminal_pane},
+        {"editor_refresh_screen_terminal_repaints_unchanged_slice",
+         test_editor_refresh_screen_terminal_repaints_unchanged_slice},
         {"editor_refresh_screen_terminal_exit_overlay",
          test_editor_refresh_screen_terminal_exit_overlay},
         {"editor_refresh_screen_closes_exited_terminal_without_keypress",

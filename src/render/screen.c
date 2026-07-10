@@ -1343,6 +1343,13 @@ static int screenDrawRows(struct writeBuf *wb) {
 
 	int had_terminal = editorTerminalPaneTreeHasTerminal(E.layout_root);
 	if (had_terminal) {
+		/* Frame-level backstop: reconcile every visible terminal's grid to its
+		 * current layout rect before pumping, so drawer collapse/expand/width,
+		 * tab moves, pane close, and workspace restore all deliver the correct
+		 * size to the child without each mutation remembering a resize hook.
+		 * editorTerminalPaneResize() is idempotent, so unchanged panes cost
+		 * nothing. */
+		editorTerminalPaneResizeAllToLayout(E.layout_root);
 		struct editorPaneNode *prev_focus = E.focused_leaf;
 		(void)editorTerminalPanePumpAll(E.layout_root);
 		int closed = editorTerminalPaneCloseExitedTabs();
