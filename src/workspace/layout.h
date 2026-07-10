@@ -254,6 +254,8 @@ int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);
 int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx);
 void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view, int removed_idx);
 int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx);
+int editorPaneTreeAnyOtherPaneHasTab(const struct editorPaneNode *root,
+                                     const struct editorPaneNode *exclude, int tab_idx);
 void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int removed_idx);
 void editorPaneTreeClearPreviewTab(struct editorPaneNode *root, int tab_idx);
 int editorPaneTreeAnyPanePreviewsTab(const struct editorPaneNode *root, int tab_idx);

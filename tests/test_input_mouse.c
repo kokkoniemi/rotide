@@ -1213,6 +1213,84 @@ static int test_editor_pin_preview_only_affects_active_pane(void) {
 	return 0;
 }
 
+/* Two panes sharing one preview tab: previewing a different file in one pane
+ * (e.g. clicking it in the explorer) must swap only that pane's preview and
+ * leave the other pane still showing the original file. */
+static int test_editor_preview_reuse_does_not_change_shared_pane(void) {
+	char file1[PATH_MAX];
+	char file2[PATH_MAX];
+	ASSERT_TRUE(write_temp_text_file(file1, sizeof(file1), "one\n"));
+	ASSERT_TRUE(write_temp_text_file(file2, sizeof(file2), "two\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Preview file1, then split so both panes share that preview tab (tab 0). */
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file1));
+	ASSERT_EQ_INT(0, E.active_tab);
+	struct editorPaneNode *first = E.focused_leaf;
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(second != NULL && E.focused_leaf == second);
+	ASSERT_EQ_INT(0, first->as.leaf.view.preview_tab_idx);
+	ASSERT_EQ_INT(0, second->as.leaf.view.preview_tab_idx);
+
+	/* Preview file2 in the (focused) sibling: it forks a fresh preview tab. */
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file2));
+	ASSERT_EQ_STR(file2, E.filename);
+	ASSERT_TRUE(E.active_tab != 0);
+	ASSERT_EQ_INT(E.active_tab, second->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(!editorPaneViewHasTab(&second->as.leaf.view, 0));
+
+	/* The first pane still previews file1 in the untouched original tab. */
+	ASSERT_EQ_INT(0, first->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorPaneViewHasTab(&first->as.leaf.view, 0));
+	ASSERT_EQ_STR(file1, editorTabFilenameAt(0));
+
+	(void)remove(file1);
+	(void)remove(file2);
+	return 0;
+}
+
+/* Previewing (from the explorer) a file that is open only in another pane must
+ * open a fresh preview in the focused pane, not adopt/share the other pane's tab
+ * as a pinned tab. */
+static int test_editor_preview_file_open_in_other_pane_opens_own_preview(void) {
+	char file1[PATH_MAX];
+	char file2[PATH_MAX];
+	ASSERT_TRUE(write_temp_text_file(file1, sizeof(file1), "one\n"));
+	ASSERT_TRUE(write_temp_text_file(file2, sizeof(file2), "two\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Pane A previews file1; split and fork pane B onto file2 so the two panes
+	 * hold independent previews (A: file1 tab 0, B: file2 tab 1). */
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file1));
+	struct editorPaneNode *paneA = E.focused_leaf;
+	struct editorPaneNode *paneB = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(paneB != NULL && E.focused_leaf == paneB);
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file2));
+	ASSERT_EQ_INT(1, paneB->as.leaf.view.preview_tab_idx);
+
+	/* Focus pane A and preview file2 (open only in pane B). */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneA));
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file2));
+
+	/* Pane A shows file2 in its own reused preview slot (tab 0), still a preview;
+	 * it did not adopt pane B's tab 1, and pane B is untouched. */
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_STR(file2, E.filename);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_TRUE(!editorPaneViewHasTab(&paneA->as.leaf.view, 1));
+	ASSERT_EQ_INT(1, paneB->as.leaf.view.preview_tab_idx);
+
+	(void)remove(file1);
+	(void)remove(file2);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_tab_drag_reorders_within_pane(void) {
 	struct editorPaneNode *top = NULL;
 	struct editorPaneNode *bottom = NULL;
@@ -3117,6 +3195,10 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab},
         {"editor_pin_preview_only_affects_active_pane",
          test_editor_pin_preview_only_affects_active_pane},
+        {"editor_preview_reuse_does_not_change_shared_pane",
+         test_editor_preview_reuse_does_not_change_shared_pane},
+        {"editor_preview_file_open_in_other_pane_opens_own_preview",
+         test_editor_preview_file_open_in_other_pane_opens_own_preview},
         {"editor_process_keypress_mouse_tab_drag_reorders_within_pane",
          test_editor_process_keypress_mouse_tab_drag_reorders_within_pane},
         {"editor_process_keypress_mouse_tab_drag_moves_across_panes",

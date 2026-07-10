@@ -861,6 +861,18 @@ int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx) 
 	return editorPaneViewHasTab(&root->as.leaf.view, tab_idx);
 }
 
+int editorPaneTreeAnyOtherPaneHasTab(const struct editorPaneNode *root,
+                                     const struct editorPaneNode *exclude, int tab_idx) {
+	if (root == NULL) {
+		return 0;
+	}
+	if (root->is_split) {
+		return editorPaneTreeAnyOtherPaneHasTab(root->as.split.first, exclude, tab_idx) ||
+		       editorPaneTreeAnyOtherPaneHasTab(root->as.split.second, exclude, tab_idx);
+	}
+	return root != exclude && editorPaneViewHasTab(&root->as.leaf.view, tab_idx);
+}
+
 void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int removed_idx) {
 	if (root == NULL) {
 		return;

@@ -50,7 +50,7 @@ static int tabsCanReuseActiveEmptyBuffer(void);
 static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind);
 static int tabsFindReusablePreviewIndex(void);
 static const char *tabsPathAt(int idx);
-static int tabsFindOpenFileIndex(const char *path);
+static int tabsFindOpenFileIndexInFocusedPane(const char *path);
 static int tabsFindEditableFileIndex(const char *path);
 static int tabsLoadUnsupportedFilePreview(const char *filename);
 static void tabsTaskLogClampCursor(struct editorTabState *tab);
@@ -821,25 +821,8 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 	return editorTabOpenFileAsNew(filename);
 }
 
-int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
-	if (filename == NULL || filename[0] == '\0') {
-		return 0;
-	}
-
-	int existing_tab = tabsFindOpenFileIndex(filename);
-	if (existing_tab >= 0) {
-		return editorTabSwitchToIndex(existing_tab);
-	}
-
-	int is_binary = 0;
-	int can_open = 0;
-	if (editorFilePathLooksBinary(filename, &is_binary) && is_binary) {
-		can_open = 0;
-	} else {
-		can_open = editorFileCanOpen(filename);
-	}
-
-	int preview_tab = tabsFindReusablePreviewIndex();
+static int tabsOpenPreviewFileInner(const char *filename, int preview_tab, int is_binary,
+                                    int can_open, int allow_empty_reuse) {
 	if (preview_tab >= 0) {
 		if (can_open) {
 			if (!editorTabSwitchToIndex(preview_tab)) {
@@ -860,7 +843,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		return tabsLoadUnsupportedFilePreview(filename);
 	}
 
-	if (tabsCanReuseActiveEmptyBuffer()) {
+	if (allow_empty_reuse && tabsCanReuseActiveEmptyBuffer()) {
 		if (can_open) {
 			if (!editorOpen(filename)) {
 				return 0;
@@ -889,6 +872,44 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 	return tabsLoadUnsupportedFilePreview(filename);
 }
 
+int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+
+	int existing_tab = tabsFindOpenFileIndexInFocusedPane(filename);
+	if (existing_tab >= 0) {
+		return editorTabSwitchToIndex(existing_tab);
+	}
+
+	int is_binary = 0;
+	int can_open = 0;
+	if (editorFilePathLooksBinary(filename, &is_binary) && is_binary) {
+		can_open = 0;
+	} else {
+		can_open = editorFileCanOpen(filename);
+	}
+
+	int preview_tab = tabsFindReusablePreviewIndex();
+	struct editorPaneView *focused = tabsFocusedView();
+	/* Reusing a preview another pane also shows would swap the file shown there
+	 * too. Leave the shared tab for that pane and open the new file in a fresh
+	 * preview here instead. */
+	int detach_shared = -1;
+	if (preview_tab >= 0 && focused != NULL &&
+	    editorPaneTreeAnyOtherPaneHasTab(E.layout_root, E.focused_leaf, preview_tab)) {
+		detach_shared = preview_tab;
+		preview_tab = -1;
+	}
+
+	int ok = tabsOpenPreviewFileInner(filename, preview_tab, is_binary, can_open,
+	                                  detach_shared < 0);
+	if (ok && detach_shared >= 0) {
+		editorPaneViewRemoveTab(focused, detach_shared);
+	}
+	return ok;
+}
+
 static const char *tabsPathAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return NULL;
@@ -899,21 +920,22 @@ static const char *tabsPathAt(int idx) {
 	return E.tabs[idx].filename;
 }
 
-static int tabsFindOpenFileIndex(const char *path) {
-	if (path == NULL || path[0] == '\0') {
+/* Finds the file's tab within the focused pane only. Previewing a file open
+ * only in another pane must not adopt (and share) that pane's tab, so the match
+ * is scoped to give the focused pane its own preview. */
+static int tabsFindOpenFileIndexInFocusedPane(const char *path) {
+	struct editorPaneView *view = tabsFocusedView();
+	if (view == NULL || path == NULL || path[0] == '\0') {
 		return -1;
 	}
-
-	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		int tab_idx = view->pane_tabs[i];
 		const char *tab_path = tabsPathAt(tab_idx);
-		if (tab_path == NULL || tab_path[0] == '\0') {
-			continue;
-		}
-		if (editorPathsReferToSameFile(path, tab_path)) {
+		if (tab_path != NULL && tab_path[0] != '\0' &&
+		    editorPathsReferToSameFile(path, tab_path)) {
 			return tab_idx;
 		}
 	}
-
 	return -1;
 }
 
