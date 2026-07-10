@@ -635,6 +635,12 @@ void editorDrawerPreviewSelectionAfterMove(editorJumpToPathLocationFn jump_fn) {
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return;
 	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+		if (editorOpenSelectedGitDiff()) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+		}
+		return;
+	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_TREE) {
 		(void)editorDrawerOpenSelectedFileInPreviewTab();
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;

@@ -584,6 +584,126 @@ static int test_git_input_enter_on_file_row_opens_diff(void) {
 	return 0;
 }
 
+/* Counts git drawer file rows highlighted as the open diff; reports via
+ * rel_active_out whether the row for rel_path is among them. */
+static int git_input_active_file_row_count(const char *rel_path, int *rel_active_out) {
+	if (rel_active_out != NULL) {
+		*rel_active_out = 0;
+	}
+	int count = 0;
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		struct editorDrawerEntryView view;
+		if (!editorDrawerVisibleEntryView(idx, &view) || !view.is_active_file) {
+			continue;
+		}
+		count++;
+		if (rel_active_out != NULL && rel_path != NULL && view.name != NULL &&
+		    strstr(view.name, rel_path) != NULL) {
+			*rel_active_out = 1;
+		}
+	}
+	return count;
+}
+
+/* Visible index of the git drawer file row for rel_path, or -1; leaves the
+ * selection unchanged. */
+static int git_input_file_row_index(const char *rel_path) {
+	int saved = E.drawer_selected_index;
+	int result = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		E.drawer_selected_index = idx;
+		int entry_idx = 0;
+		if (editorDrawerSelectedGitEntry(&entry_idx) &&
+		    strcmp(E.git_entries[entry_idx].rel_path, rel_path) == 0) {
+			result = idx;
+			break;
+		}
+	}
+	E.drawer_selected_index = saved;
+	return result;
+}
+
+static int test_git_input_open_diff_highlights_file_row(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	/* a.txt: tracked + worktree-modified (Changes); c.txt: untracked. */
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "changed\n"));
+	ASSERT_TRUE(git_input_write_file(repo, "c.txt", "brand new\n"));
+	editorGitRefresh();
+	E.window_rows = 20;
+	E.window_cols = 120;
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	/* No diff open yet: nothing highlighted. */
+	ASSERT_EQ_INT(0, git_input_active_file_row_count(NULL, NULL));
+
+	/* Opening a.txt's diff highlights only a.txt's row. */
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
+	int a_active = 0;
+	ASSERT_EQ_INT(1, git_input_active_file_row_count("a.txt", &a_active));
+	ASSERT_TRUE(a_active);
+
+	/* Opening c.txt's diff moves the highlight to c.txt. */
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("c.txt", '?', '?'));
+	int c_active = 0;
+	ASSERT_EQ_INT(1, git_input_active_file_row_count("c.txt", &c_active));
+	ASSERT_TRUE(c_active);
+
+	/* A non-diff tab clears the highlight. */
+	editorGitViewOpenBranches();
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_BRANCHES, E.tab_kind);
+	ASSERT_EQ_INT(0, git_input_active_file_row_count(NULL, NULL));
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_arrow_nav_previews_diff(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	/* Two tracked files, both worktree-modified, so they sit as adjacent rows
+	 * under Changes (porcelain lists paths sorted: a.txt then d.txt). */
+	ASSERT_TRUE(git_input_write_file(repo, "d.txt", "orig\n"));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' add d.txt", repo));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' commit -q -m add-d", repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "AAA\n"));
+	ASSERT_TRUE(git_input_write_file(repo, "d.txt", "DDD\n"));
+	editorGitRefresh();
+	E.window_rows = 20;
+	E.window_cols = 120;
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	int a_idx = git_input_file_row_index("a.txt");
+	int d_idx = git_input_file_row_index("d.txt");
+	ASSERT_TRUE(a_idx >= 0 && d_idx >= 0);
+	ASSERT_EQ_INT(1, d_idx - a_idx);
+
+	/* Select a.txt then arrow down onto d.txt: the preview follows the
+	 * selection, focus stays in the drawer, and the diff tab is reused. */
+	E.drawer_selected_index = a_idx;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	ASSERT_TRUE(editor_process_keypress_with_input("\x1b[B", 3) == 0);
+	ASSERT_EQ_INT(d_idx, E.drawer_selected_index);
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_TRUE(E.git_view_regen_arg != NULL && strcmp(E.git_view_regen_arg, "d.txt") == 0);
+	ASSERT_TRUE(git_input_view_contains("DDD"));
+
+	/* Arrow back up onto a.txt: the preview follows back. */
+	ASSERT_TRUE(editor_process_keypress_with_input("\x1b[A", 3) == 0);
+	ASSERT_EQ_INT(a_idx, E.drawer_selected_index);
+	ASSERT_TRUE(E.git_view_regen_arg != NULL && strcmp(E.git_view_regen_arg, "a.txt") == 0);
+	ASSERT_TRUE(git_input_view_contains("AAA"));
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
 static int test_git_input_context_menu_stage_and_unstage(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
@@ -1008,6 +1128,8 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_diff_tabs_reuse_preview_slot", test_git_input_diff_tabs_reuse_preview_slot},
         {"git_input_diff_toggle_whole_file", test_git_input_diff_toggle_whole_file},
         {"git_input_enter_on_file_row_opens_diff", test_git_input_enter_on_file_row_opens_diff},
+        {"git_input_open_diff_highlights_file_row", test_git_input_open_diff_highlights_file_row},
+        {"git_input_arrow_nav_previews_diff", test_git_input_arrow_nav_previews_diff},
         {"git_input_context_menu_stage_and_unstage", test_git_input_context_menu_stage_and_unstage},
         {"git_input_actions_row_opens_commit_tab", test_git_input_actions_row_opens_commit_tab},
         {"git_input_status_bar_button_click_stages_file",

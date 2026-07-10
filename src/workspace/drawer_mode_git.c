@@ -3,6 +3,7 @@
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/git_view.h"
 #include "workspace/project_search.h"
 
 #include <limits.h>
@@ -324,6 +325,8 @@ int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
 			view_out->git_status = entry->status;
+			view_out->is_active_file = editorGitViewActiveDiffMatchesEntry(
+			        entry->rel_path, entry->index_status, entry->worktree_status);
 			return 1;
 		}
 		case EDITOR_DRAWER_GIT_ENTRY_ACTION:

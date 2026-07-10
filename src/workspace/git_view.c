@@ -619,19 +619,36 @@ static int gitViewOpenPatchTab(enum editorGitOpsPatchKind patch_kind, const char
 	return 1;
 }
 
+enum editorGitOpsPatchKind editorGitViewDiffKindForStatus(char index_status, char worktree_status) {
+	int untracked = index_status == '?' && worktree_status == '?';
+	int staged = !untracked && index_status != ' ' && index_status != '?';
+	return untracked ? EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED
+	                 : (staged ? EDITOR_GIT_OPS_PATCH_DIFF_CACHED
+	                           : EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE);
+}
+
 int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status) {
 	if (rel_path == NULL || rel_path[0] == '\0') {
 		return 0;
 	}
-	int untracked = index_status == '?' && worktree_status == '?';
-	int staged = !untracked && index_status != ' ' && index_status != '?';
 	enum editorGitOpsPatchKind patch_kind =
-	        untracked ? EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED
-	                  : (staged ? EDITOR_GIT_OPS_PATCH_DIFF_CACHED
-	                            : EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE);
+	        editorGitViewDiffKindForStatus(index_status, worktree_status);
 	char title[PATH_MAX + 16];
 	(void)snprintf(title, sizeof(title), "git diff: %s", rel_path);
 	return gitViewOpenPatchTab(patch_kind, rel_path, title, 0);
+}
+
+int editorGitViewActiveDiffMatchesEntry(const char *rel_path, char index_status,
+                                        char worktree_status) {
+	if (rel_path == NULL || rel_path[0] == '\0' || E.tab_kind != EDITOR_TAB_GIT_DIFF ||
+	    E.git_view_regen_arg == NULL) {
+		return 0;
+	}
+	if (strcmp(E.git_view_regen_arg, rel_path) != 0) {
+		return 0;
+	}
+	return E.git_view_regen_kind ==
+	       (int)editorGitViewDiffKindForStatus(index_status, worktree_status);
 }
 
 static void gitViewRebuildActivePatch(void) {

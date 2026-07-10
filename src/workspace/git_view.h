@@ -4,6 +4,7 @@
 #include "config/theme_config.h"
 #include "language/syntax.h"
 #include "rotide.h"
+#include "workspace/git_ops.h"
 
 #include <time.h>
 
@@ -29,6 +30,11 @@ enum editorGitViewLineKind {
 char *editorGitViewBuildDiffDup(const char *patch, size_t patch_len, unsigned char **line_kinds_out,
                                 int *line_kind_count_out, char **source_path_out);
 int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status);
+enum editorGitOpsPatchKind editorGitViewDiffKindForStatus(char index_status, char worktree_status);
+/* Returns 1 when the active tab is the diff opened for this entry (matching both
+ * rel_path and the derived patch kind), so the Git drawer can highlight it. */
+int editorGitViewActiveDiffMatchesEntry(const char *rel_path, char index_status,
+                                        char worktree_status);
 void editorGitViewToggleDiffContext(void);
 
 void editorGitViewOpenBranches(void);
