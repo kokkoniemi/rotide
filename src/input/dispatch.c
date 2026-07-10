@@ -3134,12 +3134,82 @@ static int dispatchTryDapConsoleKey(int c) {
 	}
 }
 
-/* Returns 1 when the key was forwarded to the terminal pane (caller must return). */
-static int dispatchTryTerminalPaneKey(int c) {
-	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
-	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
-		return 0;
+/* Dispatch one Ctrl-W window sub-key for a Vim terminal (both modes share this).
+ * `Ctrl-W N` enters Normal mode, `Ctrl-W .` sends a literal Ctrl-W to the child,
+ * Esc cancels, and h/j/k/l/etc. resolve through the live Vim window map. */
+static void dispatchTerminalVimCtrlW(struct editorTerminalPane *terminal, int c) {
+	if (c == '\x1b') {
+		return;
 	}
+	if (c == 'N' || c == 'n') {
+		terminal->input_mode = EDITOR_TERMINAL_INPUT_NORMAL;
+		editorSetStatusMsg("Terminal: NORMAL (i to insert)");
+		return;
+	}
+	if (c == '.') {
+		(void)editorTerminalPaneSendKey(terminal, CTRL_KEY('w'));
+		return;
+	}
+	int action = EDITOR_ACTION_COUNT;
+	if (editorVimCtrlWAction(c, &action)) {
+		int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorDispatchProcessMappedAction((enum editorAction)action, &effects);
+	}
+}
+
+/* Vim terminal Normal mode: rotide `<leader>` and `Ctrl-W` sequences resolve to
+ * actions; i/a/I/A return to Job/Insert. Ordinary keys are inert here (they are
+ * not forwarded to the child), leaving room for future scrollback motions. */
+static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, int c) {
+	if (terminal->pending_leader) {
+		terminal->pending_leader = 0;
+		int action = EDITOR_ACTION_COUNT;
+		if (c != '\x1b' && editorVimLeaderAction(c, &action)) {
+			int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+			(void)editorDispatchProcessMappedAction((enum editorAction)action,
+			                                        &effects);
+		}
+		return;
+	}
+	if (c == 'i' || c == 'a' || c == 'I' || c == 'A') {
+		terminal->input_mode = EDITOR_TERMINAL_INPUT_INSERT;
+		return;
+	}
+	if (c == CTRL_KEY('w')) {
+		terminal->pending_ctrl_w = 1;
+		return;
+	}
+	if (c == editorVimLeaderKey()) {
+		terminal->pending_leader = 1;
+		return;
+	}
+	/* Esc and every other key: stay in Normal, consume without forwarding. */
+}
+
+/* Vim terminal dispatch. Job/Insert forwards every key to the PTY except the one
+ * reserved prefix, Ctrl-W; Normal owns leader/window commands. */
+static void dispatchTerminalVimKey(struct editorTerminalPane *terminal, int c) {
+	if (terminal->pending_ctrl_w) {
+		terminal->pending_ctrl_w = 0;
+		dispatchTerminalVimCtrlW(terminal, c);
+		return;
+	}
+	if (terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL) {
+		dispatchTerminalVimNormalKey(terminal, c);
+		return;
+	}
+	if (c == CTRL_KEY('w')) {
+		terminal->pending_ctrl_w = 1;
+		return;
+	}
+	(void)editorTerminalPaneSendKey(terminal, c);
+}
+
+/* CUA terminal dispatch. CUA has no modes: `terminal_prefix` escapes exactly one
+ * command (routed by returning 0 so normal dispatch handles the next key); every
+ * other key goes to the PTY. Returns 1 when the key was consumed by the terminal,
+ * 0 when it should fall through to the CUA command dispatch. */
+static int dispatchTerminalCuaKey(struct editorTerminalPane *terminal, int c) {
 	if (E.terminal_prefix_armed) {
 		E.terminal_prefix_armed = 0;
 		return 0;
@@ -3153,6 +3223,19 @@ static int dispatchTryTerminalPaneKey(int c) {
 	}
 	(void)editorTerminalPaneSendKey(terminal, c);
 	return 1;
+}
+
+/* Returns 1 when the key was handled by the terminal (caller must return). */
+static int dispatchTryTerminalPaneKey(int c) {
+	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
+	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return 0;
+	}
+	if (editorInputSystemActive() == &editorVimInputSystem) {
+		dispatchTerminalVimKey(terminal, c);
+		return 1;
+	}
+	return dispatchTerminalCuaKey(terminal, c);
 }
 
 static void dispatchInsertTextByte(int c, int *effects) {

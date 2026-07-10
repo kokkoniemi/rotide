@@ -1,8 +1,11 @@
 #include "input/actions_workspace.h"
+#include "input/input_system.h"
 #include "input/mouse.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
+#include "test_helpers.h"
+#include "test_support.h"
 #include "vterm.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
@@ -908,7 +911,162 @@ static int test_terminal_pane_split_keeps_terminal_single_host(void) {
 	return failed;
 }
 
+/* Create a vertical split with a terminal running `command` as the focused
+ * (right) pane, under the given input system. Returns the terminal leaf, or NULL
+ * on failure; *term_out receives the pane. */
+static struct editorPaneNode *setup_focused_terminal(const char *command, const char *system_id,
+                                                     struct editorTerminalPane **term_out) {
+	E.window_cols = 120;
+	E.window_rows = 40;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	if (!editorTabsInit() || !editorInputSystemActivate(system_id)) {
+		return NULL;
+	}
+	struct editorPaneNode *leaf = editorTerminalPaneOpenSplit(command, EDITOR_SPLIT_VERTICAL);
+	if (leaf == NULL) {
+		return NULL;
+	}
+	struct editorTerminalPane *t = editorTerminalPaneForPane(leaf);
+	if (t == NULL) {
+		return NULL;
+	}
+	if (term_out != NULL) {
+		*term_out = t;
+	}
+	return leaf;
+}
+
+static void feed_keys(const char *s) {
+	(void)editor_process_keypress_with_input_silent(s, strlen(s));
+}
+
+/* Job/Insert mode forwards ordinary bytes (including Space) to the PTY: a `cat`
+ * child echoes them back, and the leader is not recognized. */
+static int test_terminal_input_vim_insert_forwards_bytes(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("cat", "vim", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	feed_keys(" e");
+	int shown = wait_for_text_in_screen(t, " e", 2000);
+	int failed = !shown || t->input_mode != EDITOR_TERMINAL_INPUT_INSERT ||
+	             E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
+	return failed;
+}
+
+/* Ctrl-W N enters Terminal Normal mode; i returns to Job/Insert. */
+static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
+	struct editorTerminalPane *t = NULL;
+	if (setup_focused_terminal("sleep 5", "vim", &t) == NULL) {
+		return 1;
+	}
+	feed_keys("\x17N");
+	if (t->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
+		return 1;
+	}
+	feed_keys("i");
+	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
+}
+
+/* Ctrl-W h switches panes directly from Job/Insert mode (no mode change). */
+static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
+	if (leaf == NULL || E.focused_leaf != leaf) {
+		return 1;
+	}
+	feed_keys("\x17h");
+	int failed = E.focused_leaf == leaf || t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
+	return failed;
+}
+
+/* In Terminal Normal mode, <leader>g opens the git drawer (a leader sequence
+ * resolving through the shared Vim map); the key is not sent to the child. */
+static int test_terminal_input_vim_normal_leader_resolves(void) {
+	struct editorTerminalPane *t = NULL;
+	if (setup_focused_terminal("sleep 5", "vim", &t) == NULL) {
+		return 1;
+	}
+	feed_keys("\x17N");
+	if (t->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
+		return 1;
+	}
+	feed_keys(" g");
+	return E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER;
+}
+
+/* Two terminal tabs keep independent modes; refocusing a terminal clears any
+ * in-flight Ctrl-W wait. */
+static int test_terminal_input_modes_are_per_tab(void) {
+	struct editorTerminalPane *a = NULL;
+	struct editorPaneNode *leaf_a = setup_focused_terminal("sleep 5", "vim", &a);
+	if (leaf_a == NULL) {
+		return 1;
+	}
+	int a_idx = E.active_tab;
+	/* Put A into Normal mode. */
+	feed_keys("\x17N");
+	if (a->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
+		return 1;
+	}
+	/* Second terminal tab in the same pane. */
+	struct editorTerminalPane *b = editorTerminalPaneCreate("sleep 5", 40, 8);
+	if (b == NULL) {
+		return 1;
+	}
+	int b_idx = editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, b, editorTerminalPaneFree);
+	if (b_idx < 0) {
+		editorTerminalPaneFree(b);
+		return 1;
+	}
+	if (!editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, b_idx) ||
+	    !editorTabSwitchToIndex(b_idx)) {
+		return 1;
+	}
+	if (b->input_mode != EDITOR_TERMINAL_INPUT_INSERT ||
+	    a->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
+		return 1;
+	}
+	/* Arm a Ctrl-W wait on B, then leave and return: the wait must be cleared. */
+	feed_keys("\x17");
+	if (!b->pending_ctrl_w) {
+		return 1;
+	}
+	(void)editorTabSwitchToIndex(a_idx);
+	(void)editorTabSwitchToIndex(b_idx);
+	return b->pending_ctrl_w != 0;
+}
+
+/* CUA has no modes: Ctrl-Alt-A arms the one-command prefix, and a bare Ctrl-W is
+ * forwarded to the child rather than treated as a window prefix. */
+static int test_terminal_input_cua_prefix_and_ctrl_w_literal(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "cua", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	/* Bare Ctrl-W does not switch/close a pane under CUA. */
+	feed_keys("\x17");
+	if (E.focused_leaf != leaf) {
+		return 1;
+	}
+	/* Ctrl-Alt-A (ESC + Ctrl-A) arms the one-command escape. */
+	feed_keys("\x1b\x01");
+	int failed = !E.terminal_prefix_armed;
+	E.terminal_prefix_armed = 0;
+	return failed;
+}
+
 const struct editorTestCase g_terminal_pane_tests[] = {
+        {"terminal_input_vim_insert_forwards_bytes", test_terminal_input_vim_insert_forwards_bytes},
+        {"terminal_input_vim_ctrl_w_n_toggles_mode", test_terminal_input_vim_ctrl_w_n_toggles_mode},
+        {"terminal_input_vim_ctrl_w_switches_pane", test_terminal_input_vim_ctrl_w_switches_pane},
+        {"terminal_input_vim_normal_leader_resolves",
+         test_terminal_input_vim_normal_leader_resolves},
+        {"terminal_input_modes_are_per_tab", test_terminal_input_modes_are_per_tab},
+        {"terminal_input_cua_prefix_and_ctrl_w_literal",
+         test_terminal_input_cua_prefix_and_ctrl_w_literal},
         {"terminal_pane_resize_all_matches_layout_rect",
          test_terminal_pane_resize_all_matches_layout_rect},
         {"terminal_pane_move_to_neighbor_matches_target_rect",

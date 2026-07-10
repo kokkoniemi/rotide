@@ -906,6 +906,14 @@ struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode
 	return (struct editorTerminalPane *)editorTabPayloadAt(pane->as.leaf.view.active_tab_idx);
 }
 
+void editorTerminalPaneResetPendingInput(struct editorTerminalPane *terminal) {
+	if (terminal == NULL) {
+		return;
+	}
+	terminal->pending_ctrl_w = 0;
+	terminal->pending_leader = 0;
+}
+
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orientation) {
 	if (command == NULL) {
 		errno = EINVAL;

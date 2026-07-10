@@ -326,6 +326,28 @@ static int vimSystemCtrlWAction(int c, enum editorAction *action_out) {
 	return 1;
 }
 
+int editorVimLeaderKey(void) {
+	return g_vim_leader_key;
+}
+
+int editorVimLeaderAction(int c, int *action_out) {
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	int ok = vimSystemLeaderLookup(c, &action);
+	if (ok && action_out != NULL) {
+		*action_out = (int)action;
+	}
+	return ok;
+}
+
+int editorVimCtrlWAction(int c, int *action_out) {
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	int ok = vimSystemCtrlWAction(c, &action);
+	if (ok && action_out != NULL) {
+		*action_out = (int)action;
+	}
+	return ok;
+}
+
 static enum vimSystemMode vimSystemRemapLookupMode(enum vimSystemMode mode) {
 	return mode == VIM_SYSTEM_MODE_VISUAL_LINE ? VIM_SYSTEM_MODE_VISUAL : mode;
 }
