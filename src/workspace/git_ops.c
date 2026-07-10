@@ -371,8 +371,7 @@ int editorGitOpsCurrentBranchPushRemote(char *remote_out, size_t remote_size,
 	}
 
 	size_t upstream_len = 0;
-	char *upstream_tail[] = {"rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}",
-	                         NULL};
+	char *upstream_tail[] = {"rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", NULL};
 	char *upstream = gitOpsRunQueryDup(upstream_tail, &upstream_len);
 	if (upstream != NULL && upstream_len > 0) {
 		*has_upstream_out = 1;

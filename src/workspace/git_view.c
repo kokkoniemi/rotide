@@ -147,8 +147,7 @@ static void gitViewStartNetworkTask(const char *subcommand, const char *title,
 }
 
 static void gitViewStartNetworkTaskArgs(char *const args[], const char *title,
-                                        const char *success_status,
-                                        const char *failure_status) {
+                                        const char *success_status, const char *failure_status) {
 	char cmd[PATH_MAX + 128];
 	if (E.git_repo_root == NULL) {
 		editorSetStatusMsg("Not a Git repository");
@@ -174,8 +173,7 @@ static void gitViewStartPushTask(void) {
 	}
 
 	char prompt[320];
-	int n = snprintf(prompt, sizeof(prompt), "Create remote branch on %s? [y/N] %%s",
-	                 remote);
+	int n = snprintf(prompt, sizeof(prompt), "Create remote branch on %s? [y/N] %%s", remote);
 	if (n <= 0 || n >= (int)sizeof(prompt) || !editorPromptYesNo(prompt)) {
 		editorSetStatusMsg("Push cancelled");
 		return;
