@@ -326,7 +326,8 @@ int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
 			view_out->git_status = editorGitStatusFromChar(lookup.status_char);
 			view_out->is_active_file = editorGitViewActiveDiffMatchesEntry(
-			        entry->rel_path, entry->index_status, entry->worktree_status);
+			        entry->rel_path, entry->index_status, entry->worktree_status,
+			        lookup.group_idx == EDITOR_DRAWER_GIT_GROUP_STAGED);
 			return 1;
 		}
 		case EDITOR_DRAWER_GIT_ENTRY_ACTION:
@@ -409,19 +410,6 @@ int editorDrawerGitSelectedIsDirectory(void) {
 	}
 	return lookup.kind == EDITOR_DRAWER_GIT_ENTRY_ROOT ||
 	       lookup.kind == EDITOR_DRAWER_GIT_ENTRY_GROUP;
-}
-
-int editorDrawerSelectedGitEntry(int *entry_idx_out) {
-	if (entry_idx_out == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_GIT) {
-		return 0;
-	}
-	struct drawerModeGitLookup lookup;
-	if (!drawerModeGitLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
-	    lookup.kind != EDITOR_DRAWER_GIT_ENTRY_FILE) {
-		return 0;
-	}
-	*entry_idx_out = lookup.entry_idx;
-	return 1;
 }
 
 /* Reports a selected Staged/Changes/Untracked/Conflicts group header (not

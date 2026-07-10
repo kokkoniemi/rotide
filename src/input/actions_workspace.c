@@ -593,7 +593,8 @@ void editorDrawerContextMenuActivate(void) {
 
 int editorOpenSelectedGitDiff(void) {
 	int entry_idx = -1;
-	if (!editorDrawerSelectedGitEntry(&entry_idx)) {
+	int staged_group = 0;
+	if (!editorDrawerGitSelectedFile(&entry_idx, &staged_group)) {
 		return 0;
 	}
 	if (entry_idx < 0 || entry_idx >= E.git_entry_count) {
@@ -601,7 +602,7 @@ int editorOpenSelectedGitDiff(void) {
 	}
 	const struct editorGitEntry *entry = &E.git_entries[entry_idx];
 	return editorGitViewOpenDiffForEntry(entry->rel_path, entry->index_status,
-	                                     entry->worktree_status);
+	                                     entry->worktree_status, staged_group);
 }
 
 int editorJumpToSelectedLspDrawerLocation(int preview, editorJumpToPathLocationFn jump_fn) {

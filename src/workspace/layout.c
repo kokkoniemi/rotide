@@ -628,6 +628,7 @@ void editorPaneViewInit(struct editorPaneView *view) {
 	view->tab_view_start = 0;
 	view->pane_tab_count = 0;
 	view->mru_tab_count = 0;
+	view->preview_tab_idx = -1;
 }
 
 void editorPaneViewClearTabs(struct editorPaneView *view) {
@@ -638,6 +639,7 @@ void editorPaneViewClearTabs(struct editorPaneView *view) {
 	view->mru_tab_count = 0;
 	view->active_tab_idx = -1;
 	view->tab_view_start = 0;
+	view->preview_tab_idx = -1;
 }
 
 static int layoutPaneViewMruIndexOfTab(const struct editorPaneView *view, int tab_idx) {
@@ -782,6 +784,9 @@ void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx) {
 		if (view->active_tab_idx == tab_idx) {
 			view->active_tab_idx = -1;
 		}
+		if (view->preview_tab_idx == tab_idx) {
+			view->preview_tab_idx = -1;
+		}
 		return;
 	}
 }
@@ -838,6 +843,11 @@ void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view, int re
 	if (view->active_tab_idx > removed_idx) {
 		view->active_tab_idx--;
 	}
+	if (view->preview_tab_idx == removed_idx) {
+		view->preview_tab_idx = -1;
+	} else if (view->preview_tab_idx > removed_idx) {
+		view->preview_tab_idx--;
+	}
 }
 
 int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx) {
@@ -861,6 +871,31 @@ void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int re
 		return;
 	}
 	editorPaneViewShiftTabIndicesAfterClose(&root->as.leaf.view, removed_idx);
+}
+
+void editorPaneTreeClearPreviewTab(struct editorPaneNode *root, int tab_idx) {
+	if (root == NULL) {
+		return;
+	}
+	if (root->is_split) {
+		editorPaneTreeClearPreviewTab(root->as.split.first, tab_idx);
+		editorPaneTreeClearPreviewTab(root->as.split.second, tab_idx);
+		return;
+	}
+	if (root->as.leaf.view.preview_tab_idx == tab_idx) {
+		root->as.leaf.view.preview_tab_idx = -1;
+	}
+}
+
+int editorPaneTreeAnyPanePreviewsTab(const struct editorPaneNode *root, int tab_idx) {
+	if (root == NULL || tab_idx < 0) {
+		return 0;
+	}
+	if (root->is_split) {
+		return editorPaneTreeAnyPanePreviewsTab(root->as.split.first, tab_idx) ||
+		       editorPaneTreeAnyPanePreviewsTab(root->as.split.second, tab_idx);
+	}
+	return root->as.leaf.view.preview_tab_idx == tab_idx;
 }
 
 void editorPaneViewCaptureFromState(struct editorPaneView *view) {
@@ -947,9 +982,15 @@ struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orie
 	 * the sibling inherited and re-seed it with just that one tab. */
 	if (!sibling->is_split) {
 		int tab_idx = sibling->as.leaf.view.active_tab_idx;
+		/* Carry the splitting pane's preview status for this tab so the new
+		 * pane also shows it as a preview; pinning stays per-pane. */
+		int was_preview = sibling->as.leaf.view.preview_tab_idx == tab_idx;
 		editorPaneViewClearTabs(&sibling->as.leaf.view);
 		if (tab_idx >= 0) {
 			(void)editorPaneViewActivateTab(&sibling->as.leaf.view, tab_idx);
+			if (was_preview) {
+				sibling->as.leaf.view.preview_tab_idx = tab_idx;
+			}
 		}
 	}
 	E.focused_leaf = sibling;

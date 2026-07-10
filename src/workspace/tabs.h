@@ -82,7 +82,6 @@ int editorTabCount(void);
 int editorTabActiveIndex(void);
 int editorTabAnyDirty(void);
 int editorActiveTabIsPreview(void);
-int editorTabIsPreviewAt(int idx);
 void editorTabPinActivePreview(void);
 const char *editorTabFilenameAt(int idx);
 const char *editorTabDisplayNameAt(int idx);

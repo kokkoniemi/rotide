@@ -992,7 +992,8 @@ static int workspaceStateWriteRecentFiles(int fd) {
 static int workspaceStateWriteTabs(int fd) {
 	for (int i = 0; i < E.tab_count; i++) {
 		const struct editorBuffer *tab = editorTabBufferHandleAt(i);
-		if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
+		if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE ||
+		    editorPaneTreeAnyPanePreviewsTab(E.layout_root, i) ||
 		    !workspaceStatePathCanWriteLine(tab->filename)) {
 			continue;
 		}
@@ -1053,7 +1054,8 @@ static int workspaceStateWritePaneTabsForLeaf(int fd, struct editorPaneNode *lea
 			continue;
 		}
 		const struct editorBuffer *tab = editorTabBufferHandleAt(tab_idx);
-		if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
+		if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE ||
+		    view->preview_tab_idx == tab_idx ||
 		    !workspaceStatePathCanWriteLine(tab->filename)) {
 			continue;
 		}

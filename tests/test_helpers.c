@@ -83,7 +83,6 @@ void reset_editor_state(void) {
 	E.window_rows = 8;
 	E.window_cols = 40;
 	E.tab_kind = EDITOR_TAB_FILE;
-	E.is_preview = 0;
 	E.tab_title = NULL;
 	E.cursor_offset = 0;
 	E.search_match_offset = 0;

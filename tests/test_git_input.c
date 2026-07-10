@@ -123,7 +123,7 @@ static int git_input_select_file_row(const char *rel_path) {
 	for (int idx = 0; idx < visible_count; idx++) {
 		E.drawer_selected_index = idx;
 		int entry_idx = 0;
-		if (editorDrawerSelectedGitEntry(&entry_idx) &&
+		if (editorDrawerGitSelectedFile(&entry_idx, NULL) &&
 		    strcmp(E.git_entries[entry_idx].rel_path, rel_path) == 0) {
 			return 1;
 		}
@@ -512,12 +512,12 @@ static int test_git_input_diff_tabs_reuse_preview_slot(void) {
 	ASSERT_TRUE(git_input_write_file(repo, "b.txt", "new\n"));
 	editorGitRefresh();
 
-	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M', 0));
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
 	ASSERT_TRUE(editorActiveTabIsPreview());
 	int tabs_after_first = editorTabCount();
 
-	ASSERT_TRUE(editorGitViewOpenDiffForEntry("b.txt", '?', '?'));
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("b.txt", '?', '?', 0));
 	ASSERT_EQ_INT(tabs_after_first, editorTabCount());
 	ASSERT_TRUE(strstr(E.tab_title, "b.txt") != NULL);
 	ASSERT_TRUE(git_input_view_contains("new"));
@@ -540,7 +540,7 @@ static int test_git_input_diff_toggle_whole_file(void) {
 	                                 "line8\nline9\nline10\nline11\nCHANGED\n"));
 	editorGitRefresh();
 
-	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M', 0));
 	/* Hunks-only: line2 is outside the -U3 context radius. */
 	ASSERT_TRUE(git_input_view_row_containing("line2") == -1);
 	ASSERT_TRUE(git_input_view_contains("CHANGED"));
@@ -615,7 +615,7 @@ static int git_input_file_row_index(const char *rel_path) {
 	for (int idx = 0; idx < visible; idx++) {
 		E.drawer_selected_index = idx;
 		int entry_idx = 0;
-		if (editorDrawerSelectedGitEntry(&entry_idx) &&
+		if (editorDrawerGitSelectedFile(&entry_idx, NULL) &&
 		    strcmp(E.git_entries[entry_idx].rel_path, rel_path) == 0) {
 			result = idx;
 			break;
@@ -641,13 +641,13 @@ static int test_git_input_open_diff_highlights_file_row(void) {
 	ASSERT_EQ_INT(0, git_input_active_file_row_count(NULL, NULL));
 
 	/* Opening a.txt's diff highlights only a.txt's row. */
-	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M'));
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("a.txt", ' ', 'M', 0));
 	int a_active = 0;
 	ASSERT_EQ_INT(1, git_input_active_file_row_count("a.txt", &a_active));
 	ASSERT_TRUE(a_active);
 
 	/* Opening c.txt's diff moves the highlight to c.txt. */
-	ASSERT_TRUE(editorGitViewOpenDiffForEntry("c.txt", '?', '?'));
+	ASSERT_TRUE(editorGitViewOpenDiffForEntry("c.txt", '?', '?', 0));
 	int c_active = 0;
 	ASSERT_EQ_INT(1, git_input_active_file_row_count("c.txt", &c_active));
 	ASSERT_TRUE(c_active);
@@ -656,6 +656,93 @@ static int test_git_input_open_diff_highlights_file_row(void) {
 	editorGitViewOpenBranches();
 	ASSERT_EQ_INT(EDITOR_TAB_GIT_BRANCHES, E.tab_kind);
 	ASSERT_EQ_INT(0, git_input_active_file_row_count(NULL, NULL));
+
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+/* Selects the git drawer file row for rel_path in the Staged (staged_group=1) or
+ * Changes (staged_group=0) group; a partially-staged file has one row in each. */
+static int git_input_select_row_in_group(const char *rel_path, int staged_group) {
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		E.drawer_selected_index = idx;
+		int entry_idx = 0;
+		int sg = 0;
+		if (editorDrawerGitSelectedFile(&entry_idx, &sg) && sg == staged_group &&
+		    strcmp(E.git_entries[entry_idx].rel_path, rel_path) == 0) {
+			return 1;
+		}
+	}
+	E.drawer_selected_index = -1;
+	return 0;
+}
+
+/* 1/0 whether the group's row for rel_path renders as the active diff; -1 if the
+ * row is absent. Restores the drawer selection. */
+static int git_input_row_active_in_group(const char *rel_path, int staged_group) {
+	int saved = E.drawer_selected_index;
+	int result = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		E.drawer_selected_index = idx;
+		int entry_idx = 0;
+		int sg = 0;
+		if (!editorDrawerGitSelectedFile(&entry_idx, &sg) || sg != staged_group ||
+		    strcmp(E.git_entries[entry_idx].rel_path, rel_path) != 0) {
+			continue;
+		}
+		struct editorDrawerEntryView view;
+		if (editorDrawerVisibleEntryView(idx, &view)) {
+			result = view.is_active_file ? 1 : 0;
+		}
+		break;
+	}
+	E.drawer_selected_index = saved;
+	return result;
+}
+
+/* A partially-staged file opens a distinct diff per drawer group: the Staged row
+ * shows the cached index diff, the Changes row the worktree diff, and only the
+ * row whose side is currently active highlights. */
+static int test_git_input_partially_staged_diffs_are_distinct(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+	/* Stage a first change, then add a further worktree change so a.txt lists
+	 * under both Staged (index M) and Changes (worktree M). */
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "STAGED\n"));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' add a.txt", repo));
+	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "STAGED\nWORKTREE\n"));
+	editorGitRefresh();
+	E.window_rows = 20;
+	E.window_cols = 120;
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	/* Staged row -> cached diff, labelled (staged); only that row highlights. */
+	ASSERT_TRUE(git_input_select_row_in_group("a.txt", 1));
+	ASSERT_TRUE(editorOpenSelectedGitDiff());
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+	ASSERT_EQ_INT(EDITOR_GIT_OPS_PATCH_DIFF_CACHED, E.git_view_regen_kind);
+	ASSERT_TRUE(strstr(E.tab_title, "(staged)") != NULL);
+	ASSERT_TRUE(git_input_view_contains("STAGED"));
+	ASSERT_EQ_INT(1, git_input_row_active_in_group("a.txt", 1));
+	ASSERT_EQ_INT(0, git_input_row_active_in_group("a.txt", 0));
+
+	/* Pin the staged diff so opening the Changes diff does not reuse the slot. */
+	editorTabPinActivePreview();
+	int tabs_before = editorTabCount();
+
+	/* Changes row -> worktree diff, labelled (unstaged), in a separate tab; now
+	 * only the Changes row highlights. */
+	ASSERT_TRUE(git_input_select_row_in_group("a.txt", 0));
+	ASSERT_TRUE(editorOpenSelectedGitDiff());
+	ASSERT_EQ_INT(EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE, E.git_view_regen_kind);
+	ASSERT_TRUE(strstr(E.tab_title, "(unstaged)") != NULL);
+	ASSERT_TRUE(git_input_view_contains("WORKTREE"));
+	ASSERT_EQ_INT(tabs_before + 1, editorTabCount());
+	ASSERT_EQ_INT(1, git_input_row_active_in_group("a.txt", 0));
+	ASSERT_EQ_INT(0, git_input_row_active_in_group("a.txt", 1));
 
 	git_input_repo_destroy(repo);
 	return 0;
@@ -1129,6 +1216,8 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_diff_toggle_whole_file", test_git_input_diff_toggle_whole_file},
         {"git_input_enter_on_file_row_opens_diff", test_git_input_enter_on_file_row_opens_diff},
         {"git_input_open_diff_highlights_file_row", test_git_input_open_diff_highlights_file_row},
+        {"git_input_partially_staged_diffs_are_distinct",
+         test_git_input_partially_staged_diffs_are_distinct},
         {"git_input_arrow_nav_previews_diff", test_git_input_arrow_nav_previews_diff},
         {"git_input_context_menu_stage_and_unstage", test_git_input_context_menu_stage_and_unstage},
         {"git_input_actions_row_opens_commit_tab", test_git_input_actions_row_opens_commit_tab},

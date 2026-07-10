@@ -329,8 +329,10 @@ static void tabsStoreActiveTab(void) {
 	if (E.tabs[E.active_tab].kind != EDITOR_PANE_KIND_EDITOR) {
 		return;
 	}
-	if (E.is_preview && E.dirty != 0) {
-		E.is_preview = 0;
+	/* An edited tab is no longer a throwaway preview; drop its preview status
+	 * in every pane so it is never reused or rendered as preview. */
+	if (E.dirty != 0) {
+		editorPaneTreeClearPreviewTab(E.layout_root, E.active_tab);
 	}
 	tabsStateCaptureActive(&E.tabs[E.active_tab]);
 }
@@ -676,40 +678,61 @@ static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind) {
 	       tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
-static int tabsFindReusablePreviewIndex(void) {
-	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
-		if (tab_idx == E.active_tab) {
-			if (tabsKindCanReuseAsPreview(E.tab_kind) && E.is_preview && E.dirty == 0) {
-				return tab_idx;
-			}
-			continue;
-		}
-		if (tabsKindCanReuseAsPreview(E.tabs[tab_idx].tab_kind) &&
-		    E.tabs[tab_idx].is_preview && E.tabs[tab_idx].dirty == 0) {
-			return tab_idx;
-		}
+static struct editorPaneView *tabsFocusedView(void) {
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
+		return &E.focused_leaf->as.leaf.view;
 	}
-	return -1;
+	return NULL;
+}
+
+static int tabsViewTabIsPreview(const struct editorPaneView *view, int tab_idx) {
+	if (view == NULL || tab_idx < 0 || view->preview_tab_idx != tab_idx) {
+		return 0;
+	}
+	enum editorTabKind kind;
+	if (tab_idx == E.active_tab) {
+		kind = E.tab_kind;
+	} else if (tab_idx < E.tab_count) {
+		kind = E.tabs[tab_idx].tab_kind;
+	} else {
+		return 0;
+	}
+	return tabsKindCanReuseAsPreview(kind);
+}
+
+/* Only touches the focused pane, so a tab shared across a split keeps its
+ * preview status in the other pane. */
+static void tabsSetActivePreview(int preview) {
+	struct editorPaneView *view = tabsFocusedView();
+	if (view == NULL) {
+		return;
+	}
+	if (preview) {
+		view->preview_tab_idx = E.active_tab;
+	} else if (view->preview_tab_idx == E.active_tab) {
+		view->preview_tab_idx = -1;
+	}
+}
+
+static int tabsFindReusablePreviewIndex(void) {
+	struct editorPaneView *view = tabsFocusedView();
+	if (view == NULL) {
+		return -1;
+	}
+	int idx = view->preview_tab_idx;
+	if (!tabsViewTabIsPreview(view, idx)) {
+		return -1;
+	}
+	int dirty = idx == E.active_tab ? E.dirty : E.tabs[idx].dirty;
+	return dirty == 0 ? idx : -1;
 }
 
 void editorTabPinActivePreview(void) {
-	if (tabsKindCanReuseAsPreview(E.tab_kind)) {
-		E.is_preview = 0;
-	}
+	tabsSetActivePreview(0);
 }
 
 int editorActiveTabIsPreview(void) {
-	return tabsKindCanReuseAsPreview(E.tab_kind) && E.is_preview;
-}
-
-int editorTabIsPreviewAt(int idx) {
-	if (idx < 0 || idx >= E.tab_count) {
-		return 0;
-	}
-	if (idx == E.active_tab) {
-		return editorActiveTabIsPreview();
-	}
-	return tabsKindCanReuseAsPreview(E.tabs[idx].tab_kind) && E.tabs[idx].is_preview;
+	return tabsViewTabIsPreview(tabsFocusedView(), E.active_tab);
 }
 
 static int tabsLoadUnsupportedFilePreview(const char *filename) {
@@ -740,13 +763,13 @@ static int tabsLoadUnsupportedFilePreview(const char *filename) {
 	                              &E.lsp_eslint_doc_version);
 	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_UNSUPPORTED_FILE;
-	E.is_preview = 1;
 	E.filename = filename_copy;
 	filename_copy = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	if (!editorRestoreActiveFromDocument(&document, 0, 0, 0, 0)) {
 		goto cleanup;
 	}
+	tabsSetActivePreview(1);
 	ok = 1;
 
 cleanup:
@@ -762,7 +785,7 @@ int editorTabOpenFileAsNew(const char *filename) {
 		if (!editorOpen(filename)) {
 			return 0;
 		}
-		E.is_preview = 0;
+		tabsSetActivePreview(0);
 		(void)editorWorkspaceStateRememberRecentFile(filename);
 		return 1;
 	}
@@ -775,7 +798,7 @@ int editorTabOpenFileAsNew(const char *filename) {
 	if (!editorOpen(filename)) {
 		return 0;
 	}
-	E.is_preview = 0;
+	tabsSetActivePreview(0);
 	(void)editorWorkspaceStateRememberRecentFile(filename);
 	return 1;
 }
@@ -790,7 +813,7 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 		if (!editorTabSwitchToIndex(existing_tab)) {
 			return 0;
 		}
-		E.is_preview = 0;
+		tabsSetActivePreview(0);
 		(void)editorWorkspaceStateRememberRecentFile(filename);
 		return 1;
 	}
@@ -825,7 +848,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 			if (!editorOpen(filename)) {
 				return 0;
 			}
-			E.is_preview = 1;
+			tabsSetActivePreview(1);
 			return 1;
 		}
 		if (!is_binary) {
@@ -842,7 +865,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 			if (!editorOpen(filename)) {
 				return 0;
 			}
-			E.is_preview = 1;
+			tabsSetActivePreview(1);
 			return 1;
 		}
 		if (!is_binary) {
@@ -860,7 +883,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		if (!editorOpen(filename)) {
 			return 0;
 		}
-		E.is_preview = 1;
+		tabsSetActivePreview(1);
 		return 1;
 	}
 	return tabsLoadUnsupportedFilePreview(filename);
@@ -1607,7 +1630,7 @@ static int tabsLoadGeneratedIntoActive(enum editorTabKind kind, const char *titl
 	/* Diff tabs behave like previews so browsing diffs reuses one tab slot;
 	 * the views are deduped singletons and the commit tab holds a message
 	 * being typed. */
-	E.is_preview = kind == EDITOR_TAB_GIT_DIFF;
+	tabsSetActivePreview(kind == EDITOR_TAB_GIT_DIFF);
 	E.dirty = 0;
 	memset(&E.disk_state, 0, sizeof(E.disk_state));
 	E.disk_conflict = 0;
@@ -2063,6 +2086,7 @@ static enum tabsPlaceTabResult tabsTryPlaceTab(struct editorPaneView *view, int 
 	entry->show_left_overflow = 0;
 	entry->show_right_overflow = 0;
 	entry->is_active = tab_idx == view->active_tab_idx;
+	entry->is_preview = tabsViewTabIsPreview(view, tab_idx);
 
 	if (*first_visible_slot_io < 0) {
 		*first_visible_slot_io = slot;
@@ -2124,6 +2148,7 @@ int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
 		entry->show_left_overflow = 0;
 		entry->show_right_overflow = 0;
 		entry->is_active = entry->tab_idx == view->active_tab_idx;
+		entry->is_preview = tabsViewTabIsPreview(view, entry->tab_idx);
 		first_visible_slot = start_slot;
 		last_visible_slot = start_slot;
 		count = 1;

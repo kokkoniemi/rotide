@@ -255,6 +255,7 @@ struct editorTabLayoutEntry {
 	int show_left_overflow;
 	int show_right_overflow;
 	int is_active;
+	int is_preview;
 };
 
 struct editorFileDiskState {
@@ -467,7 +468,6 @@ struct editorHistory {
 
 #define EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X)                                                        \
 	X(enum editorTabKind, tab_kind)                                                            \
-	X(int, is_preview)                                                                         \
 	X(char *, tab_title)                                                                       \
 	X(size_t, cursor_offset)                                                                   \
 	X(int, cx)                                                                                 \

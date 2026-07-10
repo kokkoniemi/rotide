@@ -1088,6 +1088,7 @@ static int terminalPaneHydrateRecursive(struct editorPaneNode *root, struct edit
 	node->as.leaf.kind = EDITOR_PANE_KIND_EDITOR;
 	node->as.leaf.view.active_tab_idx = -1;
 	node->as.leaf.view.pane_tab_count = 0;
+	node->as.leaf.view.preview_tab_idx = -1;
 	int tab_idx =
 	        editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, terminal, editorTerminalPaneFree);
 	if (tab_idx < 0 || !editorPaneViewActivateTab(&node->as.leaf.view, tab_idx)) {

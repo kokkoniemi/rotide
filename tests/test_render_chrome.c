@@ -116,7 +116,7 @@ static int test_editor_refresh_screen_preview_tab_label_uses_italics(void) {
 	ASSERT_TRUE(editorTabNewEmpty());
 	E.filename = strdup("/tmp/preview.txt");
 	ASSERT_TRUE(E.filename != NULL);
-	E.is_preview = 1;
+	E.focused_leaf->as.leaf.view.preview_tab_idx = E.active_tab;
 
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
 	E.window_rows = 3;

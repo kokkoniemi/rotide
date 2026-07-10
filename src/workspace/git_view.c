@@ -619,27 +619,46 @@ static int gitViewOpenPatchTab(enum editorGitOpsPatchKind patch_kind, const char
 	return 1;
 }
 
-enum editorGitOpsPatchKind editorGitViewDiffKindForStatus(char index_status, char worktree_status) {
-	int untracked = index_status == '?' && worktree_status == '?';
-	int staged = !untracked && index_status != ' ' && index_status != '?';
-	return untracked ? EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED
-	                 : (staged ? EDITOR_GIT_OPS_PATCH_DIFF_CACHED
-	                           : EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE);
+enum editorGitOpsPatchKind editorGitViewDiffKindForStatus(char index_status, char worktree_status,
+                                                          int staged_group) {
+	if (index_status == '?' && worktree_status == '?') {
+		return EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED;
+	}
+	int index_has_changes = index_status != ' ' && index_status != '?';
+	if (staged_group && index_has_changes) {
+		return EDITOR_GIT_OPS_PATCH_DIFF_CACHED;
+	}
+	return EDITOR_GIT_OPS_PATCH_DIFF_WORKTREE;
 }
 
-int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status) {
+/* Tab-name suffix distinguishing the staged, unstaged, and untracked diffs of
+ * one file so they read clearly and coexist as separate (dedupe-by-title) tabs. */
+static const char *gitViewDiffKindLabel(enum editorGitOpsPatchKind kind) {
+	switch (kind) {
+		case EDITOR_GIT_OPS_PATCH_DIFF_CACHED:
+			return "staged";
+		case EDITOR_GIT_OPS_PATCH_DIFF_UNTRACKED:
+			return "untracked";
+		default:
+			return "unstaged";
+	}
+}
+
+int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status,
+                                  int staged_group) {
 	if (rel_path == NULL || rel_path[0] == '\0') {
 		return 0;
 	}
 	enum editorGitOpsPatchKind patch_kind =
-	        editorGitViewDiffKindForStatus(index_status, worktree_status);
-	char title[PATH_MAX + 16];
-	(void)snprintf(title, sizeof(title), "git diff: %s", rel_path);
+	        editorGitViewDiffKindForStatus(index_status, worktree_status, staged_group);
+	char title[PATH_MAX + 32];
+	(void)snprintf(title, sizeof(title), "git diff: %s (%s)", rel_path,
+	               gitViewDiffKindLabel(patch_kind));
 	return gitViewOpenPatchTab(patch_kind, rel_path, title, 0);
 }
 
 int editorGitViewActiveDiffMatchesEntry(const char *rel_path, char index_status,
-                                        char worktree_status) {
+                                        char worktree_status, int staged_group) {
 	if (rel_path == NULL || rel_path[0] == '\0' || E.tab_kind != EDITOR_TAB_GIT_DIFF ||
 	    E.git_view_regen_arg == NULL) {
 		return 0;
@@ -648,7 +667,7 @@ int editorGitViewActiveDiffMatchesEntry(const char *rel_path, char index_status,
 		return 0;
 	}
 	return E.git_view_regen_kind ==
-	       (int)editorGitViewDiffKindForStatus(index_status, worktree_status);
+	       (int)editorGitViewDiffKindForStatus(index_status, worktree_status, staged_group);
 }
 
 static void gitViewRebuildActivePatch(void) {

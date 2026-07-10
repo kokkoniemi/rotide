@@ -2576,7 +2576,7 @@ test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_prev
 	E.cy = 1;
 	E.cx = 0;
 	E.current_line_highlight_enabled = 1;
-	E.is_preview = 1;
+	E.focused_leaf->as.leaf.view.preview_tab_idx = E.active_tab;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
 
@@ -2586,7 +2586,7 @@ test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_prev
 	ASSERT_EQ_INT(2, count_substrings(output, TEST_HEADER_BG));
 	free(output);
 
-	E.is_preview = 0;
+	E.focused_leaf->as.leaf.view.preview_tab_idx = -1;
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_EQ_INT(1, count_substrings(output, TEST_HEADER_BG));

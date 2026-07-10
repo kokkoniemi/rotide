@@ -622,7 +622,6 @@ void editorOpenSetDeferLsp(int defer) {
 }
 
 int editorOpen(const char *filename) {
-	int was_preview = E.is_preview;
 	FILE *fp = NULL;
 	char *filename_copy = NULL;
 	char *text = NULL;
@@ -658,7 +657,6 @@ int editorOpen(const char *filename) {
 	                              &E.lsp_eslint_doc_version);
 	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_FILE;
-	E.is_preview = was_preview;
 	E.filename = filename_copy;
 	filename_copy = NULL;
 	if (!editorRestoreActiveFromDocument(&document, 0, 0, 0, 1)) {

@@ -1161,7 +1161,7 @@ static int test_editor_process_keypress_mouse_pane_strip_double_click_pins_previ
 	struct editorPaneNode *bottom = NULL;
 	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
 	bottom->as.leaf.view.active_tab_idx = 3;
-	E.tabs[3].is_preview = 1;
+	bottom->as.leaf.view.preview_tab_idx = 3;
 	editorResetTabClickTracking();
 
 	int click_x = 0;
@@ -1178,6 +1178,38 @@ static int test_editor_process_keypress_mouse_pane_strip_double_click_pins_previ
 	ASSERT_EQ_INT(3, editorTabActiveIndex());
 	ASSERT_TRUE(!editorActiveTabIsPreview());
 	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
+	return 0;
+}
+
+/* Splitting a pane whose active tab is a (clean) preview leaves the shared tab
+ * previewed in both panes; pinning it then affects only the pane it happens in. */
+static int test_editor_pin_preview_only_affects_active_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Mark the clean active tab a preview, then split it into a sibling pane. */
+	struct editorPaneNode *first = E.focused_leaf;
+	ASSERT_TRUE(first != NULL);
+	first->as.leaf.view.preview_tab_idx = E.active_tab;
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(second != NULL);
+
+	/* Both panes now reference and preview the same global tab. */
+	ASSERT_EQ_INT(E.active_tab, first->as.leaf.view.preview_tab_idx);
+	ASSERT_EQ_INT(E.active_tab, second->as.leaf.view.preview_tab_idx);
+
+	/* The split focuses the sibling; pinning there must not touch the first. */
+	ASSERT_TRUE(E.focused_leaf == second);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	editorTabPinActivePreview();
+	ASSERT_TRUE(!editorActiveTabIsPreview());
+	ASSERT_EQ_INT(-1, second->as.leaf.view.preview_tab_idx);
+
+	/* The first pane still previews the shared tab. */
+	ASSERT_EQ_INT(0, first->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(first));
+	ASSERT_TRUE(editorActiveTabIsPreview());
 	return 0;
 }
 
@@ -3083,6 +3115,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_top_strip_vborder_arms_resize},
         {"editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab",
          test_editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab},
+        {"editor_pin_preview_only_affects_active_pane",
+         test_editor_pin_preview_only_affects_active_pane},
         {"editor_process_keypress_mouse_tab_drag_reorders_within_pane",
          test_editor_process_keypress_mouse_tab_drag_reorders_within_pane},
         {"editor_process_keypress_mouse_tab_drag_moves_across_panes",

@@ -97,7 +97,7 @@ static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEnt
 		if (slot_cols < content_width) {
 			const char *label =
 			        tabBarLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
-			int is_preview = editorTabIsPreviewAt(tab_idx);
+			int is_preview = entry->is_preview;
 			int right_pad_cols = 3;
 			int label_cols = content_width - slot_cols - right_pad_cols;
 			if (label_cols < 0) {

@@ -1071,7 +1071,7 @@ int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
 	if (!E.current_line_highlight_enabled || row_idx != E.cy) {
 		return 0;
 	}
-	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT && !E.is_preview) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT && !editorActiveTabIsPreview()) {
 		const char *lsp_path = NULL;
 		int lsp_line = -1;
 		int lsp_character = -1;
