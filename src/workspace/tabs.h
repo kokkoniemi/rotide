@@ -68,6 +68,12 @@ int editorTabNewEmpty(void);
 int editorTabAppendEmptyForPane(struct editorPaneNode *pane);
 void editorTabsEnsurePaneOccupancy(void);
 
+/* Create a `command` terminal as a new TERMINAL tab inserted immediately after
+ * the focused pane's active tab, then activate it. Does not create a pane or
+ * clear existing tabs. Returns the new tab index, or -1 on failure (leaving tab
+ * arrays, membership, active tab, and focus unchanged). */
+int editorTabNewTerminalBesideActive(const char *command);
+
 /* Cross-pane move transfers focus to target. Same-pane call reorders. */
 int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *target, int tab_idx,
                       int target_slot);

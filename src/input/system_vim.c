@@ -190,14 +190,23 @@ struct vimExCommand {
 };
 
 static const struct vimExCommand g_vim_ex_commands[] = {
-        {"split", EDITOR_ACTION_SPLIT_HORIZONTAL}, {"sp", EDITOR_ACTION_SPLIT_HORIZONTAL},
-        {"vsplit", EDITOR_ACTION_SPLIT_VERTICAL},  {"vs", EDITOR_ACTION_SPLIT_VERTICAL},
-        {"vsp", EDITOR_ACTION_SPLIT_VERTICAL},     {"close", EDITOR_ACTION_CLOSE_PANE},
-        {"clo", EDITOR_ACTION_CLOSE_PANE},         {"tabclose", EDITOR_ACTION_CLOSE_TAB},
-        {"tabc", EDITOR_ACTION_CLOSE_TAB},         {"bd", EDITOR_ACTION_CLOSE_TAB},
-        {"bdelete", EDITOR_ACTION_CLOSE_TAB},      {"term", EDITOR_ACTION_TERMINAL_OPEN},
-        {"terminal", EDITOR_ACTION_TERMINAL_OPEN}, {"vterm", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
-        {"only", EDITOR_ACTION_CLOSE_OTHER_PANES}, {"on", EDITOR_ACTION_CLOSE_OTHER_PANES},
+        {"split", EDITOR_ACTION_SPLIT_HORIZONTAL},
+        {"sp", EDITOR_ACTION_SPLIT_HORIZONTAL},
+        {"vsplit", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"vs", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"vsp", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"close", EDITOR_ACTION_CLOSE_PANE},
+        {"clo", EDITOR_ACTION_CLOSE_PANE},
+        {"tabclose", EDITOR_ACTION_CLOSE_TAB},
+        {"tabc", EDITOR_ACTION_CLOSE_TAB},
+        {"bd", EDITOR_ACTION_CLOSE_TAB},
+        {"bdelete", EDITOR_ACTION_CLOSE_TAB},
+        {"term", EDITOR_ACTION_TERMINAL_OPEN},
+        {"terminal", EDITOR_ACTION_TERMINAL_OPEN},
+        {"vterm", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
+        {"tabterm", EDITOR_ACTION_TERMINAL_NEW_TAB},
+        {"only", EDITOR_ACTION_CLOSE_OTHER_PANES},
+        {"on", EDITOR_ACTION_CLOSE_OTHER_PANES},
         {"tabnew", EDITOR_ACTION_NEW_TAB},
 };
 

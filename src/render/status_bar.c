@@ -475,7 +475,7 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 		col += (col + 2 <= max_col) ? 2 : 0;
 	}
 
-	struct statusBarTermButton buttons[5];
+	struct statusBarTermButton buttons[6];
 	int count = 0;
 	if (normal) {
 		buttons[count++] = (struct statusBarTermButton){"Insert", "i",
@@ -495,12 +495,18 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 		        (struct statusBarTermButton){"Left", "^Wh", EDITOR_ACTION_FOCUS_LEFT_PANE};
 		buttons[count++] = (struct statusBarTermButton){"Right", "^Wl",
 		                                                EDITOR_ACTION_FOCUS_RIGHT_PANE};
+		/* Click-only: Ctrl-Alt-T reaches the child in Insert mode, so no hotkey. */
+		buttons[count++] = (struct statusBarTermButton){"New term", NULL,
+		                                                EDITOR_ACTION_TERMINAL_NEW_TAB};
 	} else {
-		/* CUA: no modes; the buttons are the click-only escape to move panes. */
+		/* CUA: no modes; the buttons are the click-only escape to move panes and
+		 * open a terminal tab. */
 		buttons[count++] =
 		        (struct statusBarTermButton){"Left", NULL, EDITOR_ACTION_FOCUS_LEFT_PANE};
 		buttons[count++] =
 		        (struct statusBarTermButton){"Right", NULL, EDITOR_ACTION_FOCUS_RIGHT_PANE};
+		buttons[count++] = (struct statusBarTermButton){"New term", NULL,
+		                                                EDITOR_ACTION_TERMINAL_NEW_TAB};
 	}
 
 	for (int i = 0; i < count; i++) {

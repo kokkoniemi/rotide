@@ -546,6 +546,58 @@ int editorTabAdoptInPane(struct editorPaneNode *pane, enum editorPaneKind kind, 
 	return new_idx;
 }
 
+int editorTabNewTerminalBesideActive(const char *command) {
+	if (command == NULL) {
+		return -1;
+	}
+	struct editorPaneNode *pane = E.focused_leaf;
+	if (pane == NULL || pane->is_split || pane->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return -1;
+	}
+	if (E.tab_count >= ROTIDE_MAX_TABS || !tabsEnsureTabCapacity(E.tab_count + 1)) {
+		return -1;
+	}
+	/* Size the child to the focused leaf's content rect so it starts correct; the
+	 * frame-level reconcile keeps it aligned afterward. */
+	struct editorRect rect = {0};
+	int cols = 80;
+	int rows = 24;
+	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0 && rect.h > 0) {
+		cols = rect.w;
+		rows = rect.h;
+	}
+	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
+	if (terminal == NULL) {
+		return -1;
+	}
+	/* Save the outgoing editor tab before its buffer is detached by the switch. */
+	tabsStoreActiveTab();
+	int new_idx =
+	        editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, terminal, editorTerminalPaneFree);
+	if (new_idx < 0) {
+		/* CreateWidget did not take ownership on failure. */
+		editorTerminalPaneFree(terminal);
+		tabsLoadActiveTab(E.active_tab);
+		return -1;
+	}
+	/* Insert immediately after the active tab in this pane, unlike
+	 * editorTabAdoptInPane which would clear the pane's existing tabs. */
+	int active_slot = editorPaneViewIndexOfTab(&pane->as.leaf.view, E.active_tab);
+	int slot = active_slot < 0 ? pane->as.leaf.view.pane_tab_count : active_slot + 1;
+	if (!editorPaneViewInsertTabAt(&pane->as.leaf.view, new_idx, slot)) {
+		/* CreateWidget stored the terminal with its free fn; tabsStateFree
+		 * releases both — do not free the terminal again. */
+		E.tab_count--;
+		tabsStateFree(&E.tabs[new_idx]);
+		tabsLoadActiveTab(E.active_tab);
+		return -1;
+	}
+	E.active_tab = new_idx;
+	tabsLoadActiveTab(new_idx);
+	(void)editorPaneViewActivateTab(&pane->as.leaf.view, new_idx);
+	return new_idx;
+}
+
 static struct editorPaneNode *tabsFindLeafWithTab(struct editorPaneNode *node, int idx) {
 	if (node == NULL) {
 		return NULL;

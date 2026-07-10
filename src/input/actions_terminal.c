@@ -5,21 +5,35 @@
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
+#include "workspace/tabs.h"
 
 #include <stdlib.h>
 
-static int actionsTerminalOpenSplit(enum editorSplitOrientation split) {
-	editorHistoryBreakGroup();
+static const char *actionsTerminalShell(void) {
 	const char *shell = getenv("SHELL");
 	if (shell == NULL || shell[0] == '\0') {
 		shell = "/bin/sh";
 	}
-	struct editorPaneNode *terminal_leaf = editorTerminalPaneOpenSplit(shell, split);
+	return shell;
+}
+
+static int actionsTerminalOpenSplit(enum editorSplitOrientation split) {
+	editorHistoryBreakGroup();
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit(actionsTerminalShell(), split);
 	if (terminal_leaf != NULL) {
 		editorPaneAnnounceFocus();
 		return 1;
 	}
 	editorSetStatusMsg("Failed to open terminal pane");
+	return 1;
+}
+
+static int actionsTerminalNewTab(void) {
+	editorHistoryBreakGroup();
+	if (editorTabNewTerminalBesideActive(actionsTerminalShell()) < 0) {
+		editorSetStatusMsg("Failed to open terminal tab");
+	}
 	return 1;
 }
 
@@ -29,6 +43,8 @@ int editorHandleTerminalMappedAction(enum editorAction action) {
 			return actionsTerminalOpenSplit(EDITOR_SPLIT_HORIZONTAL);
 		case EDITOR_ACTION_TERMINAL_OPEN_VERTICAL:
 			return actionsTerminalOpenSplit(EDITOR_SPLIT_VERTICAL);
+		case EDITOR_ACTION_TERMINAL_NEW_TAB:
+			return actionsTerminalNewTab();
 		case EDITOR_ACTION_TERMINAL_PREFIX:
 			E.terminal_prefix_armed = 1;
 			editorSetStatusMsg("Terminal prefix armed: next key is rotide");

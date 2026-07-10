@@ -871,7 +871,7 @@ static long long mouseMonotonicMillis(void) {
 }
 
 #define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 8
-#define MOUSE_TAB_CONTEXT_MAX_ITEMS 2
+#define MOUSE_TAB_CONTEXT_MAX_ITEMS 3
 
 static enum editorAction g_mouse_editor_context_actions[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
 static int g_mouse_editor_context_action_count;
@@ -1013,6 +1013,7 @@ int editorOpenTabContextMenuAt(int screen_row, int screen_col, struct editorPane
 	if (tab_idx >= 0 && editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx)) {
 		mouseAppendTabContextItem(items, &count, "Close Tab", EDITOR_ACTION_CLOSE_TAB);
 	}
+	mouseAppendTabContextItem(items, &count, "New Terminal", EDITOR_ACTION_TERMINAL_NEW_TAB);
 	mouseAppendTabContextItem(items, &count, "New Tab", EDITOR_ACTION_NEW_TAB);
 
 	g_mouse_tab_context_action_count = count;
@@ -1052,6 +1053,14 @@ int editorTabContextMenuActivate(editorProcessMappedActionFn process_mapped_acti
 	if (action == EDITOR_ACTION_CLOSE_TAB) {
 		if (!editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx) ||
 		    !editorTabSwitchToIndex(tab_idx)) {
+			return 0;
+		}
+	} else if (action == EDITOR_ACTION_TERMINAL_NEW_TAB && tab_idx >= 0 &&
+	           editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx)) {
+		/* Activate the clicked tab so the new terminal lands to its right. A
+		 * click on empty strip space (tab_idx < 0) falls through and inserts
+		 * beside the pane's current active tab. */
+		if (!editorTabSwitchToIndex(tab_idx)) {
 			return 0;
 		}
 	}

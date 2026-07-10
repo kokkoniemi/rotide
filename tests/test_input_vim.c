@@ -1115,7 +1115,8 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	char *tab0 = vimSystemExCompletionTest("tab", 0);
 	char *tab1 = vimSystemExCompletionTest("tab", 1);
 	char *tab2 = vimSystemExCompletionTest("tab", 2);
-	char *wrap = vimSystemExCompletionTest("tab", 3);
+	char *tab3 = vimSystemExCompletionTest("tab", 3);
+	char *wrap = vimSystemExCompletionTest("tab", 4);
 	char *builtin = vimSystemExCompletionTest("x", 0);
 	char *missing = vimSystemExCompletionTest("zz", 0);
 
@@ -1124,7 +1125,8 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	ASSERT_EQ_STR("split", third);
 	ASSERT_EQ_STR("tabclose", tab0);
 	ASSERT_EQ_STR("tabc", tab1);
-	ASSERT_EQ_STR("tabnew", tab2);
+	ASSERT_EQ_STR("tabterm", tab2);
+	ASSERT_EQ_STR("tabnew", tab3);
 	ASSERT_EQ_STR("tabclose", wrap);
 	ASSERT_EQ_STR("x", builtin);
 	ASSERT_TRUE(missing == NULL);
@@ -1134,6 +1136,7 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	free(tab0);
 	free(tab1);
 	free(tab2);
+	free(tab3);
 	free(wrap);
 	free(builtin);
 	return 0;

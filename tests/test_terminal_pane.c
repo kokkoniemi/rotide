@@ -911,6 +911,92 @@ static int test_terminal_pane_split_keeps_terminal_single_host(void) {
 	return failed;
 }
 
+/* A new terminal tab is inserted immediately after the active tab in the focused
+ * pane and activated, without adding a pane (leaf count unchanged). */
+static int test_terminal_new_tab_inserts_beside_active(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorPaneNode *pane = E.focused_leaf;
+	int tabs_before = E.tab_count;
+	int members_before = pane->as.leaf.view.pane_tab_count;
+	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
+	int editor_tab = E.active_tab;
+
+	int new_idx = editorTabNewTerminalBesideActive("sleep 5");
+	if (new_idx < 0) {
+		return 1;
+	}
+	int failed = E.tab_count != tabs_before + 1 ||
+	             pane->as.leaf.view.pane_tab_count != members_before + 1 ||
+	             editorPaneTreeLeafCount(E.layout_root) != leaves_before ||
+	             E.active_tab != new_idx ||
+	             editorTabKindAt(new_idx) != EDITOR_PANE_KIND_TERMINAL ||
+	             editorTerminalPaneForPane(pane) == NULL ||
+	             /* Order: [editor_tab, new terminal]. */
+	             pane->as.leaf.view.pane_tabs[members_before - 1] != editor_tab ||
+	             pane->as.leaf.view.pane_tabs[members_before] != new_idx;
+	return failed;
+}
+
+/* With a following tab present, the new terminal lands between the active tab
+ * and the one after it, not at the end. */
+static int test_terminal_new_tab_order_with_following_tab(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorPaneNode *pane = E.focused_leaf;
+	int t0 = E.active_tab;
+	if (!editorTabNewEmpty()) {
+		return 1;
+	}
+	int t1 = E.active_tab;
+	if (!editorTabSwitchToIndex(t0)) {
+		return 1;
+	}
+	int term = editorTabNewTerminalBesideActive("sleep 5");
+	if (term < 0) {
+		return 1;
+	}
+	int failed = pane->as.leaf.view.pane_tab_count != 3 ||
+	             pane->as.leaf.view.pane_tabs[0] != t0 ||
+	             pane->as.leaf.view.pane_tabs[1] != term ||
+	             pane->as.leaf.view.pane_tabs[2] != t1 || E.active_tab != term;
+	return failed;
+}
+
+/* A NULL command is rejected and leaves tab count and active tab unchanged. */
+static int test_terminal_new_tab_null_command_leaves_state(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	int active_before = E.active_tab;
+	int members_before = E.focused_leaf->as.leaf.view.pane_tab_count;
+	if (editorTabNewTerminalBesideActive(NULL) >= 0) {
+		return 1;
+	}
+	return E.tab_count != tabs_before || E.active_tab != active_before ||
+	       E.focused_leaf->as.leaf.view.pane_tab_count != members_before;
+}
+
 /* Create a vertical split with a terminal running `command` as the focused
  * (right) pane, under the given input system. Returns the terminal leaf, or NULL
  * on failure; *term_out receives the pane. */
@@ -1084,6 +1170,11 @@ const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_input_modes_are_per_tab", test_terminal_input_modes_are_per_tab},
         {"terminal_input_cua_prefix_and_ctrl_w_literal",
          test_terminal_input_cua_prefix_and_ctrl_w_literal},
+        {"terminal_new_tab_inserts_beside_active", test_terminal_new_tab_inserts_beside_active},
+        {"terminal_new_tab_order_with_following_tab",
+         test_terminal_new_tab_order_with_following_tab},
+        {"terminal_new_tab_null_command_leaves_state",
+         test_terminal_new_tab_null_command_leaves_state},
         {"terminal_pane_resize_all_matches_layout_rect",
          test_terminal_pane_resize_all_matches_layout_rect},
         {"terminal_pane_move_to_neighbor_matches_target_rect",
