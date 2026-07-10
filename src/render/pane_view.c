@@ -375,11 +375,12 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 		}
 	}
 
+	int pane_is_focused = leaf == E.focused_leaf;
 	int stopped_row = y_offset < E.numrows && editorDebugStoppedLineHighlightApplies(y_offset);
 	struct editorThemeColor git_row_bg;
 	int git_row = !stopped_row && y_offset < E.numrows &&
 	              editorGitViewRowBgColor(y_offset, &git_row_bg);
-	int highlight_row = !stopped_row && !git_row && y_offset < E.numrows &&
+	int highlight_row = pane_is_focused && !stopped_row && !git_row && y_offset < E.numrows &&
 	                    editorCurrentLineHighlightApplies(y_offset, segment_coloff);
 	if (stopped_row &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG)) {
@@ -398,7 +399,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	if (git_row) {
 		g_screen_drawing_git_row_bg = git_row_bg;
 	}
-	g_screen_drawing_focused_editor_pane = leaf == E.focused_leaf;
+	g_screen_drawing_focused_editor_pane = pane_is_focused;
 	if (g_screen_drawing_file_row_origin_col >= 0) {
 		g_screen_drawing_file_row_origin_col += gutter_cols;
 	}

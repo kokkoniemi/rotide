@@ -25,6 +25,12 @@
 #define TEST_HEADER_BG "\x1b[48;5;236m"
 #define TEST_HEADER_ACTIVE "\x1b[7m"
 #define TEST_HEADER_RESET "\x1b[m"
+/* Current-line highlight background (terminal theme CURRENT_LINE_BG = 256/236);
+ * shares the byte sequence with the drawer header bg, so tests isolate it by
+ * measuring the delta between highlight-on and highlight-off renders. */
+#define TEST_CURRENT_LINE_BG "\x1b[48;5;236m"
+/* "▌" U+258C LEFT HALF BLOCK — the focused pane's active-tab marker. */
+#define TEST_TAB_ACTIVE_PANE_MARKER "\xe2\x96\x8c"
 #define TEST_DRAWER_COLLAPSE_SYMBOL "\xE2\x80\xB9"
 #define TEST_DRAWER_EXPAND_SYMBOL "\xE2\x80\xBA"
 #define TEST_DRAWER_EXPLORER_SYMBOL "E"
@@ -83,6 +89,19 @@ static int count_substrings(const char *haystack, const char *needle) {
 		cursor += needle_len;
 	}
 	return count;
+}
+
+static int region_contains(const char *begin, const char *end, const char *needle) {
+	size_t nlen = strlen(needle);
+	if (nlen == 0 || begin == NULL || end == NULL) {
+		return 0;
+	}
+	for (const char *p = begin; p + nlen <= end; p++) {
+		if (memcmp(p, needle, nlen) == 0) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static const char *snapshot_line_start(const char *snapshot, int line_idx) {
@@ -822,6 +841,191 @@ test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mo
 	return 0;
 }
 
+static int test_editor_refresh_screen_cursor_line_only_in_focused_pane(void) {
+	add_row("cursor-line-body");
+	E.window_rows = 6;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+
+	/* Both panes share the buffer and render the same cursor row, so the only
+	 * variable between the two captures below is the highlight flag. The delta
+	 * therefore counts exactly how many panes tint their cursor row. */
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	E.current_line_highlight_enabled = 0;
+	size_t off_len = 0;
+	char *off = refresh_screen_and_capture(&off_len);
+	ASSERT_TRUE(off != NULL);
+	int off_count = count_substrings(off, TEST_CURRENT_LINE_BG);
+	free(off);
+
+	E.current_line_highlight_enabled = 1;
+	size_t on_len = 0;
+	char *on = refresh_screen_and_capture(&on_len);
+	ASSERT_TRUE(on != NULL);
+	int on_count = count_substrings(on, TEST_CURRENT_LINE_BG);
+	free(on);
+
+	/* Only the focused pane highlights its cursor row. Before the per-pane
+	 * focus gate this delta was 2 (both split halves tinted their row). */
+	ASSERT_EQ_INT(1, on_count - off_count);
+	return 0;
+}
+
+static int test_editor_refresh_screen_cursor_line_single_pane_still_highlights(void) {
+	add_row("cursor-line-body");
+	E.window_rows = 6;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+
+	E.current_line_highlight_enabled = 0;
+	size_t off_len = 0;
+	char *off = refresh_screen_and_capture(&off_len);
+	ASSERT_TRUE(off != NULL);
+	int off_count = count_substrings(off, TEST_CURRENT_LINE_BG);
+	free(off);
+
+	E.current_line_highlight_enabled = 1;
+	size_t on_len = 0;
+	char *on = refresh_screen_and_capture(&on_len);
+	ASSERT_TRUE(on != NULL);
+	int on_count = count_substrings(on, TEST_CURRENT_LINE_BG);
+	free(on);
+
+	/* The no-split path is inherently the focused pane and must still tint. */
+	ASSERT_EQ_INT(1, on_count - off_count);
+	return 0;
+}
+
+static int test_editor_refresh_screen_active_pane_marker_follows_focus(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/left.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/right.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	E.window_rows = 6;
+	E.window_cols = 70;
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+	left->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	left->as.leaf.view.active_tab_idx = 0;
+	right->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&right->as.leaf.view, 1));
+	right->as.leaf.view.active_tab_idx = 1;
+
+	/* editorLayoutSplitFocused leaves the new (right) leaf focused, so the marker
+	 * starts in the right strip: past the left label, ahead of the right one. */
+	ASSERT_TRUE(E.focused_leaf == right);
+	size_t len = 0;
+	char *output = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, TEST_TAB_ACTIVE_PANE_MARKER));
+	const char *marker = strstr(output, TEST_TAB_ACTIVE_PANE_MARKER);
+	const char *left_label = strstr(output, "left.txt");
+	const char *right_label = strstr(output, "right.txt");
+	ASSERT_TRUE(marker != NULL && left_label != NULL && right_label != NULL);
+	ASSERT_TRUE(marker > left_label);
+	ASSERT_TRUE(marker < right_label);
+	free(output);
+
+	/* Moving focus to the left pane moves the marker with it: it now sits in the
+	 * left strip, ahead of the left label. (Only the focused side is asserted;
+	 * the focus switch captures E state into the outgoing view, so the right
+	 * strip's contents are intentionally not relied upon here.) */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	output = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, TEST_TAB_ACTIVE_PANE_MARKER));
+	marker = strstr(output, TEST_TAB_ACTIVE_PANE_MARKER);
+	left_label = strstr(output, "left.txt");
+	ASSERT_TRUE(marker != NULL && left_label != NULL);
+	ASSERT_TRUE(marker < left_label);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_single_pane_has_no_active_pane_marker(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/only.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.window_rows = 6;
+	E.window_cols = 60;
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+
+	size_t len = 0;
+	char *output = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(output != NULL);
+	/* Nothing to disambiguate with one pane, so the common case stays clean. */
+	ASSERT_EQ_INT(0, count_substrings(output, TEST_TAB_ACTIVE_PANE_MARKER));
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_active_pane_marker_keeps_active_tab_background(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/left.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/right.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	E.window_rows = 6;
+	E.window_cols = 70;
+	/* Github-light uses a fg/bg-pair TAB_ACTIVE style (not reverse video), so the
+	 * marker cell must keep the active background rather than resetting to the
+	 * base background under the accent block. */
+	ASSERT_EQ_INT(1, editorThemeInitBuiltin(&E.theme, "github-light"));
+	ASSERT_EQ_INT(0, E.theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].reverse);
+	/* The accent (cursor) color must differ from the active-tab background, or
+	 * the block would be invisible once it sits on that background. */
+	ASSERT_TRUE(memcmp(&E.theme.ui[EDITOR_THEME_UI_CURSOR],
+	                   &E.theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg,
+	                   sizeof(struct editorThemeColor)) != 0);
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+	left->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	left->as.leaf.view.active_tab_idx = 0;
+	right->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&right->as.leaf.view, 1));
+	right->as.leaf.view.active_tab_idx = 1;
+	ASSERT_TRUE(E.focused_leaf == right);
+
+	size_t len = 0;
+	char *output = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(output != NULL);
+	const char *marker = strstr(output, TEST_TAB_ACTIVE_PANE_MARKER);
+	ASSERT_TRUE(marker != NULL);
+
+	/* Scan from the pane border immediately left of the focused strip up to the
+	 * marker. A base reset ("\x1b[m") there would blank the active-tab
+	 * background under the marker cell — the bug this guards against. The
+	 * active-tab style is applied once at the strip start and must stay in
+	 * effect through the marker cell. */
+	const char *border = NULL;
+	const char *scan = output;
+	while ((scan = strstr(scan, EDITOR_PANE_VBORDER_UTF8)) != NULL && scan < marker) {
+		border = scan;
+		scan += strlen(EDITOR_PANE_VBORDER_UTF8);
+	}
+	ASSERT_TRUE(border != NULL);
+	ASSERT_TRUE(!region_contains(border, marker, "\x1b[m"));
+	free(output);
+	return 0;
+}
+
 const struct editorTestCase g_render_panes_tests[] = {
         {"editor_popup_open_select_close", test_editor_popup_open_select_close},
         {"editor_popup_other_key_dismisses_with_pass_through",
@@ -863,6 +1067,16 @@ const struct editorTestCase g_render_panes_tests[] = {
          test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows},
         {"editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode",
          test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode},
+        {"editor_refresh_screen_cursor_line_only_in_focused_pane",
+         test_editor_refresh_screen_cursor_line_only_in_focused_pane},
+        {"editor_refresh_screen_cursor_line_single_pane_still_highlights",
+         test_editor_refresh_screen_cursor_line_single_pane_still_highlights},
+        {"editor_refresh_screen_active_pane_marker_follows_focus",
+         test_editor_refresh_screen_active_pane_marker_follows_focus},
+        {"editor_refresh_screen_single_pane_has_no_active_pane_marker",
+         test_editor_refresh_screen_single_pane_has_no_active_pane_marker},
+        {"editor_refresh_screen_active_pane_marker_keeps_active_tab_background",
+         test_editor_refresh_screen_active_pane_marker_keeps_active_tab_background},
 };
 
 const int g_render_panes_test_count =
