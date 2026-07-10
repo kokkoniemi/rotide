@@ -12,6 +12,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <time.h>
 
 struct editorDrawerNode *editorDrawerNodeNew(const char *name, const char *path, int is_dir,
                                              struct editorDrawerNode *parent) {

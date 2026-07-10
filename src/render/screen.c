@@ -1110,9 +1110,11 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
 
 	if (row_idx >= 0 && row_idx < E.numrows && segment_coloff == 0) {
 		char number[32];
-		int display_line = E.tab_kind == EDITOR_TAB_GIT_DIFF ? editorGitViewLineNumber(row_idx)
-		                                                     : row_idx + 1;
-		int len = display_line > 0 ? snprintf(number, sizeof(number), "%d", display_line) : 0;
+		int display_line = E.tab_kind == EDITOR_TAB_GIT_DIFF
+		                           ? editorGitViewLineNumber(row_idx)
+		                           : row_idx + 1;
+		int len =
+		        display_line > 0 ? snprintf(number, sizeof(number), "%d", display_line) : 0;
 		if (len < 0) {
 			return 0;
 		}

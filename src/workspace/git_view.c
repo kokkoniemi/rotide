@@ -688,8 +688,8 @@ static int gitViewOpenPatchTab(enum editorGitOpsPatchKind patch_kind, const char
 	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
-	char *text = editorGitViewBuildDiffDup(patch, patch_len, &kinds, &line_numbers,
-	                                       &kind_count, &source_path);
+	char *text = editorGitViewBuildDiffDup(patch, patch_len, &kinds, &line_numbers, &kind_count,
+	                                       &source_path);
 	free(patch);
 	if (text == NULL) {
 		editorSetStatusMsg("git: out of memory");

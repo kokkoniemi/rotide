@@ -1320,9 +1320,8 @@ static int test_editor_refresh_screen_tints_and_highlights_git_diff_tab(void) {
 	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
-	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
-	                              &kind_count, &source_path);
+	char *text = editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                                       &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: src/app.c", text));

@@ -5,6 +5,7 @@
 
 #define EDITOR_PANE_VBORDER_UTF8 "\xe2\x94\x82"
 #define EDITOR_PANE_HBORDER_UTF8 "\xe2\x94\x80"
+#include "config/theme_config.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/text_source.h"

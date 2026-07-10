@@ -492,10 +492,9 @@ static int test_git_ops_status_from_char_maps_change_types(void) {
 
 static int test_git_ops_parse_status_preserves_added_deleted_for_tree(void) {
 	reset_editor_state();
-	static const char status[] =
-	        "1 A. N... 100644 100644 100644 aaa bbb sub/added.c\0"
-	        "1 .D N... 100644 100644 100644 aaa bbb sub/deleted.c\0"
-	        "1 .M N... 100644 100644 100644 aaa bbb sub/modified.c\0";
+	static const char status[] = "1 A. N... 100644 100644 100644 aaa bbb sub/added.c\0"
+	                             "1 .D N... 100644 100644 100644 aaa bbb sub/deleted.c\0"
+	                             "1 .M N... 100644 100644 100644 aaa bbb sub/modified.c\0";
 	ASSERT_TRUE(editorGitTestParseStatus(status, sizeof(status) - 1, NULL, NULL));
 	free(E.git_repo_root);
 	E.git_repo_root = strdup("/repo");
