@@ -366,15 +366,31 @@ static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(v
 	                                               sizeof(click_status_bar) - 1) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
+	return 0;
+}
 
+static int test_editor_process_keypress_mouse_left_click_below_content_moves_to_buffer_end(void) {
+	add_row("abc");
+	add_row("de");
+	E.window_rows = 6;
+	E.window_cols = 20;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 1;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+
+	/* A press on a "~" filler row below the last line focuses the pane and drops
+	 * the cursor at the end of the buffer instead of being ignored. */
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click_filler_row[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_filler_row, sizeof(click_filler_row), 0,
-	                                   text_start + 2, 4, 'M'));
+	                                   text_start + 2, 5, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row,
 	                                               strlen(click_filler_row)) == 0);
-	ASSERT_EQ_INT(0, E.cy);
-	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	return 0;
 }
 
@@ -3027,6 +3043,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_keypress_clears_hover_link", test_editor_keypress_clears_hover_link},
         {"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
          test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
+        {"editor_process_keypress_mouse_left_click_below_content_moves_to_buffer_end",
+         test_editor_process_keypress_mouse_left_click_below_content_moves_to_buffer_end},
         {"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns",
          test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
         {"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",

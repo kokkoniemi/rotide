@@ -47,6 +47,8 @@ static void mouseClearSelectionMode(void);
 static void mouseSelectWordAtCursor(void);
 static void mouseSelectLineAtCursor(void);
 static void mouseClearTabDrag(void);
+static int mouseEventInFocusedPaneTextArea(const struct editorMouseEvent *event);
+static int mouseSetCursorToBufferEnd(void);
 
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
                                     enum editorDrawerMode *mode_out) {
@@ -748,11 +750,15 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	}
 
 	if (!editorMoveCursorToMouse(event, 0)) {
-		apply_mouse_state = 1;
-		left_button_down = 0;
-		drag_started = 0;
-		reset_click_tracking = 1;
-		goto out;
+		/* A press below the last line focuses the pane and drops the cursor at
+		 * end of buffer rather than being ignored, as most editors do. */
+		if (!mouseEventInFocusedPaneTextArea(event) || !mouseSetCursorToBufferEnd()) {
+			apply_mouse_state = 1;
+			left_button_down = 0;
+			drag_started = 0;
+			reset_click_tracking = 1;
+			goto out;
+		}
 	}
 
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -1353,18 +1359,17 @@ int editorClearHoverLinkState(void) {
 	return 1;
 }
 
-int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int clamp_to_viewport,
-                                     size_t *offset_out) {
-	if (event == NULL || offset_out == NULL || E.numrows == 0) {
-		return 0;
-	}
+/* Terminal-absolute (0-based) geometry of the focused pane's text area. */
+struct mousePaneTextMetrics {
+	int pane_y;
+	int pane_rows;
+	int text_start_col;
+	int text_cols;
+};
 
-	/* SGR mouse coordinates are terminal-absolute and 1-based. */
-	int raw_col = event->x - 1;
-	int raw_row = event->y - 1;
+static void mouseFocusedPaneTextMetrics(struct mousePaneTextMetrics *out) {
 	struct editorRect focused_rect = {0};
 	int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
-	int pane_y = has_focused_rect ? focused_rect.y : 1;
 	int pane_w =
 	        has_focused_rect ? focused_rect.w : editorDrawerTextViewportCols(E.window_cols);
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
@@ -1382,9 +1387,29 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int c
 		text_start_col++;
 		text_cols -= 2;
 	}
+	out->pane_y = has_focused_rect ? focused_rect.y : 1;
+	out->pane_rows = has_focused_rect ? focused_rect.h : E.window_rows;
+	out->text_start_col = text_start_col;
+	out->text_cols = text_cols;
+}
+
+int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int clamp_to_viewport,
+                                     size_t *offset_out) {
+	if (event == NULL || offset_out == NULL || E.numrows == 0) {
+		return 0;
+	}
+
+	/* SGR mouse coordinates are terminal-absolute and 1-based. */
+	int raw_col = event->x - 1;
+	int raw_row = event->y - 1;
+	struct mousePaneTextMetrics metrics;
+	mouseFocusedPaneTextMetrics(&metrics);
+	int pane_y = metrics.pane_y;
+	int text_cols = metrics.text_cols;
+	int text_start_col = metrics.text_start_col;
 	int mouse_row = raw_row - pane_y;
 	int mouse_col = raw_col - text_start_col;
-	int pane_rows = has_focused_rect ? focused_rect.h : E.window_rows;
+	int pane_rows = metrics.pane_rows;
 	if (clamp_to_viewport) {
 		if (pane_rows <= 0 || text_cols <= 0) {
 			return 0;
@@ -1480,6 +1505,37 @@ int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_v
 		return 0;
 	}
 	return mouseSetCursorFromOffset(offset);
+}
+
+/* Unlike editorResolveMouseToBufferOffset, this accepts the "~" filler rows
+ * below the last line, so callers can tell a below-content press apart from a
+ * press outside the pane. */
+static int mouseEventInFocusedPaneTextArea(const struct editorMouseEvent *event) {
+	if (event == NULL) {
+		return 0;
+	}
+	struct mousePaneTextMetrics metrics;
+	mouseFocusedPaneTextMetrics(&metrics);
+	int mouse_row = (event->y - 1) - metrics.pane_y;
+	int mouse_col = (event->x - 1) - metrics.text_start_col;
+	return mouse_row >= 0 && mouse_row < metrics.pane_rows && mouse_col >= 0 &&
+	       mouse_col < metrics.text_cols;
+}
+
+static int mouseSetCursorToBufferEnd(void) {
+	if (E.numrows <= 0) {
+		return 0;
+	}
+	int last_row = E.numrows - 1;
+	int last_len = (int)editorDocumentLineLength(E.document, last_row);
+	size_t end_offset = 0;
+	if (!editorBufferPosToOffset(last_row, last_len, &end_offset)) {
+		return 0;
+	}
+	E.cy = last_row;
+	E.cx = last_len;
+	E.cursor_offset = end_offset;
+	return 1;
 }
 
 static int mouseIsWordByte(unsigned char b) {
