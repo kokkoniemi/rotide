@@ -1703,9 +1703,17 @@ static int screenAppendFramePreamble(struct writeBuf *wb) {
 	enum editorCursorStyle frame_cursor_style = E.cursor_style;
 	int frame_cursor_blink = E.cursor_blink_enabled;
 	if (focused_terminal != NULL) {
-		frame_cursor_style =
-		        screenCursorStyleFromVtermShape(focused_terminal->cursor_shape);
-		frame_cursor_blink = focused_terminal->cursor_blink != 0;
+		if (focused_terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL) {
+			/* Terminal Normal mode: a steady block cursor, matching Vim, so the
+			 * mode is visible at the cursor as well as in the status badge. Keys
+			 * go to rotide, not the child. */
+			frame_cursor_style = EDITOR_CURSOR_STYLE_BLOCK;
+			frame_cursor_blink = 0;
+		} else {
+			frame_cursor_style =
+			        screenCursorStyleFromVtermShape(focused_terminal->cursor_shape);
+			frame_cursor_blink = focused_terminal->cursor_blink != 0;
+		}
 	} else {
 		const struct editorInputSystem *system = editorInputSystemActive();
 		if (system != NULL && system->cursor_style != NULL) {

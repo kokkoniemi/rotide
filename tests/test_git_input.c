@@ -899,7 +899,7 @@ static int test_git_input_status_bar_button_click_stages_file(void) {
 	int stage_col = -1;
 	for (int col = 0; col < E.window_cols; col++) {
 		int action = 0;
-		if (editorStatusBarDebugButtonAt(col, &action) &&
+		if (editorStatusBarButtonAt(col, &action) &&
 		    action == (int)EDITOR_ACTION_GIT_STAGE) {
 			stage_col = col;
 			break;

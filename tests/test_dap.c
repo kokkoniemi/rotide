@@ -876,7 +876,7 @@ static unsigned int dap_status_button_actions(int window_cols) {
 	unsigned int mask = 0;
 	for (int c = 0; c < window_cols; c++) {
 		int action = 0;
-		if (editorStatusBarDebugButtonAt(c, &action)) {
+		if (editorStatusBarButtonAt(c, &action)) {
 			mask |= DAP_BTN_BIT(action);
 		}
 	}

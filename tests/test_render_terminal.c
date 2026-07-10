@@ -1,4 +1,6 @@
+#include "input/input_system.h"
 #include "render/screen.h"
+#include "render/status_bar.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -422,6 +424,54 @@ static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
 	return (in_first && in_second) ? 0 : 1;
 }
 
+/* True if any status-bar column maps to `action` in the most recent render. */
+static int status_bar_has_button_action(int action) {
+	for (int col = 0; col < E.window_cols; col++) {
+		int got = 0;
+		if (editorStatusBarButtonAt(col, &got) && got == action) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* The focused terminal owns the status action segment: a mode badge plus mode-
+ * aware, clickable buttons that name their hotkeys. Job/Insert shows INSERT + a
+ * Normal button; Terminal Normal shows NORMAL + an Insert button; and the button
+ * columns resolve to the mode-toggle actions the mouse layer dispatches. */
+static int test_status_bar_terminal_segment_modes(void) {
+	E.window_rows = 8;
+	E.window_cols = 80;
+	struct editorTerminalPane *t = open_terminal_tab_in_root("sleep 5");
+	if (t == NULL) {
+		return 1;
+	}
+	if (!editorInputSystemActivate("vim")) {
+		return 1;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	size_t len = 0;
+	char *out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	int insert_ok = strstr(out, "INSERT") != NULL && strstr(out, "Normal") != NULL &&
+	                strstr(out, "^WN") != NULL;
+	free(out);
+	if (!insert_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_NORMAL)) {
+		return 1;
+	}
+
+	t->input_mode = EDITOR_TERMINAL_INPUT_NORMAL;
+	out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	int normal_ok = strstr(out, "NORMAL") != NULL && strstr(out, "Insert") != NULL;
+	free(out);
+	if (!normal_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_INSERT)) {
+		return 1;
+	}
+	return 0;
+}
+
 static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
@@ -579,6 +629,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
          test_editor_refresh_screen_renders_terminal_pane},
         {"editor_refresh_screen_terminal_repaints_unchanged_slice",
          test_editor_refresh_screen_terminal_repaints_unchanged_slice},
+        {"status_bar_terminal_segment_modes", test_status_bar_terminal_segment_modes},
         {"editor_refresh_screen_terminal_exit_overlay",
          test_editor_refresh_screen_terminal_exit_overlay},
         {"editor_refresh_screen_closes_exited_terminal_without_keypress",

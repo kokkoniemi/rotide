@@ -11,10 +11,11 @@
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "editing/text_source.h"
+#include "input/actions_debug.h"
 #include "input/actions_edit.h"
 #include "input/actions_file_tab.h"
 #include "input/actions_language.h"
-#include "input/actions_terminal_debug.h"
+#include "input/actions_terminal.h"
 #include "input/actions_workspace.h"
 #include "input/input_system.h"
 #include "input/mouse.h"
@@ -2545,7 +2546,10 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	if (editorHandleFileTabMappedAction(action)) {
 		return 1;
 	}
-	if (editorHandleTerminalDebugMappedAction(action)) {
+	if (editorHandleTerminalMappedAction(action)) {
+		return 1;
+	}
+	if (editorHandleDebugMappedAction(action)) {
 		return 1;
 	}
 	if (editorHandleWorkspaceMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,

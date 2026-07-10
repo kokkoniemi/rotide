@@ -955,6 +955,21 @@ static int test_terminal_input_vim_insert_forwards_bytes(void) {
 	return failed;
 }
 
+/* Esc is never a mode trigger in Job/Insert: Esc-prefixed keys (arrow-up/down,
+ * which the terminal sends as ESC [ A / ESC [ B) stay in Insert and do not steal
+ * pane focus — they are forwarded to the child. (A lone Esc cannot be fed through
+ * the pipe harness: with no following byte it reads as EOF; the real terminal
+ * disambiguates it by a timeout. The forwarding path is identical either way.) */
+static int test_terminal_input_vim_esc_prefixed_stays_insert(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	feed_keys("\x1b[A\x1b[B"); /* Up, Down: Esc-prefixed */
+	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT || E.focused_leaf != leaf;
+}
+
 /* Ctrl-W N enters Terminal Normal mode; i returns to Job/Insert. */
 static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 	struct editorTerminalPane *t = NULL;
@@ -1060,6 +1075,8 @@ static int test_terminal_input_cua_prefix_and_ctrl_w_literal(void) {
 
 const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_input_vim_insert_forwards_bytes", test_terminal_input_vim_insert_forwards_bytes},
+        {"terminal_input_vim_esc_prefixed_stays_insert",
+         test_terminal_input_vim_esc_prefixed_stays_insert},
         {"terminal_input_vim_ctrl_w_n_toggles_mode", test_terminal_input_vim_ctrl_w_n_toggles_mode},
         {"terminal_input_vim_ctrl_w_switches_pane", test_terminal_input_vim_ctrl_w_switches_pane},
         {"terminal_input_vim_normal_leader_resolves",

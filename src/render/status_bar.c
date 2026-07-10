@@ -7,6 +7,7 @@
 #include "render/display_text.h"
 #include "render/write_buf.h"
 #include "rotide.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
@@ -55,30 +56,31 @@
 #define STATUS_INPUT_SEGMENT_MAX_COLS 24
 
 /*
- * Clickable debug-control buttons recorded during the most recent status-bar
- * render. Columns are 0-based offsets within the status row. The mouse layer
- * maps a left-press column to the button's action; see
- * editorStatusBarDebugButtonAt.
+ * Clickable action buttons recorded during the most recent status-bar render,
+ * shared by every segment that draws them (debug/DAP controls, git actions, and
+ * terminal mode/pane controls). Columns are 0-based offsets within the status
+ * row. The mouse layer maps a left-press column to the button's action; see
+ * editorStatusBarButtonAt.
  */
-#define STATUS_DEBUG_MAX_BUTTONS 12
-struct statusDebugButton {
+#define STATUS_BAR_MAX_BUTTONS 12
+struct statusBarButton {
 	int start_col;
 	int end_col;
 	enum editorAction action;
 };
-static struct statusDebugButton g_status_debug_buttons[STATUS_DEBUG_MAX_BUTTONS];
-static int g_status_debug_button_count;
+static struct statusBarButton g_status_bar_buttons[STATUS_BAR_MAX_BUTTONS];
+static int g_status_bar_button_count;
 /*
  * Column offset added to every recorded button span. The segment renders with
  * a local column that starts at 0, but the segment itself may sit further right
  * (e.g. after the input-system badge); this offset keeps the clickable spans in
  * absolute status-row columns so the mouse layer resolves hits correctly.
  */
-static int g_status_debug_button_col_offset;
+static int g_status_bar_button_col_offset;
 
-static void statusDebugButtonsReset(int col_offset) {
-	g_status_debug_button_count = 0;
-	g_status_debug_button_col_offset = col_offset;
+static void statusBarButtonsReset(int col_offset) {
+	g_status_bar_button_count = 0;
+	g_status_bar_button_col_offset = col_offset;
 }
 
 /*
@@ -91,9 +93,9 @@ static void statusDebugButtonsReset(int col_offset) {
  * afterward. A button with no room is silently dropped. Returns 0 only on a
  * write failure. Labels and hotkeys must be ASCII (measured in bytes).
  */
-static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const char *icon,
-                             const struct editorThemeColor *icon_color, const char *label,
-                             const char *hotkey, enum editorAction action) {
+static int statusBarAppendButton(struct writeBuf *wb, int *col, int max_col, const char *icon,
+                                 const struct editorThemeColor *icon_color, const char *label,
+                                 const char *hotkey, enum editorAction action) {
 	int has_icon = icon != NULL && icon[0] != '\0';
 	int label_cols = label != NULL ? (int)strlen(label) : 0;
 	int hotkey_cols = hotkey != NULL ? (int)strlen(hotkey) : 0;
@@ -131,13 +133,13 @@ static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const c
 			return 0;
 		}
 	}
-	if (g_status_debug_button_count < STATUS_DEBUG_MAX_BUTTONS) {
-		g_status_debug_buttons[g_status_debug_button_count].start_col =
-		        g_status_debug_button_col_offset + start_col;
-		g_status_debug_buttons[g_status_debug_button_count].end_col =
-		        g_status_debug_button_col_offset + start_col + cols;
-		g_status_debug_buttons[g_status_debug_button_count].action = action;
-		g_status_debug_button_count++;
+	if (g_status_bar_button_count < STATUS_BAR_MAX_BUTTONS) {
+		g_status_bar_buttons[g_status_bar_button_count].start_col =
+		        g_status_bar_button_col_offset + start_col;
+		g_status_bar_buttons[g_status_bar_button_count].end_col =
+		        g_status_bar_button_col_offset + start_col + cols;
+		g_status_bar_buttons[g_status_bar_button_count].action = action;
+		g_status_bar_button_count++;
 	}
 	*col += cols;
 	/* Three trailing spaces between buttons: a wider gap than the single space
@@ -160,7 +162,7 @@ static int statusDebugButton(struct writeBuf *wb, int *col, int max_col, const c
  */
 static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *col_io,
                                        int col_offset) {
-	statusDebugButtonsReset(col_offset);
+	statusBarButtonsReset(col_offset);
 	int col = 0;
 	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -191,26 +193,27 @@ static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *co
 
 	int nerd = E.nerd_fonts_enabled;
 	if (editorDapIsStopped()) {
-		if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_CONT : NULL,
-		                       &color_cont, "Cont", NULL, EDITOR_ACTION_DAP_CONTINUE) ||
-		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OVER : NULL, NULL,
-		                       "Over", NULL, EDITOR_ACTION_DAP_STEP_OVER) ||
-		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_INTO : NULL, NULL,
-		                       "Into", NULL, EDITOR_ACTION_DAP_STEP_INTO) ||
-		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OUT : NULL, NULL,
-		                       "Out", NULL, EDITOR_ACTION_DAP_STEP_OUT)) {
+		if (!statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_CONT : NULL,
+		                           &color_cont, "Cont", NULL, EDITOR_ACTION_DAP_CONTINUE) ||
+		    !statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OVER : NULL,
+		                           NULL, "Over", NULL, EDITOR_ACTION_DAP_STEP_OVER) ||
+		    !statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_INTO : NULL,
+		                           NULL, "Into", NULL, EDITOR_ACTION_DAP_STEP_INTO) ||
+		    !statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OUT : NULL,
+		                           NULL, "Out", NULL, EDITOR_ACTION_DAP_STEP_OUT)) {
 			return 0;
 		}
-	} else if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_PAUSE : NULL, NULL,
-	                              "Pause", NULL, EDITOR_ACTION_DAP_PAUSE)) {
+	} else if (!statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_PAUSE : NULL,
+	                                  NULL, "Pause", NULL, EDITOR_ACTION_DAP_PAUSE)) {
 		return 0;
 	}
 	/* Restart and Stop are icon-only (and accent-colored) when nerd fonts are on. */
-	if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_RESTART : NULL,
-	                       &color_restart, nerd ? NULL : "Restart", NULL,
-	                       EDITOR_ACTION_DAP_RESTART) ||
-	    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_STOP : NULL, &color_stop,
-	                       nerd ? NULL : "Stop", NULL, EDITOR_ACTION_DAP_STOP)) {
+	if (!statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_RESTART : NULL,
+	                           &color_restart, nerd ? NULL : "Restart", NULL,
+	                           EDITOR_ACTION_DAP_RESTART) ||
+	    !statusBarAppendButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_STOP : NULL,
+	                           &color_stop, nerd ? NULL : "Stop", NULL,
+	                           EDITOR_ACTION_DAP_STOP)) {
 		return 0;
 	}
 	*col_io = col;
@@ -369,13 +372,13 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
 	};
 
-	struct statusBarGitButton drawer_buttons[STATUS_DEBUG_MAX_BUTTONS];
+	struct statusBarGitButton drawer_buttons[STATUS_BAR_MAX_BUTTONS];
 	const struct statusBarGitButton *buttons = NULL;
 	int count = 0;
 	switch (context) {
 		case STATUS_GIT_CONTEXT_DRAWER:
 			buttons = drawer_buttons;
-			count = statusBarGitDrawerButtons(drawer_buttons, STATUS_DEBUG_MAX_BUTTONS);
+			count = statusBarGitDrawerButtons(drawer_buttons, STATUS_BAR_MAX_BUTTONS);
 			break;
 		case STATUS_GIT_CONTEXT_BRANCHES:
 			buttons = k_branches;
@@ -401,7 +404,7 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 			return 1;
 	}
 
-	statusDebugButtonsReset(col_offset);
+	statusBarButtonsReset(col_offset);
 	int col = 0;
 	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -409,8 +412,9 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 	col += (col + 1 <= max_col) ? 1 : 0;
 	int nerd = E.nerd_fonts_enabled;
 	for (int i = 0; i < count; i++) {
-		if (!statusDebugButton(wb, &col, max_col, nerd ? buttons[i].icon : NULL, NULL,
-		                       buttons[i].label, buttons[i].hotkey, buttons[i].action)) {
+		if (!statusBarAppendButton(wb, &col, max_col, nerd ? buttons[i].icon : NULL, NULL,
+		                           buttons[i].label, buttons[i].hotkey,
+		                           buttons[i].action)) {
 			return 0;
 		}
 	}
@@ -418,12 +422,103 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 	return 1;
 }
 
-int editorStatusBarDebugButtonAt(int col, int *action_out) {
-	for (int i = 0; i < g_status_debug_button_count; i++) {
-		if (col >= g_status_debug_buttons[i].start_col &&
-		    col < g_status_debug_buttons[i].end_col) {
+/* The focused terminal, when a terminal tab owns the keyboard (not the drawer). */
+static struct editorTerminalPane *statusBarFocusedTerminal(void) {
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return NULL;
+	}
+	return editorTerminalPaneForPane(E.focused_leaf);
+}
+
+struct statusBarTermButton {
+	const char *label;
+	const char *hotkey;
+	enum editorAction action;
+};
+
+/*
+ * Renders the terminal action segment: a mode badge (INSERT/NORMAL for Vim, TERM
+ * for CUA) then mode-aware buttons. Labels and hotkeys teach the keys (Normal →
+ * ^WN, Insert → i, panes → ^Wh/^Wl/...). The buttons dispatch editorActions
+ * through the same clickable-span table the git/debug segments use, so they act
+ * as a mouse escape hatch a fullscreen child cannot intercept. `col_offset` is
+ * the segment's absolute start column; writes consumed cols to *col_io.
+ */
+static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int *col_io,
+                                          int col_offset) {
+	struct editorTerminalPane *terminal = statusBarFocusedTerminal();
+	if (terminal == NULL) {
+		return 1;
+	}
+	int is_vim = editorInputSystemActive() == &editorVimInputSystem;
+	int normal = is_vim && terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL;
+
+	statusBarButtonsReset(col_offset);
+	int col = 0;
+	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
+		return 0;
+	}
+	col += (col + 1 <= max_col) ? 1 : 0;
+
+	const char *badge = !is_vim ? "TERM" : (normal ? "NORMAL" : "INSERT");
+	int blen = (int)strlen(badge);
+	if (col + blen <= max_col) {
+		if (!wbAppend(wb, VT100_BOLD_ON, (int)strlen(VT100_BOLD_ON)) ||
+		    !wbAppend(wb, badge, (size_t)blen) ||
+		    !wbAppend(wb, VT100_BOLD_OFF, (int)strlen(VT100_BOLD_OFF))) {
+			return 0;
+		}
+		col += blen;
+		if (col + 2 <= max_col && !wbAppend(wb, "  ", 2)) {
+			return 0;
+		}
+		col += (col + 2 <= max_col) ? 2 : 0;
+	}
+
+	struct statusBarTermButton buttons[5];
+	int count = 0;
+	if (normal) {
+		buttons[count++] = (struct statusBarTermButton){"Insert", "i",
+		                                                EDITOR_ACTION_TERMINAL_MODE_INSERT};
+		buttons[count++] =
+		        (struct statusBarTermButton){"Left", "^Wh", EDITOR_ACTION_FOCUS_LEFT_PANE};
+		buttons[count++] = (struct statusBarTermButton){"Right", "^Wl",
+		                                                EDITOR_ACTION_FOCUS_RIGHT_PANE};
+		buttons[count++] =
+		        (struct statusBarTermButton){"Up", "^Wk", EDITOR_ACTION_FOCUS_UP_PANE};
+		buttons[count++] =
+		        (struct statusBarTermButton){"Down", "^Wj", EDITOR_ACTION_FOCUS_DOWN_PANE};
+	} else if (is_vim) {
+		buttons[count++] = (struct statusBarTermButton){"Normal", "^WN",
+		                                                EDITOR_ACTION_TERMINAL_MODE_NORMAL};
+		buttons[count++] =
+		        (struct statusBarTermButton){"Left", "^Wh", EDITOR_ACTION_FOCUS_LEFT_PANE};
+		buttons[count++] = (struct statusBarTermButton){"Right", "^Wl",
+		                                                EDITOR_ACTION_FOCUS_RIGHT_PANE};
+	} else {
+		/* CUA: no modes; the buttons are the click-only escape to move panes. */
+		buttons[count++] =
+		        (struct statusBarTermButton){"Left", NULL, EDITOR_ACTION_FOCUS_LEFT_PANE};
+		buttons[count++] =
+		        (struct statusBarTermButton){"Right", NULL, EDITOR_ACTION_FOCUS_RIGHT_PANE};
+	}
+
+	for (int i = 0; i < count; i++) {
+		if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, buttons[i].label,
+		                           buttons[i].hotkey, buttons[i].action)) {
+			return 0;
+		}
+	}
+	*col_io = col;
+	return 1;
+}
+
+int editorStatusBarButtonAt(int col, int *action_out) {
+	for (int i = 0; i < g_status_bar_button_count; i++) {
+		if (col >= g_status_bar_buttons[i].start_col &&
+		    col < g_status_bar_buttons[i].end_col) {
 			if (action_out != NULL) {
-				*action_out = (int)g_status_debug_buttons[i].action;
+				*action_out = (int)g_status_bar_buttons[i].action;
 			}
 			return 1;
 		}
@@ -553,13 +648,17 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		right_start_col = 0;
 	}
 
-	/* The input-system badge (e.g. the Vim mode label) is always the far-left
-	 * element of the status bar. */
+	/* The input-system badge (e.g. the Vim mode label) is normally the far-left
+	 * element of the status bar. It is suppressed while a terminal is focused: the
+	 * global editor mode is irrelevant there, and the terminal segment renders its
+	 * own per-tab mode badge instead. */
 	const struct editorInputSystem *active_system = editorInputSystemActive();
+	int terminal_focused = statusBarFocusedTerminal() != NULL;
 	char *input_segment = NULL;
 	int input_segment_cols = 0;
 	int input_segment_total_cols = 0;
-	if (!statusBarPrepareInputSegment(&input_segment, &input_segment_cols,
+	if (!terminal_focused &&
+	    !statusBarPrepareInputSegment(&input_segment, &input_segment_cols,
 	                                  &input_segment_total_cols, right_start_col)) {
 		return 0;
 	}
@@ -627,8 +726,14 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 			goto cleanup;
 		}
 		filename = "";
+	} else if (terminal_focused) {
+		if (!statusBarAppendTerminalSegment(wb, segment_max, &debug_cols,
+		                                    input_segment_total_cols)) {
+			goto cleanup;
+		}
+		filename = "";
 	} else {
-		statusDebugButtonsReset(0);
+		statusBarButtonsReset(0);
 	}
 
 	int dirty_cols = (int)strlen(dirtyflag);

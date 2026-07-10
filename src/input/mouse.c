@@ -1154,7 +1154,8 @@ static int mouseHandleRightPress(const struct editorMouseEvent *event) {
 	return popup_was_open;
 }
 
-/* A left-press on a status-bar debug-control button dispatches its DAP action.
+/* A left-press on a status-bar action button dispatches its action (a DAP
+ * control, git action, or terminal mode/pane control, per the active segment).
  * The status bar is the row just below the text area (E.window_rows + 2,
  * 1-based). Returns 1 if the press hit a button. */
 static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
@@ -1163,7 +1164,7 @@ static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
 		return 0;
 	}
 	int action = 0;
-	if (!editorStatusBarDebugButtonAt(event->x - 1, &action)) {
+	if (!editorStatusBarButtonAt(event->x - 1, &action)) {
 		return 0;
 	}
 	int effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
