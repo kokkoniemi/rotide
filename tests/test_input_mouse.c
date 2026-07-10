@@ -1291,6 +1291,60 @@ static int test_editor_preview_file_open_in_other_pane_opens_own_preview(void) {
 	return 0;
 }
 
+/* Two panes independently showing the same git diff (deduped by title) each treat
+ * it as a preview; opening another diff via the git drawer in the focused pane must
+ * fork a fresh preview there (detaching the shared tab), not stack a new tab beside
+ * the old diff nor swap the diff shown in the other pane. */
+static int test_editor_generated_diff_reuse_across_shared_panes(void) {
+	const char *diff_x = "diff x\nX-content\n";
+	const char *diff_y = "diff y\nY-content\n";
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Split first (while tab 0 is a plain empty buffer) so neither pane inherits a
+	 * preview flag from the other; the panes must earn preview status on their own. */
+	struct editorPaneNode *paneA = E.focused_leaf;
+	ASSERT_TRUE(paneA != NULL);
+	struct editorPaneNode *paneB = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(paneB != NULL && E.focused_leaf == paneB);
+
+	/* Pane A opens diff X, reusing the empty tab 0 as its preview. */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneA));
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: x.c", diff_x));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, paneA->as.leaf.view.preview_tab_idx);
+
+	/* Pane B opens the same diff via the drawer: it dedupes to tab 0 and must record
+	 * that shared tab as its own preview. */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneB));
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: x.c", diff_x));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, paneB->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	/* Pane B now opens a different diff: it forks a fresh preview and detaches the
+	 * shared X tab rather than stacking a second tab. */
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: y.c", diff_y));
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_TRUE(E.active_tab != 0);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_INT(E.active_tab, paneB->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(!editorPaneViewHasTab(&paneB->as.leaf.view, 0));
+	ASSERT_ROW_TEXT_EQ(0, "diff y");
+
+	/* Pane A is untouched: it still previews diff X in tab 0. */
+	ASSERT_TRUE(editorPaneViewHasTab(&paneA->as.leaf.view, 0));
+	ASSERT_EQ_INT(0, paneA->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneA));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_ROW_TEXT_EQ(0, "diff x");
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_tab_drag_reorders_within_pane(void) {
 	struct editorPaneNode *top = NULL;
 	struct editorPaneNode *bottom = NULL;
@@ -3199,6 +3253,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_preview_reuse_does_not_change_shared_pane},
         {"editor_preview_file_open_in_other_pane_opens_own_preview",
          test_editor_preview_file_open_in_other_pane_opens_own_preview},
+        {"editor_generated_diff_reuse_across_shared_panes",
+         test_editor_generated_diff_reuse_across_shared_panes},
         {"editor_process_keypress_mouse_tab_drag_reorders_within_pane",
          test_editor_process_keypress_mouse_tab_drag_reorders_within_pane},
         {"editor_process_keypress_mouse_tab_drag_moves_across_panes",

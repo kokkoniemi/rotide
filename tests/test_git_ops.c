@@ -490,6 +490,24 @@ static int test_git_ops_status_from_char_maps_change_types(void) {
 	return 0;
 }
 
+static int test_git_ops_parse_status_preserves_added_deleted_for_tree(void) {
+	reset_editor_state();
+	static const char status[] =
+	        "1 A. N... 100644 100644 100644 aaa bbb sub/added.c\0"
+	        "1 .D N... 100644 100644 100644 aaa bbb sub/deleted.c\0"
+	        "1 .M N... 100644 100644 100644 aaa bbb sub/modified.c\0";
+	ASSERT_TRUE(editorGitTestParseStatus(status, sizeof(status) - 1, NULL, NULL));
+	free(E.git_repo_root);
+	E.git_repo_root = strdup("/repo");
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_ADDED, editorGitFileStatus("/repo/sub/added.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_DELETED, editorGitFileStatus("/repo/sub/deleted.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_MODIFIED, editorGitFileStatus("/repo/sub/modified.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_DELETED, editorGitDirStatus("/repo/sub"));
+	editorGitFree();
+	return 0;
+}
+
 /* Directory rollup must keep severity ordering after inserting ADDED/DELETED
  * into the enum: conflict outranks untracked, untracked outranks modified. */
 static int test_git_ops_dir_status_rolls_up_worst(void) {
@@ -551,6 +569,8 @@ const struct editorTestCase g_git_ops_tests[] = {
         {"git_ops_parse_status_v2_no_upstream", test_git_ops_parse_status_v2_no_upstream},
         {"git_ops_status_from_char_maps_change_types",
          test_git_ops_status_from_char_maps_change_types},
+        {"git_ops_parse_status_preserves_added_deleted_for_tree",
+         test_git_ops_parse_status_preserves_added_deleted_for_tree},
         {"git_ops_dir_status_rolls_up_worst", test_git_ops_dir_status_rolls_up_worst},
         {"git_ops_without_repo_sets_statusmsg", test_git_ops_without_repo_sets_statusmsg},
 };

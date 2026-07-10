@@ -1698,11 +1698,31 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 		if (kind == EDITOR_TAB_GIT_COMMIT) {
 			return 1;
 		}
-		return tabsResetActiveDocumentText(text);
+		if (!tabsResetActiveDocumentText(text)) {
+			return 0;
+		}
+		/* Diff tabs are previews. A pane adopting a diff another pane already
+		 * shows (deduped by title) must record it as its own preview, or it
+		 * cannot reuse the slot for the next diff and stacks a new tab. */
+		if (kind == EDITOR_TAB_GIT_DIFF) {
+			tabsSetActivePreview(1);
+		}
+		return 1;
 	}
 
+	struct editorPaneView *focused = NULL;
+	int detach_shared = -1;
 	if (kind == EDITOR_TAB_GIT_DIFF) {
 		int preview_idx = tabsFindReusablePreviewIndex();
+		focused = tabsFocusedView();
+		/* Overwriting a preview another pane also shows would swap the diff
+		 * there too. Leave the shared tab for that pane and open the new diff
+		 * in a fresh preview here instead. */
+		if (preview_idx >= 0 && focused != NULL &&
+		    editorPaneTreeAnyOtherPaneHasTab(E.layout_root, E.focused_leaf, preview_idx)) {
+			detach_shared = preview_idx;
+			preview_idx = -1;
+		}
 		if (preview_idx >= 0) {
 			if (!editorTabSwitchToIndex(preview_idx)) {
 				return 0;
@@ -1710,13 +1730,19 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 			return tabsLoadGeneratedIntoActive(kind, title, text);
 		}
 	}
-	if (tabsCanReuseActiveEmptyBuffer()) {
-		return tabsLoadGeneratedIntoActive(kind, title, text);
+	int ok;
+	if (detach_shared < 0 && tabsCanReuseActiveEmptyBuffer()) {
+		ok = tabsLoadGeneratedIntoActive(kind, title, text);
+	} else {
+		if (!editorTabNewEmpty()) {
+			return 0;
+		}
+		ok = tabsLoadGeneratedIntoActive(kind, title, text);
 	}
-	if (!editorTabNewEmpty()) {
-		return 0;
+	if (ok && detach_shared >= 0) {
+		editorPaneViewRemoveTab(focused, detach_shared);
 	}
-	return tabsLoadGeneratedIntoActive(kind, title, text);
+	return ok;
 }
 
 int editorTaskPoll(void) {

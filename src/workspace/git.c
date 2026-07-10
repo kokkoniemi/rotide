@@ -27,6 +27,7 @@ static int gitBlameParseField(char *line, struct editorGitBlameLine *out);
 static int gitShaIsAllZero(const char *sha);
 static char *gitRelativePathDup(const char *abs_path);
 static char *gitReadCappedCommandOutput(FILE *fp, size_t max_len, size_t *len_out);
+static int gitStatusSeverity(enum editorGitStatus status);
 
 static void gitFreeEntries(void) {
 	for (int i = 0; i < E.git_entry_count; i++) {
@@ -146,10 +147,12 @@ static enum editorGitStatus gitStatusFromXY(char x, char y) {
 	if (x == '!' && y == '!') {
 		return EDITOR_GIT_STATUS_CLEAN;
 	}
-	if (x != ' ' || y != ' ') {
-		return EDITOR_GIT_STATUS_MODIFIED;
+	enum editorGitStatus index_status = editorGitStatusFromChar(x);
+	enum editorGitStatus worktree_status = editorGitStatusFromChar(y);
+	if (gitStatusSeverity(worktree_status) > gitStatusSeverity(index_status)) {
+		return worktree_status;
 	}
-	return EDITOR_GIT_STATUS_CLEAN;
+	return index_status;
 }
 
 enum editorGitStatus editorGitStatusFromChar(char c) {

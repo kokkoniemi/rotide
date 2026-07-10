@@ -677,7 +677,7 @@ static void gitViewRebuildActivePatch(void) {
 		return;
 	}
 	char arg[PATH_MAX];
-	char title[PATH_MAX + 16];
+	char title[PATH_MAX + 32];
 	(void)snprintf(arg, sizeof(arg), "%s", E.git_view_regen_arg);
 	(void)snprintf(title, sizeof(title), "%s", E.tab_title);
 	(void)gitViewOpenPatchTab((enum editorGitOpsPatchKind)E.git_view_regen_kind, arg, title,
