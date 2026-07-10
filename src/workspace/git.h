@@ -24,6 +24,7 @@ void editorGitFree(void);
 const char *editorGitBranch(void);
 enum editorGitStatus editorGitFileStatus(const char *abs_path);
 enum editorGitStatus editorGitDirStatus(const char *abs_path);
+enum editorGitStatus editorGitStatusFromChar(char c);
 void editorGitBlameLineFree(struct editorGitBlameLine *line);
 void editorGitBlameCacheClear(struct editorBuffer *buffer);
 void editorGitBlameCacheClearAll(void);

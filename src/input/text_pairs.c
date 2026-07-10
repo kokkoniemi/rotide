@@ -140,7 +140,7 @@ static int textPairsSetCursorFromPosition(int cy, int cx) {
 }
 
 static void textPairsPinActivePreviewForEdit(void) {
-	if (editorTabIsPreviewAt(E.active_tab)) {
+	if (editorActiveTabIsPreview()) {
 		editorTabPinActivePreview();
 	}
 }

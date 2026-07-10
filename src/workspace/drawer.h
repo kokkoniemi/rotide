@@ -13,7 +13,6 @@ int editorDrawerGitToggle(void);
 int editorDrawerLspToggle(void);
 int editorDrawerDapToggle(void);
 int editorDrawerSelectedMenuAction(enum editorAction *action_out);
-int editorDrawerSelectedGitEntry(int *entry_idx_out);
 int editorDrawerGitSelectedFile(int *entry_idx_out, int *staged_group_out);
 int editorDrawerGitSelectedGroup(int *staged_group_out, int *item_count_out);
 int editorDrawerGitEntryInSelectedGroup(int entry_idx);

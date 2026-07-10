@@ -155,19 +155,20 @@ static int test_git_view_build_diff_strips_prefixes_and_tracks_kinds(void) {
 	                    "index 1111111..2222222 100644\n"
 	                    "--- a/src/app.c\n"
 	                    "+++ b/src/app.c\n"
-	                    "@@ -1,3 +1,3 @@\n"
+	                    "@@ -101,3 +201,3 @@\n"
 	                    "-int old_value = 1;\n"
 	                    "+int new_value = 2;\n"
 	                    " int kept_value = 3;\n"
 	                    "\\ No newline at end of file\n";
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
-	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	char *text = editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                                       &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_EQ_STR("diff --git a/src/app.c b/src/app.c\n"
-	              "@@ -1,3 +1,3 @@\n"
+	              "@@ -101,3 +201,3 @@\n"
 	              "int old_value = 1;\n"
 	              "int new_value = 2;\n"
 	              "int kept_value = 3;\n",
@@ -178,10 +179,16 @@ static int test_git_view_build_diff_strips_prefixes_and_tracks_kinds(void) {
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_REMOVED, kinds[2]);
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_ADDED, kinds[3]);
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_TEXT, kinds[4]);
+	ASSERT_EQ_INT(0, line_numbers[0]);
+	ASSERT_EQ_INT(0, line_numbers[1]);
+	ASSERT_EQ_INT(101, line_numbers[2]);
+	ASSERT_EQ_INT(201, line_numbers[3]);
+	ASSERT_EQ_INT(202, line_numbers[4]);
 	ASSERT_TRUE(source_path != NULL);
 	ASSERT_EQ_STR("src/app.c", source_path);
 	free(text);
 	free(kinds);
+	free(line_numbers);
 	free(source_path);
 	return 0;
 }
@@ -200,16 +207,18 @@ static int test_git_view_build_diff_multi_file_has_no_source_path(void) {
 	                    "-c\n"
 	                    "+d\n";
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
-	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	char *text = editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                                       &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(source_path == NULL);
 	ASSERT_EQ_INT(8, kind_count);
 	ASSERT_TRUE(strstr(text, "diff --git a/two.c b/two.c") != NULL);
 	free(text);
 	free(kinds);
+	free(line_numbers);
 	return 0;
 }
 
@@ -222,10 +231,11 @@ static int test_git_view_build_diff_untracked_uses_new_side_path(void) {
 	                    "@@ -0,0 +1 @@\n"
 	                    "+print(\"hi\")\n";
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
-	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	char *text = editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                                       &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(source_path != NULL);
 	ASSERT_EQ_STR("new.py", source_path);
@@ -233,6 +243,7 @@ static int test_git_view_build_diff_untracked_uses_new_side_path(void) {
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_ADDED, kinds[kind_count - 1]);
 	free(text);
 	free(kinds);
+	free(line_numbers);
 	free(source_path);
 	return 0;
 }
@@ -403,6 +414,45 @@ static int test_git_view_status_bar_git_drawer_buttons(void) {
 	return 0;
 }
 
+static int test_git_view_drawer_colors_files_by_change_type(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("body");
+	E.filename = strdup("visible.c");
+	ASSERT_TRUE(E.filename != NULL);
+	/* Pin the ANSI terminal theme so status colors are the 16-color escapes. */
+	editorThemeInitDefault(&E.theme);
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.window_rows = 40;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+
+	/* Staged add (A.), unstaged delete (.D), unstaged modify (.M). Toggle the
+	 * git drawer while there is no repo root so the toggle's refresh does not
+	 * overwrite the injected entries; then point at a repo root so the drawer
+	 * colors the rows. */
+	static const char status[] = "1 A. N... 100644 100644 100644 aaa bbb added.c\0"
+	                             "1 .D N... 100644 100644 100644 aaa bbb deleted.c\0"
+	                             "1 .M N... 100644 100644 100644 aaa bbb modified.c\0";
+	ASSERT_TRUE(editorGitTestParseStatus(status, sizeof(status) - 1, NULL, NULL));
+	ASSERT_TRUE(E.git_repo_root == NULL);
+	ASSERT_TRUE(editorDrawerGitToggle());
+	E.git_repo_root = strdup("/repo");
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	/* Keep rows non-inverted so the git status color is emitted. */
+	E.drawer_selected_index = -1;
+
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	/* Added → green, deleted → red, modified → yellow (not all yellow). */
+	ASSERT_TRUE(strstr(out, "\x1b[32mA added.c") != NULL);
+	ASSERT_TRUE(strstr(out, "\x1b[31mD deleted.c") != NULL);
+	ASSERT_TRUE(strstr(out, "\x1b[33mM modified.c") != NULL);
+	free(out);
+	editorGitFree();
+	return 0;
+}
+
 static int test_git_view_status_bar_view_context_buttons(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(
@@ -519,6 +569,8 @@ const struct editorTestCase g_git_view_tests[] = {
         {"git_view_row_bg_color_for_diff_and_headers",
          test_git_view_row_bg_color_for_diff_and_headers},
         {"git_view_row_spans_colorize_views", test_git_view_row_spans_colorize_views},
+        {"git_view_drawer_colors_files_by_change_type",
+         test_git_view_drawer_colors_files_by_change_type},
         {"git_view_status_bar_shows_ahead_behind", test_git_view_status_bar_shows_ahead_behind},
         {"git_view_status_bar_git_drawer_buttons", test_git_view_status_bar_git_drawer_buttons},
         {"git_view_status_bar_view_context_buttons", test_git_view_status_bar_view_context_buttons},

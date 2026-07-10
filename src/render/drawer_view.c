@@ -1040,6 +1040,12 @@ static int drawerViewApplyGitColor(struct writeBuf *wb, const struct editorDrawe
 		case EDITOR_GIT_STATUS_MODIFIED:
 			role = EDITOR_THEME_UI_GIT_MODIFIED;
 			break;
+		case EDITOR_GIT_STATUS_ADDED:
+			role = EDITOR_THEME_UI_GIT_ADDED;
+			break;
+		case EDITOR_GIT_STATUS_DELETED:
+			role = EDITOR_THEME_UI_GIT_DELETED;
+			break;
 		case EDITOR_GIT_STATUS_UNTRACKED:
 			role = EDITOR_THEME_UI_GIT_UNTRACKED;
 			break;

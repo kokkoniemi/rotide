@@ -60,6 +60,9 @@ struct editorPaneView {
 	int pane_tab_count;
 	int mru_tabs[ROTIDE_PANE_MAX_TABS];
 	int mru_tab_count;
+	/* Preview is per-pane: a tab shared across a split can be preview in one
+	 * pane and pinned in another, so pinning affects only that pane. -1 = none. */
+	int preview_tab_idx;
 };
 
 struct editorPane {
@@ -251,7 +254,11 @@ int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);
 int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx);
 void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view, int removed_idx);
 int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx);
+int editorPaneTreeAnyOtherPaneHasTab(const struct editorPaneNode *root,
+                                     const struct editorPaneNode *exclude, int tab_idx);
 void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int removed_idx);
+void editorPaneTreeClearPreviewTab(struct editorPaneNode *root, int tab_idx);
+int editorPaneTreeAnyPanePreviewsTab(const struct editorPaneNode *root, int tab_idx);
 
 /*
  * E-aware wrappers around the tree primitives: they perform the

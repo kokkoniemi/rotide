@@ -18,6 +18,8 @@
 #define VT100_CLEAR_ROW_3 "\x1b[K"
 /* "─" U+2500 BOX DRAWINGS LIGHT HORIZONTAL (UTF-8: e2 94 80) */
 #define TAB_BAR_HBORDER "\xe2\x94\x80"
+/* "▌" U+258C LEFT HALF BLOCK (UTF-8: e2 96 8c) */
+#define TAB_PANE_ACTIVE_MARKER "\xe2\x96\x8c"
 
 static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
@@ -31,7 +33,7 @@ static const char *tabBarLabelFromDisplayName(const char *display_name) {
 }
 
 static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEntry *layout,
-                            int layout_count, int cols, int trailing_hborder) {
+                            int layout_count, int cols, int trailing_hborder, int pane_focused) {
 	int drawn_cols = 0;
 	for (int i = 0; i < layout_count; i++) {
 		const struct editorTabLayoutEntry *entry = &layout[i];
@@ -51,11 +53,26 @@ static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEnt
 		}
 
 		int slot_cols = 0;
+
+		int show_pane_marker =
+		        pane_focused && entry->is_active && !entry->show_left_overflow;
 		char marker = entry->show_left_overflow ? '<' : ' ';
-		if (slot_cols < content_width && !wbAppend(wb, &marker, 1)) {
-			return 0;
-		}
 		if (slot_cols < content_width) {
+			if (show_pane_marker) {
+				int reverse = E.theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].reverse;
+				if (reverse && !editorAppendThemeReset(wb)) {
+					return 0;
+				}
+				if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_CURSOR) ||
+				    !wbAppend(wb, TAB_PANE_ACTIVE_MARKER,
+				              sizeof(TAB_PANE_ACTIVE_MARKER) - 1) ||
+				    (reverse && !editorAppendThemeReset(wb)) ||
+				    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_TAB_ACTIVE)) {
+					return 0;
+				}
+			} else if (!wbAppend(wb, &marker, 1)) {
+				return 0;
+			}
 			slot_cols++;
 		}
 
@@ -80,7 +97,7 @@ static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEnt
 		if (slot_cols < content_width) {
 			const char *label =
 			        tabBarLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
-			int is_preview = editorTabIsPreviewAt(tab_idx);
+			int is_preview = entry->is_preview;
 			int right_pad_cols = 3;
 			int label_cols = content_width - slot_cols - right_pad_cols;
 			if (label_cols < 0) {
@@ -162,7 +179,11 @@ int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int
 	if (!ok) {
 		return 0;
 	}
-	return tabBarDrawLayout(wb, layout, layout_count, cols, trailing_hborder);
+	/* The active-pane marker only disambiguates between panes, so it is
+	 * suppressed when the layout has a single pane */
+	int pane_focused = leaf != NULL && leaf == E.focused_leaf && E.layout_root != NULL &&
+	                   editorPaneTreeLeafCount(E.layout_root) > 1;
+	return tabBarDrawLayout(wb, layout, layout_count, cols, trailing_hborder, pane_focused);
 }
 
 int editorDrawTabSlots(struct writeBuf *wb, int cols) {

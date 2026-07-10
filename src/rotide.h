@@ -186,9 +186,11 @@ enum editorPaneKind {
 
 enum editorGitStatus {
 	EDITOR_GIT_STATUS_CLEAN = 0,
-	EDITOR_GIT_STATUS_MODIFIED,
-	EDITOR_GIT_STATUS_UNTRACKED,
-	EDITOR_GIT_STATUS_CONFLICT
+	EDITOR_GIT_STATUS_MODIFIED,  /* yellow */
+	EDITOR_GIT_STATUS_ADDED,     /* green  */
+	EDITOR_GIT_STATUS_DELETED,   /* red    */
+	EDITOR_GIT_STATUS_UNTRACKED, /* green  */
+	EDITOR_GIT_STATUS_CONFLICT   /* red    */
 };
 
 enum editorDrawerEntryIconKind {
@@ -253,6 +255,7 @@ struct editorTabLayoutEntry {
 	int show_left_overflow;
 	int show_right_overflow;
 	int is_active;
+	int is_preview;
 };
 
 struct editorFileDiskState {
@@ -465,7 +468,6 @@ struct editorHistory {
 
 #define EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X)                                                        \
 	X(enum editorTabKind, tab_kind)                                                            \
-	X(int, is_preview)                                                                         \
 	X(char *, tab_title)                                                                       \
 	X(size_t, cursor_offset)                                                                   \
 	X(int, cx)                                                                                 \
@@ -483,6 +485,7 @@ struct editorHistory {
 	X(int, git_blame_line_number)                                                              \
 	X(int, git_blame_line_miss)                                                                \
 	X(unsigned char *, git_view_line_kinds)                                                    \
+	X(int *, git_view_line_numbers)                                                            \
 	X(int, git_view_line_kind_count)                                                           \
 	X(char *, git_view_source_path)                                                            \
 	X(char *, git_view_regen_arg)                                                              \

@@ -27,6 +27,7 @@ static int gitBlameParseField(char *line, struct editorGitBlameLine *out);
 static int gitShaIsAllZero(const char *sha);
 static char *gitRelativePathDup(const char *abs_path);
 static char *gitReadCappedCommandOutput(FILE *fp, size_t max_len, size_t *len_out);
+static int gitStatusSeverity(enum editorGitStatus status);
 
 static void gitFreeEntries(void) {
 	for (int i = 0; i < E.git_entry_count; i++) {
@@ -146,10 +147,52 @@ static enum editorGitStatus gitStatusFromXY(char x, char y) {
 	if (x == '!' && y == '!') {
 		return EDITOR_GIT_STATUS_CLEAN;
 	}
-	if (x != ' ' || y != ' ') {
-		return EDITOR_GIT_STATUS_MODIFIED;
+	enum editorGitStatus index_status = editorGitStatusFromChar(x);
+	enum editorGitStatus worktree_status = editorGitStatusFromChar(y);
+	if (gitStatusSeverity(worktree_status) > gitStatusSeverity(index_status)) {
+		return worktree_status;
 	}
-	return EDITOR_GIT_STATUS_CLEAN;
+	return index_status;
+}
+
+enum editorGitStatus editorGitStatusFromChar(char c) {
+	switch (c) {
+		case 'A':
+			return EDITOR_GIT_STATUS_ADDED;
+		case 'D':
+			return EDITOR_GIT_STATUS_DELETED;
+		case '?':
+			return EDITOR_GIT_STATUS_UNTRACKED;
+		case 'U':
+			return EDITOR_GIT_STATUS_CONFLICT;
+		case ' ':
+		case '.':
+		case '\0':
+			return EDITOR_GIT_STATUS_CLEAN;
+		default:
+			/* M, R, C, T, … */
+			return EDITOR_GIT_STATUS_MODIFIED;
+	}
+}
+
+/* Explicit severity so directory rollup color is independent of enum order:
+ * conflict always wins, then the more disruptive worktree states. */
+static int gitStatusSeverity(enum editorGitStatus status) {
+	switch (status) {
+		case EDITOR_GIT_STATUS_CLEAN:
+			return 0;
+		case EDITOR_GIT_STATUS_MODIFIED:
+			return 1;
+		case EDITOR_GIT_STATUS_ADDED:
+			return 2;
+		case EDITOR_GIT_STATUS_DELETED:
+			return 3;
+		case EDITOR_GIT_STATUS_UNTRACKED:
+			return 4;
+		case EDITOR_GIT_STATUS_CONFLICT:
+			return 5;
+	}
+	return 0;
 }
 
 static int gitEntryCacheAdd(struct gitEntryCache *cache, const char *rel_path,
@@ -1538,7 +1581,7 @@ enum editorGitStatus editorGitDirStatus(const char *abs_path) {
 		                                 entry_path[rel_len] == '/');
 		if (matches) {
 			enum editorGitStatus s = E.git_entries[i].status;
-			if (s > worst) {
+			if (gitStatusSeverity(s) > gitStatusSeverity(worst)) {
 				worst = s;
 			}
 			if (worst == EDITOR_GIT_STATUS_CONFLICT) {

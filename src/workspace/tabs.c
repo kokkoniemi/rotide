@@ -50,7 +50,7 @@ static int tabsCanReuseActiveEmptyBuffer(void);
 static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind);
 static int tabsFindReusablePreviewIndex(void);
 static const char *tabsPathAt(int idx);
-static int tabsFindOpenFileIndex(const char *path);
+static int tabsFindOpenFileIndexInFocusedPane(const char *path);
 static int tabsFindEditableFileIndex(const char *path);
 static int tabsLoadUnsupportedFilePreview(const char *filename);
 static void tabsTaskLogClampCursor(struct editorTabState *tab);
@@ -124,6 +124,8 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	buffer->tab_title = NULL;
 	free(buffer->git_view_line_kinds);
 	buffer->git_view_line_kinds = NULL;
+	free(buffer->git_view_line_numbers);
+	buffer->git_view_line_numbers = NULL;
 	buffer->git_view_line_kind_count = 0;
 	free(buffer->git_view_source_path);
 	buffer->git_view_source_path = NULL;
@@ -329,8 +331,10 @@ static void tabsStoreActiveTab(void) {
 	if (E.tabs[E.active_tab].kind != EDITOR_PANE_KIND_EDITOR) {
 		return;
 	}
-	if (E.is_preview && E.dirty != 0) {
-		E.is_preview = 0;
+	/* An edited tab is no longer a throwaway preview; drop its preview status
+	 * in every pane so it is never reused or rendered as preview. */
+	if (E.dirty != 0) {
+		editorPaneTreeClearPreviewTab(E.layout_root, E.active_tab);
 	}
 	tabsStateCaptureActive(&E.tabs[E.active_tab]);
 }
@@ -676,40 +680,61 @@ static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind) {
 	       tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
-static int tabsFindReusablePreviewIndex(void) {
-	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
-		if (tab_idx == E.active_tab) {
-			if (tabsKindCanReuseAsPreview(E.tab_kind) && E.is_preview && E.dirty == 0) {
-				return tab_idx;
-			}
-			continue;
-		}
-		if (tabsKindCanReuseAsPreview(E.tabs[tab_idx].tab_kind) &&
-		    E.tabs[tab_idx].is_preview && E.tabs[tab_idx].dirty == 0) {
-			return tab_idx;
-		}
+static struct editorPaneView *tabsFocusedView(void) {
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
+		return &E.focused_leaf->as.leaf.view;
 	}
-	return -1;
+	return NULL;
+}
+
+static int tabsViewTabIsPreview(const struct editorPaneView *view, int tab_idx) {
+	if (view == NULL || tab_idx < 0 || view->preview_tab_idx != tab_idx) {
+		return 0;
+	}
+	enum editorTabKind kind;
+	if (tab_idx == E.active_tab) {
+		kind = E.tab_kind;
+	} else if (tab_idx < E.tab_count) {
+		kind = E.tabs[tab_idx].tab_kind;
+	} else {
+		return 0;
+	}
+	return tabsKindCanReuseAsPreview(kind);
+}
+
+/* Only touches the focused pane, so a tab shared across a split keeps its
+ * preview status in the other pane. */
+static void tabsSetActivePreview(int preview) {
+	struct editorPaneView *view = tabsFocusedView();
+	if (view == NULL) {
+		return;
+	}
+	if (preview) {
+		view->preview_tab_idx = E.active_tab;
+	} else if (view->preview_tab_idx == E.active_tab) {
+		view->preview_tab_idx = -1;
+	}
+}
+
+static int tabsFindReusablePreviewIndex(void) {
+	struct editorPaneView *view = tabsFocusedView();
+	if (view == NULL) {
+		return -1;
+	}
+	int idx = view->preview_tab_idx;
+	if (!tabsViewTabIsPreview(view, idx)) {
+		return -1;
+	}
+	int dirty = idx == E.active_tab ? E.dirty : E.tabs[idx].dirty;
+	return dirty == 0 ? idx : -1;
 }
 
 void editorTabPinActivePreview(void) {
-	if (tabsKindCanReuseAsPreview(E.tab_kind)) {
-		E.is_preview = 0;
-	}
+	tabsSetActivePreview(0);
 }
 
 int editorActiveTabIsPreview(void) {
-	return tabsKindCanReuseAsPreview(E.tab_kind) && E.is_preview;
-}
-
-int editorTabIsPreviewAt(int idx) {
-	if (idx < 0 || idx >= E.tab_count) {
-		return 0;
-	}
-	if (idx == E.active_tab) {
-		return editorActiveTabIsPreview();
-	}
-	return tabsKindCanReuseAsPreview(E.tabs[idx].tab_kind) && E.tabs[idx].is_preview;
+	return tabsViewTabIsPreview(tabsFocusedView(), E.active_tab);
 }
 
 static int tabsLoadUnsupportedFilePreview(const char *filename) {
@@ -740,13 +765,13 @@ static int tabsLoadUnsupportedFilePreview(const char *filename) {
 	                              &E.lsp_eslint_doc_version);
 	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_UNSUPPORTED_FILE;
-	E.is_preview = 1;
 	E.filename = filename_copy;
 	filename_copy = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	if (!editorRestoreActiveFromDocument(&document, 0, 0, 0, 0)) {
 		goto cleanup;
 	}
+	tabsSetActivePreview(1);
 	ok = 1;
 
 cleanup:
@@ -762,7 +787,7 @@ int editorTabOpenFileAsNew(const char *filename) {
 		if (!editorOpen(filename)) {
 			return 0;
 		}
-		E.is_preview = 0;
+		tabsSetActivePreview(0);
 		(void)editorWorkspaceStateRememberRecentFile(filename);
 		return 1;
 	}
@@ -775,7 +800,7 @@ int editorTabOpenFileAsNew(const char *filename) {
 	if (!editorOpen(filename)) {
 		return 0;
 	}
-	E.is_preview = 0;
+	tabsSetActivePreview(0);
 	(void)editorWorkspaceStateRememberRecentFile(filename);
 	return 1;
 }
@@ -790,7 +815,7 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 		if (!editorTabSwitchToIndex(existing_tab)) {
 			return 0;
 		}
-		E.is_preview = 0;
+		tabsSetActivePreview(0);
 		(void)editorWorkspaceStateRememberRecentFile(filename);
 		return 1;
 	}
@@ -798,25 +823,8 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 	return editorTabOpenFileAsNew(filename);
 }
 
-int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
-	if (filename == NULL || filename[0] == '\0') {
-		return 0;
-	}
-
-	int existing_tab = tabsFindOpenFileIndex(filename);
-	if (existing_tab >= 0) {
-		return editorTabSwitchToIndex(existing_tab);
-	}
-
-	int is_binary = 0;
-	int can_open = 0;
-	if (editorFilePathLooksBinary(filename, &is_binary) && is_binary) {
-		can_open = 0;
-	} else {
-		can_open = editorFileCanOpen(filename);
-	}
-
-	int preview_tab = tabsFindReusablePreviewIndex();
+static int tabsOpenPreviewFileInner(const char *filename, int preview_tab, int is_binary,
+                                    int can_open, int allow_empty_reuse) {
 	if (preview_tab >= 0) {
 		if (can_open) {
 			if (!editorTabSwitchToIndex(preview_tab)) {
@@ -825,7 +833,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 			if (!editorOpen(filename)) {
 				return 0;
 			}
-			E.is_preview = 1;
+			tabsSetActivePreview(1);
 			return 1;
 		}
 		if (!is_binary) {
@@ -837,12 +845,12 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		return tabsLoadUnsupportedFilePreview(filename);
 	}
 
-	if (tabsCanReuseActiveEmptyBuffer()) {
+	if (allow_empty_reuse && tabsCanReuseActiveEmptyBuffer()) {
 		if (can_open) {
 			if (!editorOpen(filename)) {
 				return 0;
 			}
-			E.is_preview = 1;
+			tabsSetActivePreview(1);
 			return 1;
 		}
 		if (!is_binary) {
@@ -860,10 +868,48 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		if (!editorOpen(filename)) {
 			return 0;
 		}
-		E.is_preview = 1;
+		tabsSetActivePreview(1);
 		return 1;
 	}
 	return tabsLoadUnsupportedFilePreview(filename);
+}
+
+int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+
+	int existing_tab = tabsFindOpenFileIndexInFocusedPane(filename);
+	if (existing_tab >= 0) {
+		return editorTabSwitchToIndex(existing_tab);
+	}
+
+	int is_binary = 0;
+	int can_open = 0;
+	if (editorFilePathLooksBinary(filename, &is_binary) && is_binary) {
+		can_open = 0;
+	} else {
+		can_open = editorFileCanOpen(filename);
+	}
+
+	int preview_tab = tabsFindReusablePreviewIndex();
+	struct editorPaneView *focused = tabsFocusedView();
+	/* Reusing a preview another pane also shows would swap the file shown there
+	 * too. Leave the shared tab for that pane and open the new file in a fresh
+	 * preview here instead. */
+	int detach_shared = -1;
+	if (preview_tab >= 0 && focused != NULL &&
+	    editorPaneTreeAnyOtherPaneHasTab(E.layout_root, E.focused_leaf, preview_tab)) {
+		detach_shared = preview_tab;
+		preview_tab = -1;
+	}
+
+	int ok = tabsOpenPreviewFileInner(filename, preview_tab, is_binary, can_open,
+	                                  detach_shared < 0);
+	if (ok && detach_shared >= 0) {
+		editorPaneViewRemoveTab(focused, detach_shared);
+	}
+	return ok;
 }
 
 static const char *tabsPathAt(int idx) {
@@ -876,21 +922,22 @@ static const char *tabsPathAt(int idx) {
 	return E.tabs[idx].filename;
 }
 
-static int tabsFindOpenFileIndex(const char *path) {
-	if (path == NULL || path[0] == '\0') {
+/* Finds the file's tab within the focused pane only. Previewing a file open
+ * only in another pane must not adopt (and share) that pane's tab, so the match
+ * is scoped to give the focused pane its own preview. */
+static int tabsFindOpenFileIndexInFocusedPane(const char *path) {
+	struct editorPaneView *view = tabsFocusedView();
+	if (view == NULL || path == NULL || path[0] == '\0') {
 		return -1;
 	}
-
-	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		int tab_idx = view->pane_tabs[i];
 		const char *tab_path = tabsPathAt(tab_idx);
-		if (tab_path == NULL || tab_path[0] == '\0') {
-			continue;
-		}
-		if (editorPathsReferToSameFile(path, tab_path)) {
+		if (tab_path != NULL && tab_path[0] != '\0' &&
+		    editorPathsReferToSameFile(path, tab_path)) {
 			return tab_idx;
 		}
 	}
-
 	return -1;
 }
 
@@ -1607,7 +1654,7 @@ static int tabsLoadGeneratedIntoActive(enum editorTabKind kind, const char *titl
 	/* Diff tabs behave like previews so browsing diffs reuses one tab slot;
 	 * the views are deduped singletons and the commit tab holds a message
 	 * being typed. */
-	E.is_preview = kind == EDITOR_TAB_GIT_DIFF;
+	tabsSetActivePreview(kind == EDITOR_TAB_GIT_DIFF);
 	E.dirty = 0;
 	memset(&E.disk_state, 0, sizeof(E.disk_state));
 	E.disk_conflict = 0;
@@ -1653,11 +1700,31 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 		if (kind == EDITOR_TAB_GIT_COMMIT) {
 			return 1;
 		}
-		return tabsResetActiveDocumentText(text);
+		if (!tabsResetActiveDocumentText(text)) {
+			return 0;
+		}
+		/* Diff tabs are previews. A pane adopting a diff another pane already
+		 * shows (deduped by title) must record it as its own preview, or it
+		 * cannot reuse the slot for the next diff and stacks a new tab. */
+		if (kind == EDITOR_TAB_GIT_DIFF) {
+			tabsSetActivePreview(1);
+		}
+		return 1;
 	}
 
+	struct editorPaneView *focused = NULL;
+	int detach_shared = -1;
 	if (kind == EDITOR_TAB_GIT_DIFF) {
 		int preview_idx = tabsFindReusablePreviewIndex();
+		focused = tabsFocusedView();
+		/* Overwriting a preview another pane also shows would swap the diff
+		 * there too. Leave the shared tab for that pane and open the new diff
+		 * in a fresh preview here instead. */
+		if (preview_idx >= 0 && focused != NULL &&
+		    editorPaneTreeAnyOtherPaneHasTab(E.layout_root, E.focused_leaf, preview_idx)) {
+			detach_shared = preview_idx;
+			preview_idx = -1;
+		}
 		if (preview_idx >= 0) {
 			if (!editorTabSwitchToIndex(preview_idx)) {
 				return 0;
@@ -1665,13 +1732,19 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 			return tabsLoadGeneratedIntoActive(kind, title, text);
 		}
 	}
-	if (tabsCanReuseActiveEmptyBuffer()) {
-		return tabsLoadGeneratedIntoActive(kind, title, text);
+	int ok;
+	if (detach_shared < 0 && tabsCanReuseActiveEmptyBuffer()) {
+		ok = tabsLoadGeneratedIntoActive(kind, title, text);
+	} else {
+		if (!editorTabNewEmpty()) {
+			return 0;
+		}
+		ok = tabsLoadGeneratedIntoActive(kind, title, text);
 	}
-	if (!editorTabNewEmpty()) {
-		return 0;
+	if (ok && detach_shared >= 0) {
+		editorPaneViewRemoveTab(focused, detach_shared);
 	}
-	return tabsLoadGeneratedIntoActive(kind, title, text);
+	return ok;
 }
 
 int editorTaskPoll(void) {
@@ -2063,6 +2136,7 @@ static enum tabsPlaceTabResult tabsTryPlaceTab(struct editorPaneView *view, int 
 	entry->show_left_overflow = 0;
 	entry->show_right_overflow = 0;
 	entry->is_active = tab_idx == view->active_tab_idx;
+	entry->is_preview = tabsViewTabIsPreview(view, tab_idx);
 
 	if (*first_visible_slot_io < 0) {
 		*first_visible_slot_io = slot;
@@ -2124,6 +2198,7 @@ int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
 		entry->show_left_overflow = 0;
 		entry->show_right_overflow = 0;
 		entry->is_active = entry->tab_idx == view->active_tab_idx;
+		entry->is_preview = tabsViewTabIsPreview(view, entry->tab_idx);
 		first_visible_slot = start_slot;
 		last_visible_slot = start_slot;
 		count = 1;

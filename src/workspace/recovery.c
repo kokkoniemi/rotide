@@ -734,7 +734,6 @@ static int recoveryPopulateActiveFromTab(const struct recoveryTab *tab) {
 	int document_inited = 0;
 	int ok = 0;
 	E.tab_kind = tab->tab_kind;
-	E.is_preview = 0;
 	free(E.filename);
 	E.filename = NULL;
 	if (tab->filename != NULL) {

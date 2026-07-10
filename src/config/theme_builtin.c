@@ -1092,6 +1092,14 @@ static void themeBuiltinFinalize(struct editorTheme *theme) {
 		theme->ui[EDITOR_THEME_UI_DRAWER_ICON] =
 		        theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR];
 	}
+	/* Added/deleted rows borrow the untracked (green) and conflict (red) hues
+	 * unless a theme sets them explicitly, so existing themes need no change. */
+	if (theme->ui[EDITOR_THEME_UI_GIT_ADDED].kind == EDITOR_THEME_COLOR_DEFAULT) {
+		theme->ui[EDITOR_THEME_UI_GIT_ADDED] = theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED];
+	}
+	if (theme->ui[EDITOR_THEME_UI_GIT_DELETED].kind == EDITOR_THEME_COLOR_DEFAULT) {
+		theme->ui[EDITOR_THEME_UI_GIT_DELETED] = theme->ui[EDITOR_THEME_UI_GIT_CONFLICT];
+	}
 	/* Debug markers reuse each theme's existing accent colors unless themed
 	 * explicitly: breakpoints borrow the conflict (red) hue, the stopped line
 	 * the modified (often amber) hue. */

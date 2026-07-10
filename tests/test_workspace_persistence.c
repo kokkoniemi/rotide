@@ -624,7 +624,7 @@ static int test_editor_drawer_git_mode_selects_file_entry(void) {
 
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
 	int entry_idx = -1;
-	ASSERT_TRUE(editorDrawerSelectedGitEntry(&entry_idx));
+	ASSERT_TRUE(editorDrawerGitSelectedFile(&entry_idx, NULL));
 	ASSERT_EQ_INT(0, entry_idx);
 
 	editorGitFree();
@@ -1030,7 +1030,7 @@ static int test_editor_file_search_previews_binary_file_as_unsupported_read_only
 	ASSERT_EQ_STR(binary_file, E.filename);
 	ASSERT_TRUE(E.numrows > 0);
 	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
-	ASSERT_TRUE(E.is_preview);
+	ASSERT_TRUE(editorActiveTabIsPreview());
 	ASSERT_TRUE(editorActiveTabIsUnsupportedFile());
 	ASSERT_TRUE(editorActiveTabIsReadOnly());
 	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") == NULL);

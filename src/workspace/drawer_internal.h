@@ -2,6 +2,8 @@
 #define ROTIDE_WORKSPACE_DRAWER_INTERNAL_H
 
 #include <stddef.h>
+#include <sys/types.h>
+#include <time.h>
 
 struct editorDrawerEntryView;
 
@@ -12,6 +14,13 @@ struct editorDrawerNode {
 	int is_expanded;
 	int scanned;
 	int scan_error;
+	/* Directory identity captured at scan time so reconciliation can skip a
+	 * re-readdir when the directory itself is unchanged. */
+	int scan_state_known;
+	dev_t scan_dev;
+	ino_t scan_ino;
+	struct timespec scan_mtime;
+	struct timespec scan_ctime;
 	struct editorDrawerNode *parent;
 	struct editorDrawerNode **children;
 	int child_count;
@@ -28,10 +37,12 @@ struct editorDrawerNode *editorDrawerNodeNew(const char *name, const char *path,
                                              struct editorDrawerNode *parent);
 void editorDrawerNodeFree(struct editorDrawerNode *node);
 int editorDrawerEnsureScanned(struct editorDrawerNode *node);
+int editorDrawerReconcile(struct editorDrawerNode *node);
 int editorDrawerCountVisibleFromNode(struct editorDrawerNode *node);
 int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawerLookup *lookup_out);
 struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
                                                      const char *name, size_t name_len);
+struct editorDrawerNode *editorDrawerFindNodeByPath(const char *abs_path);
 int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target, int *visible_idx_out);
 void editorDrawerClampSelectionAndScroll(int viewport_rows);
 struct editorDrawerNode *editorDrawerSelectedTreeNode(void);

@@ -366,15 +366,31 @@ static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(v
 	                                               sizeof(click_status_bar) - 1) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
+	return 0;
+}
 
+static int test_editor_process_keypress_mouse_left_click_below_content_moves_to_buffer_end(void) {
+	add_row("abc");
+	add_row("de");
+	E.window_rows = 6;
+	E.window_cols = 20;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 1;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+
+	/* A press on a "~" filler row below the last line focuses the pane and drops
+	 * the cursor at the end of the buffer instead of being ignored. */
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click_filler_row[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_filler_row, sizeof(click_filler_row), 0,
-	                                   text_start + 2, 4, 'M'));
+	                                   text_start + 2, 5, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row,
 	                                               strlen(click_filler_row)) == 0);
-	ASSERT_EQ_INT(0, E.cy);
-	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	return 0;
 }
 
@@ -1145,7 +1161,7 @@ static int test_editor_process_keypress_mouse_pane_strip_double_click_pins_previ
 	struct editorPaneNode *bottom = NULL;
 	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
 	bottom->as.leaf.view.active_tab_idx = 3;
-	E.tabs[3].is_preview = 1;
+	bottom->as.leaf.view.preview_tab_idx = 3;
 	editorResetTabClickTracking();
 
 	int click_x = 0;
@@ -1162,6 +1178,170 @@ static int test_editor_process_keypress_mouse_pane_strip_double_click_pins_previ
 	ASSERT_EQ_INT(3, editorTabActiveIndex());
 	ASSERT_TRUE(!editorActiveTabIsPreview());
 	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
+	return 0;
+}
+
+/* Splitting a pane whose active tab is a (clean) preview leaves the shared tab
+ * previewed in both panes; pinning it then affects only the pane it happens in. */
+static int test_editor_pin_preview_only_affects_active_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Mark the clean active tab a preview, then split it into a sibling pane. */
+	struct editorPaneNode *first = E.focused_leaf;
+	ASSERT_TRUE(first != NULL);
+	first->as.leaf.view.preview_tab_idx = E.active_tab;
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(second != NULL);
+
+	/* Both panes now reference and preview the same global tab. */
+	ASSERT_EQ_INT(E.active_tab, first->as.leaf.view.preview_tab_idx);
+	ASSERT_EQ_INT(E.active_tab, second->as.leaf.view.preview_tab_idx);
+
+	/* The split focuses the sibling; pinning there must not touch the first. */
+	ASSERT_TRUE(E.focused_leaf == second);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	editorTabPinActivePreview();
+	ASSERT_TRUE(!editorActiveTabIsPreview());
+	ASSERT_EQ_INT(-1, second->as.leaf.view.preview_tab_idx);
+
+	/* The first pane still previews the shared tab. */
+	ASSERT_EQ_INT(0, first->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(first));
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	return 0;
+}
+
+/* Two panes sharing one preview tab: previewing a different file in one pane
+ * (e.g. clicking it in the explorer) must swap only that pane's preview and
+ * leave the other pane still showing the original file. */
+static int test_editor_preview_reuse_does_not_change_shared_pane(void) {
+	char file1[PATH_MAX];
+	char file2[PATH_MAX];
+	ASSERT_TRUE(write_temp_text_file(file1, sizeof(file1), "one\n"));
+	ASSERT_TRUE(write_temp_text_file(file2, sizeof(file2), "two\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Preview file1, then split so both panes share that preview tab (tab 0). */
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file1));
+	ASSERT_EQ_INT(0, E.active_tab);
+	struct editorPaneNode *first = E.focused_leaf;
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(second != NULL && E.focused_leaf == second);
+	ASSERT_EQ_INT(0, first->as.leaf.view.preview_tab_idx);
+	ASSERT_EQ_INT(0, second->as.leaf.view.preview_tab_idx);
+
+	/* Preview file2 in the (focused) sibling: it forks a fresh preview tab. */
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file2));
+	ASSERT_EQ_STR(file2, E.filename);
+	ASSERT_TRUE(E.active_tab != 0);
+	ASSERT_EQ_INT(E.active_tab, second->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(!editorPaneViewHasTab(&second->as.leaf.view, 0));
+
+	/* The first pane still previews file1 in the untouched original tab. */
+	ASSERT_EQ_INT(0, first->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorPaneViewHasTab(&first->as.leaf.view, 0));
+	ASSERT_EQ_STR(file1, editorTabFilenameAt(0));
+
+	(void)remove(file1);
+	(void)remove(file2);
+	return 0;
+}
+
+/* Previewing (from the explorer) a file that is open only in another pane must
+ * open a fresh preview in the focused pane, not adopt/share the other pane's tab
+ * as a pinned tab. */
+static int test_editor_preview_file_open_in_other_pane_opens_own_preview(void) {
+	char file1[PATH_MAX];
+	char file2[PATH_MAX];
+	ASSERT_TRUE(write_temp_text_file(file1, sizeof(file1), "one\n"));
+	ASSERT_TRUE(write_temp_text_file(file2, sizeof(file2), "two\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Pane A previews file1; split and fork pane B onto file2 so the two panes
+	 * hold independent previews (A: file1 tab 0, B: file2 tab 1). */
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file1));
+	struct editorPaneNode *paneA = E.focused_leaf;
+	struct editorPaneNode *paneB = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(paneB != NULL && E.focused_leaf == paneB);
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file2));
+	ASSERT_EQ_INT(1, paneB->as.leaf.view.preview_tab_idx);
+
+	/* Focus pane A and preview file2 (open only in pane B). */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneA));
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(file2));
+
+	/* Pane A shows file2 in its own reused preview slot (tab 0), still a preview;
+	 * it did not adopt pane B's tab 1, and pane B is untouched. */
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_STR(file2, E.filename);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_TRUE(!editorPaneViewHasTab(&paneA->as.leaf.view, 1));
+	ASSERT_EQ_INT(1, paneB->as.leaf.view.preview_tab_idx);
+
+	(void)remove(file1);
+	(void)remove(file2);
+	return 0;
+}
+
+/* Two panes independently showing the same git diff (deduped by title) each treat
+ * it as a preview; opening another diff via the git drawer in the focused pane must
+ * fork a fresh preview there (detaching the shared tab), not stack a new tab beside
+ * the old diff nor swap the diff shown in the other pane. */
+static int test_editor_generated_diff_reuse_across_shared_panes(void) {
+	const char *diff_x = "diff x\nX-content\n";
+	const char *diff_y = "diff y\nY-content\n";
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	/* Split first (while tab 0 is a plain empty buffer) so neither pane inherits a
+	 * preview flag from the other; the panes must earn preview status on their own. */
+	struct editorPaneNode *paneA = E.focused_leaf;
+	ASSERT_TRUE(paneA != NULL);
+	struct editorPaneNode *paneB = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(paneB != NULL && E.focused_leaf == paneB);
+
+	/* Pane A opens diff X, reusing the empty tab 0 as its preview. */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneA));
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: x.c", diff_x));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, paneA->as.leaf.view.preview_tab_idx);
+
+	/* Pane B opens the same diff via the drawer: it dedupes to tab 0 and must record
+	 * that shared tab as its own preview. */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneB));
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: x.c", diff_x));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, paneB->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	/* Pane B now opens a different diff: it forks a fresh preview and detaches the
+	 * shared X tab rather than stacking a second tab. */
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: y.c", diff_y));
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_TRUE(E.active_tab != 0);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_INT(E.active_tab, paneB->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(!editorPaneViewHasTab(&paneB->as.leaf.view, 0));
+	ASSERT_ROW_TEXT_EQ(0, "diff y");
+
+	/* Pane A is untouched: it still previews diff X in tab 0. */
+	ASSERT_TRUE(editorPaneViewHasTab(&paneA->as.leaf.view, 0));
+	ASSERT_EQ_INT(0, paneA->as.leaf.view.preview_tab_idx);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(paneA));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_ROW_TEXT_EQ(0, "diff x");
 	return 0;
 }
 
@@ -3027,6 +3207,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_keypress_clears_hover_link", test_editor_keypress_clears_hover_link},
         {"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
          test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
+        {"editor_process_keypress_mouse_left_click_below_content_moves_to_buffer_end",
+         test_editor_process_keypress_mouse_left_click_below_content_moves_to_buffer_end},
         {"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns",
          test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
         {"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
@@ -3065,6 +3247,14 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_top_strip_vborder_arms_resize},
         {"editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab",
          test_editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab},
+        {"editor_pin_preview_only_affects_active_pane",
+         test_editor_pin_preview_only_affects_active_pane},
+        {"editor_preview_reuse_does_not_change_shared_pane",
+         test_editor_preview_reuse_does_not_change_shared_pane},
+        {"editor_preview_file_open_in_other_pane_opens_own_preview",
+         test_editor_preview_file_open_in_other_pane_opens_own_preview},
+        {"editor_generated_diff_reuse_across_shared_panes",
+         test_editor_generated_diff_reuse_across_shared_panes},
         {"editor_process_keypress_mouse_tab_drag_reorders_within_pane",
          test_editor_process_keypress_mouse_tab_drag_reorders_within_pane},
         {"editor_process_keypress_mouse_tab_drag_moves_across_panes",
