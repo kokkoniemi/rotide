@@ -146,6 +146,44 @@ static void gitViewStartNetworkTask(const char *subcommand, const char *title,
 	(void)editorTaskStart(title, cmd, success_status, failure_status);
 }
 
+static void gitViewStartNetworkTaskArgs(char *const args[], const char *title,
+                                        const char *success_status,
+                                        const char *failure_status) {
+	char cmd[PATH_MAX + 128];
+	if (E.git_repo_root == NULL) {
+		editorSetStatusMsg("Not a Git repository");
+		return;
+	}
+	if (!editorGitBuildRepoCommandArgs(cmd, sizeof(cmd), args)) {
+		editorSetStatusMsg("git: command too long");
+		return;
+	}
+	(void)editorTaskStart(title, cmd, success_status, failure_status);
+}
+
+static void gitViewStartPushTask(void) {
+	char remote[256];
+	int has_upstream = 0;
+	if (!editorGitOpsCurrentBranchPushRemote(remote, sizeof(remote), &has_upstream)) {
+		return;
+	}
+	if (has_upstream) {
+		char *args[] = {"push", NULL};
+		gitViewStartNetworkTaskArgs(args, "git push", "Push finished", "Push failed");
+		return;
+	}
+
+	char prompt[320];
+	int n = snprintf(prompt, sizeof(prompt), "Create remote branch on %s? [y/N] %%s",
+	                 remote);
+	if (n <= 0 || n >= (int)sizeof(prompt) || !editorPromptYesNo(prompt)) {
+		editorSetStatusMsg("Push cancelled");
+		return;
+	}
+	char *args[] = {"push", "-u", remote, "HEAD", NULL};
+	gitViewStartNetworkTaskArgs(args, "git push", "Push finished", "Push failed");
+}
+
 /* Splits one raw line into at most max_fields tab-separated fields (in place:
  * tabs and the line terminator become NULs). Returns the field count. */
 static int gitViewSplitFields(char *line, char **fields, int max_fields) {
@@ -1386,7 +1424,7 @@ int editorGitViewHandleMappedAction(enum editorAction action) {
 			editorGitViewToggleDiffContext();
 			return 1;
 		case EDITOR_ACTION_GIT_PUSH:
-			gitViewStartNetworkTask("push", "git push", "Push finished", "Push failed");
+			gitViewStartPushTask();
 			return 1;
 		case EDITOR_ACTION_GIT_PULL:
 			gitViewStartNetworkTask("pull", "git pull", "Pull finished", "Pull failed");

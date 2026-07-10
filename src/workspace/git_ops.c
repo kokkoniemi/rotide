@@ -224,6 +224,45 @@ static char *gitOpsRunQueryDup(char *const tail[], size_t *len_out) {
 	return gitOpsRunQueryMaxExitDup(tail, len_out, 0);
 }
 
+static void gitOpsTrimLine(char *text, size_t *len_io) {
+	if (text == NULL || len_io == NULL) {
+		return;
+	}
+	size_t len = *len_io;
+	while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r')) {
+		text[--len] = '\0';
+	}
+	*len_io = len;
+}
+
+static int gitOpsCopyFirstRemote(const char *remotes, char *remote_out, size_t remote_size) {
+	const char *fallback = NULL;
+	size_t fallback_len = 0;
+
+	for (const char *line = remotes; line != NULL && *line != '\0';) {
+		const char *end = strchr(line, '\n');
+		size_t len = end != NULL ? (size_t)(end - line) : strlen(line);
+		while (len > 0 && line[len - 1] == '\r') {
+			len--;
+		}
+		if (len == strlen("origin") && strncmp(line, "origin", len) == 0) {
+			int n = snprintf(remote_out, remote_size, "%.*s", (int)len, line);
+			return n > 0 && n < (int)remote_size;
+		}
+		if (fallback == NULL && len > 0) {
+			fallback = line;
+			fallback_len = len;
+		}
+		line = end != NULL ? end + 1 : NULL;
+	}
+
+	if (fallback == NULL) {
+		return 0;
+	}
+	int n = snprintf(remote_out, remote_size, "%.*s", (int)fallback_len, fallback);
+	return n > 0 && n < (int)remote_size;
+}
+
 static int gitOpsRefNameOk(const char *name) {
 	return name != NULL && name[0] != '\0' && name[0] != '-';
 }
@@ -303,6 +342,76 @@ char *editorGitOpsBranchListRawDup(size_t *len_out) {
 	                "%09%(upstream:short)%09%(upstream:track)%09%(committerdate:unix)",
 	                NULL};
 	return gitOpsRunQueryDup(tail, len_out);
+}
+
+int editorGitOpsCurrentBranchPushRemote(char *remote_out, size_t remote_size,
+                                        int *has_upstream_out) {
+	if (remote_out == NULL || remote_size == 0 || has_upstream_out == NULL) {
+		return 0;
+	}
+	remote_out[0] = '\0';
+	*has_upstream_out = 0;
+	if (!gitOpsRequireRepo()) {
+		return 0;
+	}
+
+	size_t branch_len = 0;
+	char *branch_tail[] = {"symbolic-ref", "--quiet", "--short", "HEAD", NULL};
+	char *branch = gitOpsRunQueryDup(branch_tail, &branch_len);
+	if (branch == NULL || branch_len == 0) {
+		free(branch);
+		editorSetStatusMsg("git: no current branch");
+		return 0;
+	}
+	gitOpsTrimLine(branch, &branch_len);
+	if (branch_len == 0) {
+		free(branch);
+		editorSetStatusMsg("git: no current branch");
+		return 0;
+	}
+
+	size_t upstream_len = 0;
+	char *upstream_tail[] = {"rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}",
+	                         NULL};
+	char *upstream = gitOpsRunQueryDup(upstream_tail, &upstream_len);
+	if (upstream != NULL && upstream_len > 0) {
+		*has_upstream_out = 1;
+		free(upstream);
+		free(branch);
+		return 1;
+	}
+	free(upstream);
+
+	char config_key[512];
+	int n = snprintf(config_key, sizeof(config_key), "branch.%s.remote", branch);
+	if (n > 0 && n < (int)sizeof(config_key)) {
+		size_t remote_len = 0;
+		char *config_tail[] = {"config", "--get", config_key, NULL};
+		char *configured = gitOpsRunQueryMaxExitDup(config_tail, &remote_len, 1);
+		if (configured != NULL && remote_len > 0) {
+			gitOpsTrimLine(configured, &remote_len);
+			if (remote_len > 0 && strcmp(configured, ".") != 0) {
+				int rn = snprintf(remote_out, remote_size, "%s", configured);
+				free(configured);
+				free(branch);
+				return rn > 0 && rn < (int)remote_size;
+			}
+		}
+		free(configured);
+	}
+
+	size_t remotes_len = 0;
+	char *remote_tail[] = {"remote", NULL};
+	char *remotes = gitOpsRunQueryDup(remote_tail, &remotes_len);
+	int ok = remotes != NULL && remotes_len > 0 &&
+	         gitOpsCopyFirstRemote(remotes, remote_out, remote_size);
+	free(remotes);
+	free(branch);
+	if (!ok) {
+		editorSetStatusMsg("git: no remote configured");
+		return 0;
+	}
+	return 1;
 }
 
 int editorGitOpsBranchCreate(const char *name) {

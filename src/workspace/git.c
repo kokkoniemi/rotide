@@ -594,6 +594,24 @@ int editorGitBuildRepoCommand(char *cmd, size_t cmd_size, const char *args_liter
 	       gitAppendLiteral(cmd, cmd_size, &pos, args_literal);
 }
 
+int editorGitBuildRepoCommandArgs(char *cmd, size_t cmd_size, char *const args[]) {
+	if (cmd == NULL || args == NULL || E.git_repo_root == NULL) {
+		return 0;
+	}
+	size_t pos = 0;
+	if (!gitAppendLiteral(cmd, cmd_size, &pos, "git -C ") ||
+	    !gitAppendShellQuotedArg(cmd, cmd_size, &pos, E.git_repo_root)) {
+		return 0;
+	}
+	for (int i = 0; args[i] != NULL; i++) {
+		if (!gitAppendLiteral(cmd, cmd_size, &pos, " ") ||
+		    !gitAppendShellQuotedArg(cmd, cmd_size, &pos, args[i])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 static void gitBlameLineClear(struct editorGitBlameLine *line) {
 	if (line == NULL) {
 		return;
