@@ -10,6 +10,7 @@
 #include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
+#include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
@@ -294,6 +295,114 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+/* Reconcile syncs files created/deleted outside the editor into the tree.
+ * The scan-state guard is cleared before each reconcile so the merge runs
+ * regardless of the filesystem's mtime granularity. */
+static int test_editor_drawer_reconcile_syncs_external_changes(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char keep_file[512];
+	char added_file[512];
+	ASSERT_TRUE(path_join(keep_file, sizeof(keep_file), env.project_dir, "keep.txt"));
+	ASSERT_TRUE(path_join(added_file, sizeof(added_file), env.project_dir, "added.txt"));
+	ASSERT_TRUE(write_text_file(keep_file, "k\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	ASSERT_TRUE(find_drawer_entry("keep.txt", NULL, NULL));
+	ASSERT_TRUE(!find_drawer_entry("added.txt", NULL, NULL));
+
+	/* A file created outside the editor appears after reconcile. */
+	ASSERT_TRUE(write_text_file(added_file, "a\n"));
+	E.drawer_root->scan_state_known = 0;
+	ASSERT_TRUE(editorDrawerReconcile(E.drawer_root));
+	ASSERT_TRUE(find_drawer_entry("added.txt", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry("keep.txt", NULL, NULL));
+
+	/* With nothing changed on disk the guard reports no change. */
+	ASSERT_TRUE(!editorDrawerReconcile(E.drawer_root));
+
+	/* A file deleted outside the editor disappears after reconcile. */
+	ASSERT_TRUE(unlink(keep_file) == 0);
+	E.drawer_root->scan_state_known = 0;
+	ASSERT_TRUE(editorDrawerReconcile(E.drawer_root));
+	ASSERT_TRUE(!find_drawer_entry("keep.txt", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry("added.txt", NULL, NULL));
+
+	ASSERT_TRUE(unlink(added_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+/* Reconcile keeps expanded subdirectories and anchors the selection to its node
+ * by path, even as sibling insertions shift visible indices. */
+static int test_editor_drawer_reconcile_preserves_expansion_and_selection(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char sub_dir[512];
+	char nested_file[512];
+	char zeta_file[512];
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(sub_dir, sizeof(sub_dir), env.project_dir, "sub"));
+	ASSERT_TRUE(make_dir(sub_dir));
+	ASSERT_TRUE(path_join(nested_file, sizeof(nested_file), sub_dir, "nested.txt"));
+	ASSERT_TRUE(path_join(zeta_file, sizeof(zeta_file), env.project_dir, "zeta.txt"));
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(nested_file, "n\n"));
+	ASSERT_TRUE(write_text_file(zeta_file, "z\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	/* Expand "sub" so its child is scanned and visible. */
+	int sub_idx = 0;
+	ASSERT_TRUE(find_drawer_entry("sub", &sub_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(sub_idx, E.window_rows));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	ASSERT_TRUE(find_drawer_entry("nested.txt", NULL, NULL));
+
+	/* Select zeta.txt and remember its node path. */
+	int zeta_idx = 0;
+	struct editorDrawerEntryView zeta_view;
+	ASSERT_TRUE(find_drawer_entry("zeta.txt", &zeta_idx, &zeta_view));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(zeta_idx, E.window_rows));
+	char *selected_path = strdup(zeta_view.path);
+	ASSERT_TRUE(selected_path != NULL);
+
+	/* Insert alpha.txt (sorts first) outside the editor, then reconcile. */
+	ASSERT_TRUE(write_text_file(alpha_file, "a\n"));
+	E.drawer_root->scan_state_known = 0;
+	ASSERT_TRUE(editorDrawerReconcile(E.drawer_root));
+
+	/* The expanded subtree survives. */
+	ASSERT_TRUE(find_drawer_entry("nested.txt", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", NULL, NULL));
+
+	/* The selected node is still resolvable by path and re-anchors correctly. */
+	struct editorDrawerNode *anchor = editorDrawerFindNodeByPath(selected_path);
+	ASSERT_TRUE(anchor != NULL);
+	ASSERT_EQ_STR("zeta.txt", anchor->name);
+	int anchor_idx = -1;
+	ASSERT_TRUE(editorDrawerFindVisibleIndexForNode(anchor, &anchor_idx));
+
+	/* Deleting the selected file makes the path unresolvable (selection falls
+	 * back to a clamp in the watch layer). */
+	ASSERT_TRUE(unlink(zeta_file) == 0);
+	E.drawer_root->scan_state_known = 0;
+	ASSERT_TRUE(editorDrawerReconcile(E.drawer_root));
+	ASSERT_TRUE(editorDrawerFindNodeByPath(selected_path) == NULL);
+
+	free(selected_path);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	ASSERT_TRUE(unlink(nested_file) == 0);
+	ASSERT_TRUE(rmdir(sub_dir) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -1362,6 +1471,10 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_draw_pane_tab_strip_uses_pane_membership_and_active_tab},
         {"editor_refresh_screen_renders_drawer_entries_and_selection",
          test_editor_refresh_screen_renders_drawer_entries_and_selection},
+        {"editor_drawer_reconcile_syncs_external_changes",
+         test_editor_drawer_reconcile_syncs_external_changes},
+        {"editor_drawer_reconcile_preserves_expansion_and_selection",
+         test_editor_drawer_reconcile_preserves_expansion_and_selection},
         {"editor_refresh_screen_drawer_colors_files_by_git_status",
          test_editor_refresh_screen_drawer_colors_files_by_git_status},
         {"editor_refresh_screen_drawer_renders_directories_bold_and_cyan",

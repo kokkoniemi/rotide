@@ -13,6 +13,7 @@
 #include "support/alloc.h"
 #include "text/document.h"
 #include "text/row.h"
+#include "workspace/drawer_internal.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 
@@ -411,6 +412,30 @@ static int watchPollInactiveTab(int tab_idx) {
 	return watchHandleChangedTab(tab, &observed);
 }
 
+/* Re-reads the explorer tree against the filesystem so files added/removed
+ * outside RotIDE appear/disappear, keeping the selection anchored to its node by
+ * path (render clamps the index if that node was deleted). */
+static int watchReconcileTree(void) {
+	if (E.drawer_root == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_TREE) {
+		return 0;
+	}
+	char *selected_path = NULL;
+	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
+	if (selected != NULL && selected->path != NULL) {
+		selected_path = strdup(selected->path);
+	}
+	int changed = editorDrawerReconcile(E.drawer_root);
+	if (changed && selected_path != NULL) {
+		struct editorDrawerNode *node = editorDrawerFindNodeByPath(selected_path);
+		int visible_idx = -1;
+		if (node != NULL && editorDrawerFindVisibleIndexForNode(node, &visible_idx)) {
+			E.drawer_selected_index = visible_idx;
+		}
+	}
+	free(selected_path);
+	return changed;
+}
+
 int editorWatchPollNow(void) {
 	int changed = 0;
 
@@ -422,6 +447,7 @@ int editorWatchPollNow(void) {
 		changed |= watchPollInactiveTab(i);
 	}
 	editorGitRefresh();
+	changed |= watchReconcileTree();
 	return changed;
 }
 
@@ -449,6 +475,9 @@ int editorWatchPoll(void) {
 		g_git_watch_last_poll_ms = now;
 		editorGitRefresh();
 		if (E.git_repo_root != NULL) {
+			changed = 1;
+		}
+		if (watchReconcileTree()) {
 			changed = 1;
 		}
 	}

@@ -277,6 +277,8 @@ static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_o
 	        {"directory", EDITOR_THEME_UI_DIRECTORY},
 	        {"root", EDITOR_THEME_UI_ROOT},
 	        {"git_modified", EDITOR_THEME_UI_GIT_MODIFIED},
+	        {"git_added", EDITOR_THEME_UI_GIT_ADDED},
+	        {"git_deleted", EDITOR_THEME_UI_GIT_DELETED},
 	        {"git_untracked", EDITOR_THEME_UI_GIT_UNTRACKED},
 	        {"git_conflict", EDITOR_THEME_UI_GIT_CONFLICT},
 	        {"cursor", EDITOR_THEME_UI_CURSOR},

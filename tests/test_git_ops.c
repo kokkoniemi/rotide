@@ -477,6 +477,48 @@ static int test_git_ops_parse_status_v2_no_upstream(void) {
 	return 0;
 }
 
+static int test_git_ops_status_from_char_maps_change_types(void) {
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_ADDED, editorGitStatusFromChar('A'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_DELETED, editorGitStatusFromChar('D'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_MODIFIED, editorGitStatusFromChar('M'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_MODIFIED, editorGitStatusFromChar('R'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_MODIFIED, editorGitStatusFromChar('T'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_UNTRACKED, editorGitStatusFromChar('?'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CONFLICT, editorGitStatusFromChar('U'));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CLEAN, editorGitStatusFromChar(' '));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CLEAN, editorGitStatusFromChar('.'));
+	return 0;
+}
+
+/* Directory rollup must keep severity ordering after inserting ADDED/DELETED
+ * into the enum: conflict outranks untracked, untracked outranks modified. */
+static int test_git_ops_dir_status_rolls_up_worst(void) {
+	reset_editor_state();
+	static const char modified_and_untracked[] =
+	        "1 .M N... 100644 100644 100644 aaa bbb sub/mod.txt\0"
+	        "? sub/new.txt\0";
+	ASSERT_TRUE(editorGitTestParseStatus(modified_and_untracked,
+	                                     sizeof(modified_and_untracked) - 1, NULL, NULL));
+	free(E.git_repo_root);
+	E.git_repo_root = strdup("/repo");
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_UNTRACKED, editorGitDirStatus("/repo/sub"));
+	editorGitFree();
+
+	reset_editor_state();
+	static const char with_conflict[] =
+	        "1 .M N... 100644 100644 100644 aaa bbb sub/mod.txt\0"
+	        "? sub/new.txt\0"
+	        "u UU N... 100644 100644 100644 100644 a1 a2 a3 sub/conflict.txt\0";
+	ASSERT_TRUE(editorGitTestParseStatus(with_conflict, sizeof(with_conflict) - 1, NULL, NULL));
+	free(E.git_repo_root);
+	E.git_repo_root = strdup("/repo");
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CONFLICT, editorGitDirStatus("/repo/sub"));
+	editorGitFree();
+	return 0;
+}
+
 static int test_git_ops_without_repo_sets_statusmsg(void) {
 	SKIP_WITHOUT_GIT();
 	reset_editor_state();
@@ -507,6 +549,9 @@ const struct editorTestCase g_git_ops_tests[] = {
         {"git_ops_history_operations", test_git_ops_history_operations},
         {"git_ops_parse_status_v2_fixture", test_git_ops_parse_status_v2_fixture},
         {"git_ops_parse_status_v2_no_upstream", test_git_ops_parse_status_v2_no_upstream},
+        {"git_ops_status_from_char_maps_change_types",
+         test_git_ops_status_from_char_maps_change_types},
+        {"git_ops_dir_status_rolls_up_worst", test_git_ops_dir_status_rolls_up_worst},
         {"git_ops_without_repo_sets_statusmsg", test_git_ops_without_repo_sets_statusmsg},
 };
 

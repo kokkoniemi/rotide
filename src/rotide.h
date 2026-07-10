@@ -186,9 +186,11 @@ enum editorPaneKind {
 
 enum editorGitStatus {
 	EDITOR_GIT_STATUS_CLEAN = 0,
-	EDITOR_GIT_STATUS_MODIFIED,
-	EDITOR_GIT_STATUS_UNTRACKED,
-	EDITOR_GIT_STATUS_CONFLICT
+	EDITOR_GIT_STATUS_MODIFIED,  /* yellow */
+	EDITOR_GIT_STATUS_ADDED,     /* green  */
+	EDITOR_GIT_STATUS_DELETED,   /* red    */
+	EDITOR_GIT_STATUS_UNTRACKED, /* green  */
+	EDITOR_GIT_STATUS_CONFLICT   /* red    */
 };
 
 enum editorDrawerEntryIconKind {
