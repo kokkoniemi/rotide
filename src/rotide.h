@@ -485,6 +485,7 @@ struct editorHistory {
 	X(int, git_blame_line_number)                                                              \
 	X(int, git_blame_line_miss)                                                                \
 	X(unsigned char *, git_view_line_kinds)                                                    \
+	X(int *, git_view_line_numbers)                                                            \
 	X(int, git_view_line_kind_count)                                                           \
 	X(char *, git_view_source_path)                                                            \
 	X(char *, git_view_regen_arg)                                                              \

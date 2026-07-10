@@ -124,6 +124,8 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	buffer->tab_title = NULL;
 	free(buffer->git_view_line_kinds);
 	buffer->git_view_line_kinds = NULL;
+	free(buffer->git_view_line_numbers);
+	buffer->git_view_line_numbers = NULL;
 	buffer->git_view_line_kind_count = 0;
 	free(buffer->git_view_source_path);
 	buffer->git_view_source_path = NULL;

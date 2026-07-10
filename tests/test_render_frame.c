@@ -1311,28 +1311,33 @@ static int test_editor_refresh_screen_tints_and_highlights_git_diff_tab(void) {
 	                    "index 1111111..2222222 100644\n"
 	                    "--- a/src/app.c\n"
 	                    "+++ b/src/app.c\n"
-	                    "@@ -1,3 +1,3 @@\n"
+	                    "@@ -101,3 +201,3 @@\n"
 	                    "-int old_value = 1;\n"
 	                    "+int new_value = 2;\n"
 	                    " int kept_value = 3;\n";
 
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
 	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                              &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: src/app.c", text));
 	free(text);
 	free(E.git_view_line_kinds);
 	E.git_view_line_kinds = kinds;
+	free(E.git_view_line_numbers);
+	E.git_view_line_numbers = line_numbers;
 	E.git_view_line_kind_count = kind_count;
 	free(E.git_view_source_path);
 	E.git_view_source_path = source_path;
 	ASSERT_TRUE(editorSyntaxParseFullActive());
 	E.window_rows = 10;
 	E.window_cols = 100;
+	E.line_numbers_enabled = 1;
 	E.cy = 0;
 	E.cx = 0;
 
@@ -1343,6 +1348,8 @@ static int test_editor_refresh_screen_tints_and_highlights_git_diff_tab(void) {
 	 * stripped content is highlighted as C (primitive type `int`). */
 	ASSERT_TRUE(strstr(output, "\x1b[48;5;22m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;5;52m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m101 \x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m201 \x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96mint") != NULL);
 	ASSERT_TRUE(strstr(output, "old line") == NULL);
 	free(output);

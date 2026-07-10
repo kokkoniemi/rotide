@@ -28,7 +28,9 @@ enum editorGitViewLineKind {
 };
 
 char *editorGitViewBuildDiffDup(const char *patch, size_t patch_len, unsigned char **line_kinds_out,
-                                int *line_kind_count_out, char **source_path_out);
+                                int **line_numbers_out, int *line_kind_count_out,
+                                char **source_path_out);
+int editorGitViewLineNumber(int row_idx);
 /* A partially-staged file lists under both Staged and Changes; staged_group
  * picks that row's side (cached index diff vs worktree diff). */
 int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status,

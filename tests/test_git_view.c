@@ -155,19 +155,21 @@ static int test_git_view_build_diff_strips_prefixes_and_tracks_kinds(void) {
 	                    "index 1111111..2222222 100644\n"
 	                    "--- a/src/app.c\n"
 	                    "+++ b/src/app.c\n"
-	                    "@@ -1,3 +1,3 @@\n"
+	                    "@@ -101,3 +201,3 @@\n"
 	                    "-int old_value = 1;\n"
 	                    "+int new_value = 2;\n"
 	                    " int kept_value = 3;\n"
 	                    "\\ No newline at end of file\n";
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
 	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                              &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_EQ_STR("diff --git a/src/app.c b/src/app.c\n"
-	              "@@ -1,3 +1,3 @@\n"
+	              "@@ -101,3 +201,3 @@\n"
 	              "int old_value = 1;\n"
 	              "int new_value = 2;\n"
 	              "int kept_value = 3;\n",
@@ -178,10 +180,16 @@ static int test_git_view_build_diff_strips_prefixes_and_tracks_kinds(void) {
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_REMOVED, kinds[2]);
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_ADDED, kinds[3]);
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_TEXT, kinds[4]);
+	ASSERT_EQ_INT(0, line_numbers[0]);
+	ASSERT_EQ_INT(0, line_numbers[1]);
+	ASSERT_EQ_INT(101, line_numbers[2]);
+	ASSERT_EQ_INT(201, line_numbers[3]);
+	ASSERT_EQ_INT(202, line_numbers[4]);
 	ASSERT_TRUE(source_path != NULL);
 	ASSERT_EQ_STR("src/app.c", source_path);
 	free(text);
 	free(kinds);
+	free(line_numbers);
 	free(source_path);
 	return 0;
 }
@@ -200,16 +208,19 @@ static int test_git_view_build_diff_multi_file_has_no_source_path(void) {
 	                    "-c\n"
 	                    "+d\n";
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
 	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                              &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(source_path == NULL);
 	ASSERT_EQ_INT(8, kind_count);
 	ASSERT_TRUE(strstr(text, "diff --git a/two.c b/two.c") != NULL);
 	free(text);
 	free(kinds);
+	free(line_numbers);
 	return 0;
 }
 
@@ -222,10 +233,12 @@ static int test_git_view_build_diff_untracked_uses_new_side_path(void) {
 	                    "@@ -0,0 +1 @@\n"
 	                    "+print(\"hi\")\n";
 	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
 	int kind_count = 0;
 	char *source_path = NULL;
 	char *text =
-	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &kind_count, &source_path);
+	        editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                              &kind_count, &source_path);
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(source_path != NULL);
 	ASSERT_EQ_STR("new.py", source_path);
@@ -233,6 +246,7 @@ static int test_git_view_build_diff_untracked_uses_new_side_path(void) {
 	ASSERT_EQ_INT(EDITOR_GIT_VIEW_LINE_ADDED, kinds[kind_count - 1]);
 	free(text);
 	free(kinds);
+	free(line_numbers);
 	free(source_path);
 	return 0;
 }
