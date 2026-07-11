@@ -4,7 +4,6 @@
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
-#include "test_helpers.h"
 #include "test_support.h"
 #include "vterm.h"
 #include "workspace/layout.h"

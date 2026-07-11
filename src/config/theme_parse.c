@@ -372,7 +372,7 @@ static void themeParseApplyStyleColor(struct editorTheme *theme, enum editorThem
 	theme->styles[role].reverse = 0;
 }
 
-static int themeConfigOnEntry(void *vdriver, const char *key, char *value) {
+static int themeParseOnEntry(void *vdriver, const char *key, char *value) {
 	struct themeParseDriver *driver = vdriver;
 	struct editorTheme *theme = driver->theme;
 	struct themeParseContext *ctx = driver->ctx;
@@ -469,7 +469,7 @@ static int themeConfigOnEntry(void *vdriver, const char *key, char *value) {
 	return 1;
 }
 
-static int themeConfigOnSection(void *vdriver, const char *table) {
+static int themeParseOnSection(void *vdriver, const char *table) {
 	struct themeParseContext *ctx = ((struct themeParseDriver *)vdriver)->ctx;
 	ctx->in_theme_table = strcmp(table, "theme") == 0;
 	ctx->in_theme_syntax_table = strcmp(table, "theme.syntax") == 0;
@@ -498,7 +498,7 @@ static enum themeParseFileStatus themeParseApplyStream(struct editorTheme *theme
 	(void)snprintf(ctx.inherits_name, sizeof(ctx.inherits_name), "%s", "terminal");
 
 	struct themeParseDriver driver = {.theme = theme, .ctx = &ctx};
-	struct editorConfigScanner scanner = {themeConfigOnSection, themeConfigOnEntry};
+	struct editorConfigScanner scanner = {themeParseOnSection, themeParseOnEntry};
 	if (editorConfigScanStream(fp, &scanner, &driver) != EDITOR_CONFIG_SCAN_OK) {
 		ctx.had_invalid = 1;
 	}

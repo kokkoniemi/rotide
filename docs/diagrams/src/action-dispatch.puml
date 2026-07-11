@@ -30,15 +30,32 @@ else (no)
 endif
 if (focused leaf is terminal pane
     and not in drawer focus?) then (yes)
-  if (terminal_prefix armed?) then (yes)
-    :clear prefix and fall through to keymap;
-  else (no)
-    if (key matches terminal_prefix?) then (yes)
-      :arm one-shot prefix;
+  if (active system == vim?) then (yes)
+    if (Terminal Normal mode?) then (yes)
+      :resolve leader / Ctrl-W against rotide;
+      :i/a/I/A return to Job/Insert;
       stop
+    else (Job/Insert)
+      if (Ctrl-W chord?) then (yes)
+        :Ctrl-W N enter Normal, Ctrl-W . send
+         literal Ctrl-W, else window command;
+        stop
+      else (no)
+        :forward key to PTY (Esc raw);
+        stop
+      endif
+    endif
+  else (cua)
+    if (terminal_prefix armed?) then (yes)
+      :clear prefix, fall through to keymap;
     else (no)
-      :forward key to PTY;
-      stop
+      if (key matches terminal_prefix?) then (yes)
+        :arm prefix until command completes;
+        stop
+      else (no)
+        :forward key to PTY (Esc raw);
+        stop
+      endif
     endif
   endif
 else (no)

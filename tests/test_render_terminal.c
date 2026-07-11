@@ -424,6 +424,54 @@ static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
 	return (in_first && in_second) ? 0 : 1;
 }
 
+/* Frame-level backstop coverage: screenDrawRows reconciles every visible
+ * terminal's grid to its current layout rect before pumping, so a geometry
+ * change with NO explicit editorTerminalPaneResizeAllToLayout call still resizes
+ * the child on the next rendered frame. This is the guarantee that lets the
+ * interactive resize paths (drawer/split drag, pane resize) drop their explicit
+ * resize calls: collapse the drawer, render, and the terminal must match the new
+ * bordered leaf rect purely from the render path. */
+static int test_editor_refresh_screen_reconciles_terminal_geometry(void) {
+	E.window_rows = 24;
+	E.window_cols = 100;
+
+	struct editorTerminalPane *t = open_terminal_tab_in_root("sleep 5");
+	if (t == NULL) {
+		return 1;
+	}
+	/* First frame establishes the current (expanded-drawer) size via the same
+	 * backstop; capture it so we can prove the collapse actually changed things. */
+	size_t len = 0;
+	char *out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	free(out);
+	int pre_cols = t->cols;
+
+	/* Collapse (or expand) the drawer. Nothing here calls the resize walk — only
+	 * the next frame's backstop can bring the terminal to the new geometry. */
+	(void)editorDrawerSetCollapsed(!editorDrawerIsCollapsed());
+
+	out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	free(out);
+
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	if (!editorLayoutEditorViewport(&viewport) ||
+	    !editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                  E.layout_root, &rect)) {
+		return 1;
+	}
+	int vrows = 0;
+	int vcols = 0;
+	vterm_get_size(t->vt, &vrows, &vcols);
+	/* The drawer width change must have moved the rect (otherwise the test would
+	 * pass without exercising the backstop), and the terminal must now match it. */
+	ASSERT_TRUE(rect.w != pre_cols);
+	int failed = t->cols != rect.w || t->rows != rect.h || vcols != rect.w || vrows != rect.h;
+	return failed;
+}
+
 /* True if any status-bar column maps to `action` in the most recent render. */
 static int status_bar_has_button_action(int action) {
 	for (int col = 0; col < E.window_cols; col++) {
@@ -633,6 +681,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
          test_editor_refresh_screen_renders_terminal_pane},
         {"editor_refresh_screen_terminal_repaints_unchanged_slice",
          test_editor_refresh_screen_terminal_repaints_unchanged_slice},
+        {"editor_refresh_screen_reconciles_terminal_geometry",
+         test_editor_refresh_screen_reconciles_terminal_geometry},
         {"status_bar_terminal_segment_modes", test_status_bar_terminal_segment_modes},
         {"editor_refresh_screen_terminal_exit_overlay",
          test_editor_refresh_screen_terminal_exit_overlay},

@@ -154,7 +154,8 @@ static struct vimBindableCommand g_vim_commands[] = {
         {"normal_mode", VIM_SYSTEM_MODE_INSERT, '\x1b', '\x1b'},
 };
 
-static const size_t g_vim_command_count = sizeof(g_vim_commands) / sizeof(g_vim_commands[0]);
+#define VIM_COMMAND_COUNT (sizeof(g_vim_commands) / sizeof(g_vim_commands[0]))
+static const size_t g_vim_command_count = VIM_COMMAND_COUNT;
 
 /* Leader sequences: `<leader>` followed by one key dispatches an editor action.
  * Leader is space by default. Both the leader key and each sub-key are bindable
@@ -180,7 +181,8 @@ static struct vimLeaderBinding g_vim_leader_map[] = {
         {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
 };
 
-static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);
+#define VIM_LEADER_MAP_COUNT (sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]))
+static const size_t g_vim_leader_count = VIM_LEADER_MAP_COUNT;
 
 static int g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
 

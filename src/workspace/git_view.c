@@ -172,9 +172,13 @@ static void gitViewStartPushTask(void) {
 		return;
 	}
 
+	/* `remote` comes from git output, so it must not be interpreted as a printf
+	 * format. Build a plain-text label (remote goes through a %s argument here)
+	 * and use the literal yes/no prompt, which appends the live input via a
+	 * constant format instead of treating the label as one. */
 	char prompt[320];
-	int n = snprintf(prompt, sizeof(prompt), "Create remote branch on %s? [y/N] %%s", remote);
-	if (n <= 0 || n >= (int)sizeof(prompt) || !editorPromptYesNo(prompt)) {
+	int n = snprintf(prompt, sizeof(prompt), "Create remote branch on %s? [y/N] ", remote);
+	if (n <= 0 || n >= (int)sizeof(prompt) || !editorPromptYesNoLiteral(prompt)) {
 		editorSetStatusMsg("Push cancelled");
 		return;
 	}

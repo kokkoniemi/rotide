@@ -10,6 +10,7 @@ char *editorPromptWithCompletion(const char *prompt, int allow_empty,
                                  editorPromptCompleteFn complete_fn, void *complete_ctx);
 char *editorPrompt(const char *prompt);
 int editorPromptYesNo(const char *prompt);
+int editorPromptYesNoLiteral(const char *label);
 
 void editorExitOnInputShutdown(void);
 

@@ -822,11 +822,9 @@ static void workspaceStateHydrateTerminalsIfAny(void) {
 	/* HydratePlaceholders walks the tree for `term` placeholder leaves and is a
 	 * no-op when there are none, so no separate gate is needed. */
 	int failures = editorTerminalPaneHydratePlaceholders(E.layout_root, shell);
-	/* Resize here is safe to run before pane-tab assignment because
-	 * assignment doesn't change leaf geometry — only pane-membership
-	 * and active_tab_idx. If that ever changes, this needs to move
-	 * after the assignment pass. */
-	editorTerminalPaneResizeAllToLayout(E.layout_root);
+	/* No explicit resize here: the frame-level backstop in screenDrawRows
+	 * reconciles every restored terminal to its layout rect before the first
+	 * pump, so a startup restore does not need its own geometry-sync call. */
 	if (failures > 0) {
 		editorSetStatusMsg("Failed to restore %d terminal pane(s)", failures);
 	}

@@ -48,8 +48,15 @@ void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
-static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCallback callback,
-                           editorPromptCompleteFn complete_fn, void *complete_ctx) {
+/* `literal_label` selects how `prompt` is rendered with the live input `buf`.
+ * When 0, `prompt` is a printf format containing one `%s` for `buf` (the default,
+ * used by callers that pass a constant format). When 1, `prompt` is plain text
+ * and `buf` is appended via a constant "%s%s" format, so callers may safely
+ * interpolate untrusted data (e.g. a git remote name) into `prompt` without it
+ * being interpreted as a format string. */
+static char *promptRunLoop(const char *prompt, int literal_label, int allow_empty,
+                           editorPromptCallback callback, editorPromptCompleteFn complete_fn,
+                           void *complete_ctx) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {
@@ -63,7 +70,11 @@ static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCall
 	char *tab_anchor = NULL;
 
 	while (1) {
-		editorSetStatusMsg(prompt, buf);
+		if (literal_label) {
+			editorSetStatusMsg("%s%s", prompt, buf);
+		} else {
+			editorSetStatusMsg(prompt, buf);
+		}
 		editorRefreshScreen();
 
 		int c = editorReadKey();
@@ -169,20 +180,20 @@ static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCall
 }
 
 char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback) {
-	return promptRunLoop(prompt, allow_empty, callback, NULL, NULL);
+	return promptRunLoop(prompt, 0, allow_empty, callback, NULL, NULL);
 }
 
 char *editorPromptWithCompletion(const char *prompt, int allow_empty,
                                  editorPromptCompleteFn complete_fn, void *complete_ctx) {
-	return promptRunLoop(prompt, allow_empty, NULL, complete_fn, complete_ctx);
+	return promptRunLoop(prompt, 0, allow_empty, NULL, complete_fn, complete_ctx);
 }
 
 char *editorPrompt(const char *prompt) {
-	return promptRunLoop(prompt, 0, NULL, NULL, NULL);
+	return promptRunLoop(prompt, 0, 0, NULL, NULL, NULL);
 }
 
-int editorPromptYesNo(const char *prompt) {
-	char *response = promptRunLoop(prompt, 1, NULL, NULL, NULL);
+static int promptYesNo(const char *prompt, int literal_label) {
+	char *response = promptRunLoop(prompt, literal_label, 1, NULL, NULL, NULL);
 	int accepted = 0;
 	if (response == NULL) {
 		return 0;
@@ -192,4 +203,14 @@ int editorPromptYesNo(const char *prompt) {
 	}
 	free(response);
 	return accepted;
+}
+
+int editorPromptYesNo(const char *prompt) {
+	return promptYesNo(prompt, 0);
+}
+
+/* Like editorPromptYesNo, but `label` is plain text rather than a printf format,
+ * so untrusted data can be interpolated into it safely (no format-string risk). */
+int editorPromptYesNoLiteral(const char *label) {
+	return promptYesNo(label, 1);
 }
