@@ -50,8 +50,6 @@ int editorHandleTerminalMappedAction(enum editorAction action) {
 			editorSetStatusMsg("Terminal prefix armed: next key is rotide");
 			return 1;
 		case EDITOR_ACTION_TERMINAL_MODE_NORMAL: {
-			/* Also the status-bar "Normal" button: a rotide-owned surface, so it
-			 * works even when a fullscreen child holds the keyboard. */
 			struct editorTerminalPane *normal_term =
 			        editorTerminalPaneForPane(E.focused_leaf);
 			if (normal_term != NULL) {

@@ -936,10 +936,7 @@ static void actionsWorkspaceSplit(enum editorSplitOrientation orientation) {
 	if (sibling == NULL) {
 		return;
 	}
-	/* editorLayoutSplitFocused leaves the sibling empty when the source pane's
-	 * active tab is a single-host terminal (the terminal is kept in the source
-	 * pane). Seed the new pane with a fresh empty editor tab and make it the
-	 * active tab so the focused pane has content. */
+	/* Terminal tabs are single-hosted, so their new sibling needs an editor tab. */
 	if (!sibling->is_split && sibling->as.leaf.view.active_tab_idx < 0) {
 		int empty_idx = editorTabAppendEmptyForPane(sibling);
 		if (empty_idx >= 0) {
@@ -951,12 +948,7 @@ static void actionsWorkspaceSplit(enum editorSplitOrientation orientation) {
 
 static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {
 	editorHistoryBreakGroup();
-	/* The drawer sits to the left of all editor panes, so a rightward window move
-	 * from the drawer re-enters the editor area. editorLayoutFocusDirection only
-	 * navigates between panes and never clears drawer focus, so handle this here.
-	 * Return to the already-focused leaf (the pane the user left); when that is
-	 * ambiguous it stays deterministic — the topmost/leftmost pane wins via the
-	 * existing focused_leaf. */
+	/* Pane navigation does not clear drawer focus; right returns to the last pane. */
 	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER && dir == EDITOR_FOCUS_RIGHT) {
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		struct editorPaneNode *target = E.focused_leaf;

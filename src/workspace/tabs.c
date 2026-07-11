@@ -351,12 +351,7 @@ static void tabsLoadActiveTab(int tab_idx) {
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
 		(void)editorPaneViewActivateTab(&E.focused_leaf->as.leaf.view, tab_idx);
 	}
-	/* Non-editor active tab: E.active_buffer stays detached/empty and no editor
-	 * (syntax/LSP/document) setup runs. The payload owns the tab's real state.
-	 * A re-shown terminal tab needs no explicit repaint hint: the renderer
-	 * composites its whole slice from libvterm every frame. Clear any in-flight
-	 * Ctrl-W/leader wait so a sequence abandoned before this tab regained focus
-	 * does not consume the next key. */
+	/* Widget payloads own their state; E.active_buffer stays detached. */
 	if (E.tabs[tab_idx].kind != EDITOR_PANE_KIND_EDITOR) {
 		if (E.tabs[tab_idx].kind == EDITOR_PANE_KIND_TERMINAL) {
 			editorTerminalPaneResetPendingInput(
@@ -557,8 +552,6 @@ int editorTabNewTerminalBesideActive(const char *command) {
 	if (E.tab_count >= ROTIDE_MAX_TABS || !tabsEnsureTabCapacity(E.tab_count + 1)) {
 		return -1;
 	}
-	/* Size the child to the focused leaf's content rect so it starts correct; the
-	 * frame-level reconcile keeps it aligned afterward. */
 	struct editorRect rect = {0};
 	int cols = 80;
 	int rows = 24;
@@ -570,23 +563,18 @@ int editorTabNewTerminalBesideActive(const char *command) {
 	if (terminal == NULL) {
 		return -1;
 	}
-	/* Save the outgoing editor tab before its buffer is detached by the switch. */
 	tabsStoreActiveTab();
 	int new_idx =
 	        editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, terminal, editorTerminalPaneFree);
 	if (new_idx < 0) {
-		/* CreateWidget did not take ownership on failure. */
 		editorTerminalPaneFree(terminal);
 		tabsLoadActiveTab(E.active_tab);
 		return -1;
 	}
-	/* Insert immediately after the active tab in this pane, unlike
-	 * editorTabAdoptInPane which would clear the pane's existing tabs. */
 	int active_slot = editorPaneViewIndexOfTab(&pane->as.leaf.view, E.active_tab);
 	int slot = active_slot < 0 ? pane->as.leaf.view.pane_tab_count : active_slot + 1;
 	if (!editorPaneViewInsertTabAt(&pane->as.leaf.view, new_idx, slot)) {
-		/* CreateWidget stored the terminal with its free fn; tabsStateFree
-		 * releases both — do not free the terminal again. */
+		/* The tab owns the terminal after editorTabCreateWidget succeeds. */
 		E.tab_count--;
 		tabsStateFree(&E.tabs[new_idx]);
 		tabsLoadActiveTab(E.active_tab);

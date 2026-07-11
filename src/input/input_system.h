@@ -39,11 +39,7 @@ const struct editorInputSystem *editorInputSystemById(const char *id);
  * (re)applying `[keymap.vim]` config so reloads do not accumulate bindings. */
 void editorVimKeymapResetDefaults(void);
 
-/* Sequence resolvers shared with the Vim terminal Normal mode so it reuses the
- * live leader/window maps instead of copying them. `editorVimLeaderKey` returns
- * the configured `<leader>` key. The *Action helpers write the mapped action (as
- * an `enum editorAction` cast to int, to keep this header dependency-light) and
- * return 1 when `c` resolves, else 0. */
+/* Terminal Normal mode shares the configured Vim sequence maps. */
 int editorVimLeaderKey(void);
 int editorVimLeaderAction(int c, int *action_out);
 int editorVimCtrlWAction(int c, int *action_out);

@@ -829,9 +829,6 @@ static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
 	return failed;
 }
 
-/* After the frame-level reconcile, the terminal's libvterm grid and stored
- * dimensions must match the exact bordered leaf rect the renderer draws into,
- * so the painted slice and the PTY/vterm size cannot drift. */
 static int test_terminal_pane_resize_all_matches_layout_rect(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -866,9 +863,6 @@ static int test_terminal_pane_resize_all_matches_layout_rect(void) {
 	return failed;
 }
 
-/* editorPaneMoveTab does not resize a moved terminal; the frame reconcile must.
- * Move a terminal from a small pane into a larger neighbor and confirm its grid
- * fills the larger target rect after the reconcile. */
 static int test_terminal_pane_move_to_neighbor_matches_target_rect(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -878,7 +872,6 @@ static int test_terminal_pane_move_to_neighbor_matches_target_rect(void) {
 	if (!editorTabsInit()) {
 		return 1;
 	}
-	/* Left = original editor pane, right = new terminal pane (focused). */
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
 	if (terminal_leaf == NULL || !E.layout_root->is_split) {
@@ -888,7 +881,6 @@ static int test_terminal_pane_move_to_neighbor_matches_target_rect(void) {
 	if (t == NULL) {
 		return 1;
 	}
-	/* Make the terminal's pane the small one so the target (left) is larger. */
 	E.layout_root->as.split.ratio = 0.75;
 	editorTerminalPaneResizeAllToLayout(E.layout_root);
 	int small_cols = t->cols;
@@ -915,9 +907,6 @@ static int test_terminal_pane_move_to_neighbor_matches_target_rect(void) {
 	return failed;
 }
 
-/* Splitting a pane whose active tab is a terminal must not mirror the single-
- * host terminal into the sibling: it stays in the source pane, and the sibling
- * is left empty for the caller to seed. */
 static int test_terminal_pane_split_keeps_terminal_single_host(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -952,8 +941,6 @@ static int test_terminal_pane_split_keeps_terminal_single_host(void) {
 	return failed;
 }
 
-/* A new terminal tab is inserted immediately after the active tab in the focused
- * pane and activated, without adding a pane (leaf count unchanged). */
 static int test_terminal_new_tab_inserts_beside_active(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -980,14 +967,11 @@ static int test_terminal_new_tab_inserts_beside_active(void) {
 	             E.active_tab != new_idx ||
 	             editorTabKindAt(new_idx) != EDITOR_PANE_KIND_TERMINAL ||
 	             editorTerminalPaneForPane(pane) == NULL ||
-	             /* Order: [editor_tab, new terminal]. */
 	             pane->as.leaf.view.pane_tabs[members_before - 1] != editor_tab ||
 	             pane->as.leaf.view.pane_tabs[members_before] != new_idx;
 	return failed;
 }
 
-/* With a following tab present, the new terminal lands between the active tab
- * and the one after it, not at the end. */
 static int test_terminal_new_tab_order_with_following_tab(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -1018,7 +1002,6 @@ static int test_terminal_new_tab_order_with_following_tab(void) {
 	return failed;
 }
 
-/* A NULL command is rejected and leaves tab count and active tab unchanged. */
 static int test_terminal_new_tab_null_command_leaves_state(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -1038,9 +1021,6 @@ static int test_terminal_new_tab_null_command_leaves_state(void) {
 	       E.focused_leaf->as.leaf.view.pane_tab_count != members_before;
 }
 
-/* Create a vertical split with a terminal running `command` as the focused
- * (right) pane, under the given input system. Returns the terminal leaf, or NULL
- * on failure; *term_out receives the pane. */
 static struct editorPaneNode *setup_focused_terminal(const char *command, const char *system_id,
                                                      struct editorTerminalPane **term_out) {
 	E.window_cols = 120;
@@ -1067,8 +1047,6 @@ static void feed_keys(const char *s) {
 	(void)editor_process_keypress_with_input_silent(s, strlen(s));
 }
 
-/* Job/Insert mode forwards ordinary bytes (including Space) to the PTY: a `cat`
- * child echoes them back, and the leader is not recognized. */
 static int test_terminal_input_vim_insert_forwards_bytes(void) {
 	struct editorTerminalPane *t = NULL;
 	struct editorPaneNode *leaf = setup_focused_terminal("cat", "vim", &t);
@@ -1082,11 +1060,7 @@ static int test_terminal_input_vim_insert_forwards_bytes(void) {
 	return failed;
 }
 
-/* Esc is never a mode trigger in Job/Insert: Esc-prefixed keys (arrow-up/down,
- * which the terminal sends as ESC [ A / ESC [ B) stay in Insert and do not steal
- * pane focus — they are forwarded to the child. (A lone Esc cannot be fed through
- * the pipe harness: with no following byte it reads as EOF; the real terminal
- * disambiguates it by a timeout. The forwarding path is identical either way.) */
+/* The pipe harness needs a byte after Esc to avoid treating it as EOF. */
 static int test_terminal_input_vim_esc_prefixed_stays_insert(void) {
 	struct editorTerminalPane *t = NULL;
 	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
@@ -1097,7 +1071,6 @@ static int test_terminal_input_vim_esc_prefixed_stays_insert(void) {
 	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT || E.focused_leaf != leaf;
 }
 
-/* Ctrl-W N enters Terminal Normal mode; i returns to Job/Insert. */
 static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 	struct editorTerminalPane *t = NULL;
 	if (setup_focused_terminal("sleep 5", "vim", &t) == NULL) {
@@ -1111,8 +1084,6 @@ static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
 }
 
-/* Ctrl-W t opens a new terminal tab beside the current one, from Job/Insert mode
- * and without leaving it or adding a pane. */
 static int test_terminal_input_vim_ctrl_w_t_opens_terminal_tab(void) {
 	struct editorTerminalPane *t = NULL;
 	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
@@ -1129,8 +1100,6 @@ static int test_terminal_input_vim_ctrl_w_t_opens_terminal_tab(void) {
 	return failed;
 }
 
-/* Ctrl-W t opens a terminal tab from a non-terminal (editor) pane too, since it
- * resolves through the shared Vim window map. */
 static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -1150,7 +1119,6 @@ static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
 	return failed;
 }
 
-/* Ctrl-W h switches panes directly from Job/Insert mode (no mode change). */
 static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
 	struct editorTerminalPane *t = NULL;
 	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
@@ -1162,8 +1130,6 @@ static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
 	return failed;
 }
 
-/* In Terminal Normal mode, <leader>g opens the git drawer (a leader sequence
- * resolving through the shared Vim map); the key is not sent to the child. */
 static int test_terminal_input_vim_normal_leader_resolves(void) {
 	struct editorTerminalPane *t = NULL;
 	if (setup_focused_terminal("sleep 5", "vim", &t) == NULL) {
@@ -1177,8 +1143,6 @@ static int test_terminal_input_vim_normal_leader_resolves(void) {
 	return E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
-/* Two terminal tabs keep independent modes; refocusing a terminal clears any
- * in-flight Ctrl-W wait. */
 static int test_terminal_input_modes_are_per_tab(void) {
 	struct editorTerminalPane *a = NULL;
 	struct editorPaneNode *leaf_a = setup_focused_terminal("sleep 5", "vim", &a);
@@ -1186,12 +1150,10 @@ static int test_terminal_input_modes_are_per_tab(void) {
 		return 1;
 	}
 	int a_idx = E.active_tab;
-	/* Put A into Normal mode. */
 	feed_keys("\x17N");
 	if (a->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
 		return 1;
 	}
-	/* Second terminal tab in the same pane. */
 	struct editorTerminalPane *b = editorTerminalPaneCreate("sleep 5", 40, 8);
 	if (b == NULL) {
 		return 1;
@@ -1209,7 +1171,6 @@ static int test_terminal_input_modes_are_per_tab(void) {
 	    a->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
 		return 1;
 	}
-	/* Arm a Ctrl-W wait on B, then leave and return: the wait must be cleared. */
 	feed_keys("\x17");
 	if (!b->pending_ctrl_w) {
 		return 1;
@@ -1219,24 +1180,31 @@ static int test_terminal_input_modes_are_per_tab(void) {
 	return b->pending_ctrl_w != 0;
 }
 
-/* CUA has no modes: Ctrl-Alt-A arms the one-command prefix, and a bare Ctrl-W is
- * forwarded to the child rather than treated as a window prefix. */
 static int test_terminal_input_cua_prefix_and_ctrl_w_literal(void) {
 	struct editorTerminalPane *t = NULL;
 	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "cua", &t);
 	if (leaf == NULL) {
 		return 1;
 	}
-	/* Bare Ctrl-W does not switch/close a pane under CUA. */
 	feed_keys("\x17");
 	if (E.focused_leaf != leaf) {
 		return 1;
 	}
-	/* Ctrl-Alt-A (ESC + Ctrl-A) arms the one-command escape. */
 	feed_keys("\x1b\x01");
-	int failed = !E.terminal_prefix_armed;
-	E.terminal_prefix_armed = 0;
-	return failed;
+	if (!E.terminal_prefix_armed) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	feed_keys("\x1b\x14");
+	if (E.terminal_prefix_armed || E.tab_count != tabs_before + 1 ||
+	    editorTerminalPaneForPane(E.focused_leaf) == NULL) {
+		return 1;
+	}
+
+	feed_keys("\x1b\x01");
+	feed_keys("x");
+	return E.terminal_prefix_armed || E.tab_count != tabs_before + 1 ||
+	       strcmp(E.statusmsg, "Unbound terminal command") != 0;
 }
 
 const struct editorTestCase g_terminal_pane_tests[] = {

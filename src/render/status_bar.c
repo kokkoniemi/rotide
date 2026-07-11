@@ -53,18 +53,11 @@
 #define STATUS_GIT_ICON_COMPRESS "\xEF\x81\xA6"  /* U+F066 compress */
 #define STATUS_GIT_ICON_ABORT "\xEF\x80\x8D"     /* U+F00D close */
 
-/* Terminal action glyphs (same nerd-font PUA range as the drawer icons). */
 #define STATUS_TERM_ICON_NEW "\xEF\x81\xA7" /* U+F067 plus */
 
 #define STATUS_INPUT_SEGMENT_MAX_COLS 24
 
-/*
- * Clickable action buttons recorded during the most recent status-bar render,
- * shared by every segment that draws them (debug/DAP controls, git actions, and
- * terminal mode/pane controls). Columns are 0-based offsets within the status
- * row. The mouse layer maps a left-press column to the button's action; see
- * editorStatusBarButtonAt.
- */
+/* Click targets from the most recently rendered context segment. */
 #define STATUS_BAR_MAX_BUTTONS 12
 struct statusBarButton {
 	int start_col;
@@ -425,7 +418,6 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 	return 1;
 }
 
-/* The focused terminal, when a terminal tab owns the keyboard (not the drawer). */
 static struct editorTerminalPane *statusBarFocusedTerminal(void) {
 	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return NULL;
@@ -433,9 +425,6 @@ static struct editorTerminalPane *statusBarFocusedTerminal(void) {
 	return editorTerminalPaneForPane(E.focused_leaf);
 }
 
-/* Render a colored mode badge (" TEXT ") using the theme's ANSI palette slot,
- * mirroring the editor's Vim mode badge, then restore the status style. Advances
- * *col by the padded width. `color_idx` is an EDITOR_THEME_ANSI_* index. */
 static int statusBarAppendModeBadge(struct writeBuf *wb, const char *text, int color_idx, int *col,
                                     int max_col) {
 	int width = (int)strlen(text) + 2; /* one padding space each side */
@@ -461,15 +450,6 @@ static int statusBarAppendModeBadge(struct writeBuf *wb, const char *text, int c
 	return 1;
 }
 
-/*
- * Renders the terminal action segment: a colored mode badge (green INSERT / blue
- * NORMAL for Vim, cyan TERM for CUA) then buttons. Pane navigation (Ctrl-W
- * h/j/k/l) is reserved in both modes, so the segment carries only a mode toggle
- * (Vim) and a New-terminal button; both name their keys and dispatch
- * editorActions through the shared clickable-span table, so they double as a
- * mouse escape hatch a fullscreen child cannot intercept. `col_offset` is the
- * segment's absolute start column; writes consumed cols to *col_io.
- */
 static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int *col_io,
                                           int col_offset) {
 	struct editorTerminalPane *terminal = statusBarFocusedTerminal();
@@ -480,9 +460,6 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 	int normal = is_vim && terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL;
 
 	statusBarButtonsReset(col_offset);
-	/* The mode badge sits flush at the segment's left edge (the input-system
-	 * badge is suppressed while a terminal is focused), matching the editor's
-	 * Vim badge; the badge carries its own leading padding space. */
 	int col = 0;
 
 	const char *badge = !is_vim ? "TERM" : (normal ? "NORMAL" : "INSERT");
@@ -498,7 +475,6 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 
 	const char *new_icon = E.nerd_fonts_enabled ? STATUS_TERM_ICON_NEW : NULL;
 	if (is_vim) {
-		/* The badge shows the current mode; the toggle button shows the switch. */
 		if (normal) {
 			if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Insert",
 			                           "i", EDITOR_ACTION_TERMINAL_MODE_INSERT)) {
@@ -508,14 +484,12 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 		                                  "^WN", EDITOR_ACTION_TERMINAL_MODE_NORMAL)) {
 			return 0;
 		}
-		/* Ctrl-W t opens a terminal tab; Ctrl-W is reserved in both modes. */
 		if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", "^Wt",
 		                           EDITOR_ACTION_TERMINAL_NEW_TAB)) {
 			return 0;
 		}
 	} else if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", NULL,
 	                                  EDITOR_ACTION_TERMINAL_NEW_TAB)) {
-		/* CUA has no modes; only the click-driven New-terminal button. */
 		return 0;
 	}
 	*col_io = col;
@@ -657,10 +631,7 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		right_start_col = 0;
 	}
 
-	/* The input-system badge (e.g. the Vim mode label) is normally the far-left
-	 * element of the status bar. It is suppressed while a terminal is focused: the
-	 * global editor mode is irrelevant there, and the terminal segment renders its
-	 * own per-tab mode badge instead. */
+	/* A terminal has its own per-tab mode badge. */
 	const struct editorInputSystem *active_system = editorInputSystemActive();
 	int terminal_focused = statusBarFocusedTerminal() != NULL;
 	char *input_segment = NULL;

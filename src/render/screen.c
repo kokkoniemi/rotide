@@ -1343,12 +1343,7 @@ static int screenDrawRows(struct writeBuf *wb) {
 
 	int had_terminal = editorTerminalPaneTreeHasTerminal(E.layout_root);
 	if (had_terminal) {
-		/* Frame-level backstop: reconcile every visible terminal's grid to its
-		 * current layout rect before pumping, so drawer collapse/expand/width,
-		 * tab moves, pane close, and workspace restore all deliver the correct
-		 * size to the child without each mutation remembering a resize hook.
-		 * editorTerminalPaneResize() is idempotent, so unchanged panes cost
-		 * nothing. */
+		/* Reconcile here so every layout mutation reaches the PTY before its pump. */
 		editorTerminalPaneResizeAllToLayout(E.layout_root);
 		struct editorPaneNode *prev_focus = E.focused_leaf;
 		(void)editorTerminalPanePumpAll(E.layout_root);
@@ -1704,9 +1699,6 @@ static int screenAppendFramePreamble(struct writeBuf *wb) {
 	int frame_cursor_blink = E.cursor_blink_enabled;
 	if (focused_terminal != NULL) {
 		if (focused_terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL) {
-			/* Terminal Normal mode: a steady block cursor, matching Vim, so the
-			 * mode is visible at the cursor as well as in the status badge. Keys
-			 * go to rotide, not the child. */
 			frame_cursor_style = EDITOR_CURSOR_STYLE_BLOCK;
 			frame_cursor_blink = 0;
 		} else {

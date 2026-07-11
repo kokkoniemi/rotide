@@ -258,9 +258,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
 		return 1;
 	}
-	/* Composite the whole slice from VTermScreen every frame. There is no
-	 * host-screen clean-row shortcut: the pane origin can move (drawer, tab
-	 * move, overlay) between frames, so a skipped row would leave stale cells. */
+	/* Pane origins can move between frames, so host-coordinate row reuse is unsafe. */
 	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
 		return terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
 	}

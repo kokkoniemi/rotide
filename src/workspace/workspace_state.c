@@ -822,9 +822,7 @@ static void workspaceStateHydrateTerminalsIfAny(void) {
 	/* HydratePlaceholders walks the tree for `term` placeholder leaves and is a
 	 * no-op when there are none, so no separate gate is needed. */
 	int failures = editorTerminalPaneHydratePlaceholders(E.layout_root, shell);
-	/* No explicit resize here: the frame-level backstop in screenDrawRows
-	 * reconciles every restored terminal to its layout rect before the first
-	 * pump, so a startup restore does not need its own geometry-sync call. */
+	/* The first rendered frame reconciles restored terminal geometry. */
 	if (failures > 0) {
 		editorSetStatusMsg("Failed to restore %d terminal pane(s)", failures);
 	}

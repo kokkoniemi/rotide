@@ -998,11 +998,7 @@ struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orie
 		 * pane also shows it as a preview; pinning stays per-pane. */
 		int was_preview = sibling->as.leaf.view.preview_tab_idx == tab_idx;
 		editorPaneViewClearTabs(&sibling->as.leaf.view);
-		/* A terminal tab is single-host: one editorTerminalPane cannot satisfy
-		 * two pane rects, and the frame-level resize reconcile would thrash its
-		 * grid if it appeared in both. Do not mirror it — leave the sibling
-		 * empty (active_tab_idx stays -1) for the caller to seed an editor tab,
-		 * or to adopt a widget into. The terminal stays hosted in the source. */
+		/* A terminal cannot serve two independently sized pane hosts. */
 		if (tab_idx >= 0 && editorTabKindAt(tab_idx) != EDITOR_PANE_KIND_TERMINAL) {
 			(void)editorPaneViewActivateTab(&sibling->as.leaf.view, tab_idx);
 			if (was_preview) {

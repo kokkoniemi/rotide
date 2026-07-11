@@ -372,11 +372,6 @@ static int test_editor_refresh_screen_renders_terminal_pane(void) {
 	return found ? 0 : 1;
 }
 
-/* Regression for the removed host-screen clean-row shortcut: a second frame
- * with no terminal change must still composite the whole slice from libvterm.
- * The old row_dirty path marked unchanged rows "clean" and emitted a cursor-
- * forward instead of the content, which left stale cells whenever the pane
- * origin moved. Here the content must appear in both consecutive frames. */
 static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
@@ -413,8 +408,6 @@ static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
 	int in_first = strstr(first, "rotide-stale-marker") != NULL;
 	free(first);
 
-	/* No pump / no change between frames: under the old clean-row skip the
-	 * second frame would omit the content. */
 	size_t second_len = 0;
 	char *second = refresh_screen_and_capture(&second_len);
 	ASSERT_TRUE(second != NULL);
@@ -424,13 +417,6 @@ static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
 	return (in_first && in_second) ? 0 : 1;
 }
 
-/* Frame-level backstop coverage: screenDrawRows reconciles every visible
- * terminal's grid to its current layout rect before pumping, so a geometry
- * change with NO explicit editorTerminalPaneResizeAllToLayout call still resizes
- * the child on the next rendered frame. This is the guarantee that lets the
- * interactive resize paths (drawer/split drag, pane resize) drop their explicit
- * resize calls: collapse the drawer, render, and the terminal must match the new
- * bordered leaf rect purely from the render path. */
 static int test_editor_refresh_screen_reconciles_terminal_geometry(void) {
 	E.window_rows = 24;
 	E.window_cols = 100;
@@ -439,16 +425,12 @@ static int test_editor_refresh_screen_reconciles_terminal_geometry(void) {
 	if (t == NULL) {
 		return 1;
 	}
-	/* First frame establishes the current (expanded-drawer) size via the same
-	 * backstop; capture it so we can prove the collapse actually changed things. */
 	size_t len = 0;
 	char *out = refresh_screen_and_capture(&len);
 	ASSERT_TRUE(out != NULL);
 	free(out);
 	int pre_cols = t->cols;
 
-	/* Collapse (or expand) the drawer. Nothing here calls the resize walk — only
-	 * the next frame's backstop can bring the terminal to the new geometry. */
 	(void)editorDrawerSetCollapsed(!editorDrawerIsCollapsed());
 
 	out = refresh_screen_and_capture(&len);
@@ -465,14 +447,11 @@ static int test_editor_refresh_screen_reconciles_terminal_geometry(void) {
 	int vrows = 0;
 	int vcols = 0;
 	vterm_get_size(t->vt, &vrows, &vcols);
-	/* The drawer width change must have moved the rect (otherwise the test would
-	 * pass without exercising the backstop), and the terminal must now match it. */
 	ASSERT_TRUE(rect.w != pre_cols);
 	int failed = t->cols != rect.w || t->rows != rect.h || vcols != rect.w || vrows != rect.h;
 	return failed;
 }
 
-/* True if any status-bar column maps to `action` in the most recent render. */
 static int status_bar_has_button_action(int action) {
 	for (int col = 0; col < E.window_cols; col++) {
 		int got = 0;
@@ -483,11 +462,6 @@ static int status_bar_has_button_action(int action) {
 	return 0;
 }
 
-/* The focused terminal owns the status action segment: a mode badge plus a mode
- * toggle and a New-terminal button that name their keys. Job/Insert shows INSERT
- * + "Switch Normal" (^WN); Terminal Normal shows NORMAL + "Switch Insert" (i);
- * both show "New term" (^Wt), and the columns resolve to the actions the mouse
- * layer dispatches. */
 static int test_status_bar_terminal_segment_modes(void) {
 	E.window_rows = 8;
 	E.window_cols = 100;

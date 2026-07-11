@@ -48,12 +48,7 @@ void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
-/* Exactly one of `prompt` and `literal_label` is non-NULL and selects how the
- * line is rendered with the live input `buf`. `prompt` is a printf format with one
- * `%s` for `buf` (callers pass a constant format). `literal_label` is plain text
- * rendered via a constant "%s%s" format, so callers may safely interpolate
- * untrusted data (e.g. a git remote name) into it — it is only ever a `%s`
- * argument, never a format string, so it cannot be interpreted as one. */
+/* Keep caller-provided labels out of the format-string position. */
 static char *promptRunLoop(const char *prompt, const char *literal_label, int allow_empty,
                            editorPromptCallback callback, editorPromptCompleteFn complete_fn,
                            void *complete_ctx) {
@@ -209,9 +204,6 @@ int editorPromptYesNo(const char *prompt) {
 	return promptYesNo(prompt, NULL);
 }
 
-/* Like editorPromptYesNo, but `label` is plain text rather than a printf format,
- * so untrusted data can be interpolated into it safely (no format-string risk):
- * it is passed as the literal-label argument, which only ever reaches a `%s`. */
 int editorPromptYesNoLiteral(const char *label) {
 	return promptYesNo(NULL, label);
 }

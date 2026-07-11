@@ -1059,9 +1059,7 @@ int editorTabContextMenuActivate(editorProcessMappedActionFn process_mapped_acti
 		}
 	} else if (action == EDITOR_ACTION_TERMINAL_NEW_TAB && tab_idx >= 0 &&
 	           editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx)) {
-		/* Activate the clicked tab so the new terminal lands to its right. A
-		 * click on empty strip space (tab_idx < 0) falls through and inserts
-		 * beside the pane's current active tab. */
+		/* Placement is relative to the tab that opened the menu. */
 		if (!editorTabSwitchToIndex(tab_idx)) {
 			return 0;
 		}
@@ -1962,10 +1960,7 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	                              event->kind == EDITOR_MOUSE_EVENT_LEFT_RELEASE)) {
 		return 0;
 	}
-	/* A left-press on the pane's tab strip is a tab click, not terminal input:
-	 * defer to the normal tab-strip handler so it activates the tab and moves the
-	 * primary focus out of the drawer. Otherwise the click would be swallowed here
-	 * (as a terminal selection) and focus would stay in the drawer. */
+	/* Let the tab-strip handler activate the tab and release drawer focus. */
 	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
 		struct editorPaneNode *strip_leaf = NULL;
 		int strip_col = 0;
@@ -2004,8 +1999,6 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	 * in the clipboard. */
 	if (terminal->mouse_tracking <= 0) {
 		if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
-			/* A press inside the terminal takes focus away from the drawer, even
-			 * when this leaf was already the focused one. */
 			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			if (leaf != E.focused_leaf) {
 				(void)editorLayoutSetFocusedLeaf(leaf);
@@ -2040,7 +2033,6 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 				return 0;
 		}
 	}
-	/* Click-to-focus for terminal panes (also releases drawer focus). */
 	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		if (leaf != E.focused_leaf) {

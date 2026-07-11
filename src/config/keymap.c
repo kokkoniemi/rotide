@@ -866,8 +866,6 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	                          EDITOR_ACTION_LSP_DRAWER);
 	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('b'),
 	                          EDITOR_ACTION_DAP_DRAWER);
-	/* CUA terminal escape: one chord routes the next key to rotide. In Vim the
-	 * terminal uses Ctrl-W instead (handled by the input system, not the keymap). */
 	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('a'),
 	                          EDITOR_ACTION_TERMINAL_PREFIX);
 	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('t'),

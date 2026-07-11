@@ -3138,10 +3138,7 @@ static int dispatchTryDapConsoleKey(int c) {
 	}
 }
 
-/* Dispatch one Ctrl-W window sub-key for a Vim terminal (both modes share this).
- * `Ctrl-W N` enters Normal mode, `Ctrl-W .` sends a literal Ctrl-W to the child,
- * Esc cancels, and h/j/k/l/t/etc. resolve through the live Vim window map (the
- * same map editor panes use, so `Ctrl-W t` opens a terminal tab everywhere). */
+/* Keep terminal Ctrl-W commands on the configured Vim window map. */
 static void dispatchTerminalVimCtrlW(struct editorTerminalPane *terminal, int c) {
 	if (c == '\x1b') {
 		return;
@@ -3162,9 +3159,6 @@ static void dispatchTerminalVimCtrlW(struct editorTerminalPane *terminal, int c)
 	}
 }
 
-/* Vim terminal Normal mode: rotide `<leader>` and `Ctrl-W` sequences resolve to
- * actions; i/a/I/A return to Job/Insert. Ordinary keys are inert here (they are
- * not forwarded to the child), leaving room for future scrollback motions. */
 static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, int c) {
 	if (terminal->pending_leader) {
 		terminal->pending_leader = 0;
@@ -3188,11 +3182,8 @@ static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, in
 		terminal->pending_leader = 1;
 		return;
 	}
-	/* Esc and every other key: stay in Normal, consume without forwarding. */
 }
 
-/* Vim terminal dispatch. Job/Insert forwards every key to the PTY except the one
- * reserved prefix, Ctrl-W; Normal owns leader/window commands. */
 static void dispatchTerminalVimKey(struct editorTerminalPane *terminal, int c) {
 	if (terminal->pending_ctrl_w) {
 		terminal->pending_ctrl_w = 0;
@@ -3210,14 +3201,17 @@ static void dispatchTerminalVimKey(struct editorTerminalPane *terminal, int c) {
 	(void)editorTerminalPaneSendKey(terminal, c);
 }
 
-/* CUA terminal dispatch. CUA has no modes: `terminal_prefix` escapes exactly one
- * command (routed by returning 0 so normal dispatch handles the next key); every
- * other key goes to the PTY. Returns 1 when the key was consumed by the terminal,
- * 0 when it should fall through to the CUA command dispatch. */
 static int dispatchTerminalCuaKey(struct editorTerminalPane *terminal, int c) {
 	if (E.terminal_prefix_armed) {
 		E.terminal_prefix_armed = 0;
-		return 0;
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+			int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+			(void)editorDispatchProcessMappedAction(action, &effects);
+		} else {
+			editorSetStatusMsg("Unbound terminal command");
+		}
+		return 1;
 	}
 	enum editorAction terminal_action = EDITOR_ACTION_COUNT;
 	if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
@@ -3230,7 +3224,6 @@ static int dispatchTerminalCuaKey(struct editorTerminalPane *terminal, int c) {
 	return 1;
 }
 
-/* Returns 1 when the key was handled by the terminal (caller must return). */
 static int dispatchTryTerminalPaneKey(int c) {
 	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
 	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {

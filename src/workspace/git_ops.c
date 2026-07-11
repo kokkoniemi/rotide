@@ -263,6 +263,20 @@ static int gitOpsCopyFirstRemote(const char *remotes, char *remote_out, size_t r
 	return n > 0 && n < (int)remote_size;
 }
 
+static int gitOpsCopyConfiguredRemote(const char *key, char *remote_out, size_t remote_size) {
+	size_t len = 0;
+	char *tail[] = {"config", "--get", (char *)key, NULL};
+	char *configured = gitOpsRunQueryMaxExitDup(tail, &len, 1);
+	if (configured == NULL || len == 0) {
+		free(configured);
+		return 0;
+	}
+	gitOpsTrimLine(configured, &len);
+	int n = len > 0 ? snprintf(remote_out, remote_size, "%s", configured) : 0;
+	free(configured);
+	return n > 0 && n < (int)remote_size;
+}
+
 static int gitOpsRefNameOk(const char *name) {
 	return name != NULL && name[0] != '\0' && name[0] != '-';
 }
@@ -381,22 +395,19 @@ int editorGitOpsCurrentBranchPushRemote(char *remote_out, size_t remote_size,
 	}
 	free(upstream);
 
-	char config_key[512];
-	int n = snprintf(config_key, sizeof(config_key), "branch.%s.remote", branch);
-	if (n > 0 && n < (int)sizeof(config_key)) {
-		size_t remote_len = 0;
-		char *config_tail[] = {"config", "--get", config_key, NULL};
-		char *configured = gitOpsRunQueryMaxExitDup(config_tail, &remote_len, 1);
-		if (configured != NULL && remote_len > 0) {
-			gitOpsTrimLine(configured, &remote_len);
-			if (remote_len > 0 && strcmp(configured, ".") != 0) {
-				int rn = snprintf(remote_out, remote_size, "%s", configured);
-				free(configured);
-				free(branch);
-				return rn > 0 && rn < (int)remote_size;
-			}
-		}
-		free(configured);
+	char branch_push_key[512];
+	char branch_remote_key[512];
+	int push_key_len =
+	        snprintf(branch_push_key, sizeof(branch_push_key), "branch.%s.pushRemote", branch);
+	int remote_key_len =
+	        snprintf(branch_remote_key, sizeof(branch_remote_key), "branch.%s.remote", branch);
+	if ((push_key_len > 0 && push_key_len < (int)sizeof(branch_push_key) &&
+	     gitOpsCopyConfiguredRemote(branch_push_key, remote_out, remote_size)) ||
+	    gitOpsCopyConfiguredRemote("remote.pushDefault", remote_out, remote_size) ||
+	    (remote_key_len > 0 && remote_key_len < (int)sizeof(branch_remote_key) &&
+	     gitOpsCopyConfiguredRemote(branch_remote_key, remote_out, remote_size))) {
+		free(branch);
+		return 1;
 	}
 
 	size_t remotes_len = 0;

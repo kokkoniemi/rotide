@@ -14,9 +14,7 @@ struct terminalScrollbackRow {
 	VTermScreenCell *cells;
 };
 
-/* Per-terminal input mode (Vim terminals only; CUA has no modes). In INSERT
- * (Job/Insert) every key goes to the PTY except the reserved prefix; NORMAL owns
- * rotide leader and Ctrl-W window commands. New terminals start in INSERT. */
+/* Vim terminal mode is per tab; CUA terminals ignore it. */
 enum editorTerminalInputMode {
 	EDITOR_TERMINAL_INPUT_INSERT = 0,
 	EDITOR_TERMINAL_INPUT_NORMAL,
@@ -63,9 +61,6 @@ struct editorTerminalPane {
 	VTermScreenCell *render_row_scratch;
 	int render_row_scratch_cap;
 
-	/* Vim terminal input state (see enum editorTerminalInputMode). pending_ctrl_w
-	 * and pending_leader mark an in-flight two-key sequence awaiting its sub-key;
-	 * both are cleared when the terminal tab (re)gains focus. */
 	enum editorTerminalInputMode input_mode;
 	int pending_ctrl_w;
 	int pending_leader;
@@ -151,9 +146,7 @@ struct editorPaneNode;
  * a TERMINAL tab, else NULL. */
 struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane);
 
-/* Clear any in-flight Ctrl-W/leader sub-key wait (not the mode itself). Call when
- * a terminal tab (re)gains focus so a sequence abandoned by a focus change does
- * not consume the next key. Safe on NULL. */
+/* Drop sequences abandoned across a terminal-tab focus change. */
 void editorTerminalPaneResetPendingInput(struct editorTerminalPane *terminal);
 
 /* Pump every live terminal (the TERMINAL tabs in E.tabs); returns total

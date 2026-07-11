@@ -173,10 +173,7 @@ static int terminalPaneSbClear(void *user) {
 	return 1;
 }
 
-/* The renderer composites every terminal slice from VTermScreen each frame, so
- * no damage/moverect/resize callback is needed: those existed only to drive the
- * removed per-row dirty tracking. Scrollback and term-prop callbacks remain
- * because libvterm requires them for screen/scrollback semantics. */
+/* Only libvterm state callbacks remain; rendering no longer tracks row damage. */
 static const VTermScreenCallbacks g_terminal_pane_screen_callbacks = {
         .settermprop = terminalPaneSetTermProp,
         .sb_pushline = terminalPaneSbPushline,
@@ -358,9 +355,7 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int 
 	}
 	cols = terminalPaneClampDim(cols);
 	rows = terminalPaneClampDim(rows);
-	/* Idempotent: skip the libvterm reflow and the child SIGWINCH when the grid
-	 * already matches. This lets the frame-level reconcile in screenDrawRows()
-	 * call us every frame cheaply. */
+	/* The renderer reconciles every frame, so avoid redundant reflow and SIGWINCH. */
 	if (cols == terminal->cols && rows == terminal->rows) {
 		return 1;
 	}
@@ -837,10 +832,7 @@ void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return;
 	}
-	/* Consume the exact leaf rectangles the renderer draws into rather than
-	 * re-deriving split math here, so the libvterm grid and the painted slice
-	 * cannot drift. editorTerminalPaneResize() is idempotent, so this is a cheap
-	 * no-op for every terminal whose rect is unchanged. */
+	/* Share renderer rectangles so PTY and painted geometry cannot drift. */
 	struct editorLeafLayout layout = {0};
 	if (!editorLayoutComputeBorderedInto(root, viewport, ROTIDE_PANE_BORDER_SIZE, &layout)) {
 		return;
@@ -849,8 +841,6 @@ void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
 		struct editorTerminalPane *tab_term =
 		        editorTerminalPaneForPane(layout.rects[i].node);
 		struct editorRect rect = layout.rects[i].rect;
-		/* The active TERMINAL tab sizes to the full content rect; its tab strip
-		 * lives in the border row above. */
 		if (tab_term != NULL && rect.w > 0 && rect.h > 0) {
 			(void)editorTerminalPaneResize(tab_term, rect.w, rect.h);
 		}

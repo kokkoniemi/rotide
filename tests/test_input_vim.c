@@ -1259,10 +1259,6 @@ static int test_input_vim_ctrl_w_h_prefers_left_editor_neighbor_over_drawer(void
 	return 0;
 }
 
-/* Regression: from the drawer, Ctrl-W l must return focus to the editor area.
- * With stacked panes (upper editor + lower terminal) there is no pane to the
- * right of the focused leaf, so editorLayoutFocusDirection fails and previously
- * left focus stuck in the drawer. */
 static int test_input_vim_ctrl_w_l_returns_to_editor_from_drawer(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
@@ -1270,7 +1266,6 @@ static int test_input_vim_ctrl_w_l_returns_to_editor_from_drawer(void) {
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 
-	/* Two stacked panes via Ctrl-W s (horizontal split). */
 	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
 	(void)vim_test_key('s');
 	ASSERT_TRUE(E.layout_root->is_split &&
@@ -1278,13 +1273,11 @@ static int test_input_vim_ctrl_w_l_returns_to_editor_from_drawer(void) {
 	struct editorPaneNode *upper = editorPaneNodeFirstLeaf(E.layout_root);
 	ASSERT_TRUE(upper != NULL);
 
-	/* Focus the upper pane, then Ctrl-W h drops focus into the visible drawer. */
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(upper));
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	(void)vim_test_ctrl_w_h();
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
-	/* Ctrl-W l re-enters the editor area at the pane we came from. */
 	(void)vim_test_ctrl_w_key('l');
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_TRUE(E.focused_leaf == upper);

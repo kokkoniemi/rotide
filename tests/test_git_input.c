@@ -394,19 +394,11 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	return 0;
 }
 
-/* End-to-end coverage that the real Push flow handles an adversarial remote name.
- * With no upstream, Push resolves the sole remote and prompts to create it; that
- * prompt now goes through editorPromptYesNoLiteral, so a remote name containing
- * printf conversion specifiers is safe (the format-string behavior itself is
- * pinned deterministically by test_editor_prompt_yes_no_literal_does_not_format_label
- * in the input-selection suite). Here we just confirm the flow cancels cleanly. */
 static int test_git_input_push_prompt_handles_adversarial_remote_name(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
 	ASSERT_TRUE(git_input_setup("vim", &repo));
 
-	/* The remote name carries format specifiers; it is passed as a shell command
-	 * argument, never spliced into a format string. */
 	const char *evil_remote = "ori%sgin%d";
 	ASSERT_TRUE(git_input_run_cmd("git -C '%s' remote add '%s' '%s-bare'", repo, evil_remote,
 	                              repo));
@@ -414,8 +406,6 @@ static int test_git_input_push_prompt_handles_adversarial_remote_name(void) {
 
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_action_row("Push"));
-	/* Enter activates Push -> the crafted remote name is rendered in the prompt;
-	 * answer "no" so nothing is actually pushed to the bogus remote. */
 	ASSERT_TRUE(editor_process_keypress_with_input("\rn\r", 3) == 0);
 
 	ASSERT_TRUE(!editorTaskIsRunning());

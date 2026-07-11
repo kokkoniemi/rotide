@@ -212,13 +212,7 @@ static int test_editor_prompt_ignores_resize_events(void) {
 	return 0;
 }
 
-/* Regression for CodeQL "uncontrolled format string": editorPromptYesNoLiteral
- * treats its label as data, not a printf format, so a caller may safely embed
- * attacker-influenced text (e.g. a git remote name). The label carries conversion
- * specifiers; a correct literal render reproduces them verbatim in the status bar.
- * If the label were used as a format (the bug), the specifiers would consume/format
- * phantom arguments and the literal text would not appear. Captured stdout holds
- * the rendered prompt because the loop redraws before reading each key. */
+/* Conversion specifiers in an untrusted label must remain literal. */
 static int test_editor_prompt_yes_no_literal_does_not_format_label(void) {
 	const char label[] = "Create remote branch on ori%sgin-%d? [y/N] ";
 	const char input[] = "y\r";
@@ -237,7 +231,6 @@ static int test_editor_prompt_yes_no_literal_does_not_format_label(void) {
 	ASSERT_TRUE(stdout_bytes != NULL);
 
 	ASSERT_TRUE(accepted == 1);
-	/* The specifiers survive verbatim: the label was rendered, not formatted. */
 	ASSERT_TRUE(strstr(stdout_bytes, "ori%sgin-%d?") != NULL);
 	free(stdout_bytes);
 	return 0;
