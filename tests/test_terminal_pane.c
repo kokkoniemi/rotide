@@ -391,6 +391,48 @@ static int test_terminal_pane_mouse_tracking_enabled_via_decset(void) {
 	return sent != 1 || sent_off != 0;
 }
 
+/* Regression: with focus in the drawer, a left-click on a terminal pane's tab
+ * strip must move focus to that terminal. Previously the terminal mouse handler
+ * swallowed the tab-strip click as terminal input and left primary focus in the
+ * drawer, so the user had to click a non-terminal tab first. */
+static int test_terminal_pane_click_tab_from_drawer_focuses_terminal(void) {
+	if (E.layout_root == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	/* Upper editor pane + lower terminal pane. */
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_HORIZONTAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	if (!editorLayoutEditorViewport(&viewport) ||
+	    !editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                  terminal_leaf, &rect)) {
+		return 1;
+	}
+
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	/* SGR left-press on the terminal's tab strip: the strip sits one row above the
+	 * content rect (0-based rect.y - 1, i.e. 1-based rect.y) at the pane's left. */
+	char click[32];
+	int n = snprintf(click, sizeof(click), "\x1b[<0;%d;%dM", rect.x + 1, rect.y);
+	if (n <= 0 || n >= (int)sizeof(click)) {
+		return 1;
+	}
+	(void)editor_process_keypress_with_input_silent(click, (size_t)n);
+
+	return E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT || E.focused_leaf != terminal_leaf;
+}
+
 static int test_terminal_pane_cursor_props_follow_decset_sequences(void) {
 	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 40, 8);
 	if (t == NULL) {
@@ -1249,6 +1291,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_mouse_tracking_disabled_by_default},
         {"terminal_pane_mouse_tracking_enabled_via_decset",
          test_terminal_pane_mouse_tracking_enabled_via_decset},
+        {"terminal_pane_click_tab_from_drawer_focuses_terminal",
+         test_terminal_pane_click_tab_from_drawer_focuses_terminal},
         {"terminal_pane_cursor_props_follow_decset_sequences",
          test_terminal_pane_cursor_props_follow_decset_sequences},
         {"terminal_pane_write_forwards_to_child", test_terminal_pane_write_forwards_to_child},

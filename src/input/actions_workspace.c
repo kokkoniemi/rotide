@@ -951,6 +951,24 @@ static void actionsWorkspaceSplit(enum editorSplitOrientation orientation) {
 
 static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {
 	editorHistoryBreakGroup();
+	/* The drawer sits to the left of all editor panes, so a rightward window move
+	 * from the drawer re-enters the editor area. editorLayoutFocusDirection only
+	 * navigates between panes and never clears drawer focus, so handle this here.
+	 * Return to the already-focused leaf (the pane the user left); when that is
+	 * ambiguous it stays deterministic — the topmost/leftmost pane wins via the
+	 * existing focused_leaf. */
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER && dir == EDITOR_FOCUS_RIGHT) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		struct editorPaneNode *target = E.focused_leaf;
+		if (target == NULL || target->is_split) {
+			target = editorPaneNodeFirstLeaf(E.layout_root);
+		}
+		if (target != NULL) {
+			(void)editorLayoutSetFocusedLeaf(target);
+		}
+		editorPaneAnnounceFocus();
+		return;
+	}
 	if (editorLayoutFocusDirection(dir)) {
 		editorPaneAnnounceFocus();
 		return;

@@ -365,6 +365,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 	struct editorPaneView *view = &leaf->as.leaf.view;
 	int tab_idx = editorTabOverflowHitTestColumnForPane(view, tab_col, tab_cols);
 	if (tab_idx >= 0) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
 		mouseArmTabDrag(leaf, tab_idx, event);
@@ -379,6 +380,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 		int is_double_click =
 		        E.tab_last_click_idx == tab_idx && E.tab_last_click_ms > 0 && now_ms > 0 &&
 		        now_ms - E.tab_last_click_ms <= MOUSE_DOUBLE_CLICK_THRESHOLD_MS;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
 		mouseArmTabDrag(leaf, tab_idx, event);
@@ -1960,6 +1962,18 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	                              event->kind == EDITOR_MOUSE_EVENT_LEFT_RELEASE)) {
 		return 0;
 	}
+	/* A left-press on the pane's tab strip is a tab click, not terminal input:
+	 * defer to the normal tab-strip handler so it activates the tab and moves the
+	 * primary focus out of the drawer. Otherwise the click would be swallowed here
+	 * (as a terminal selection) and focus would stay in the drawer. */
+	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
+		struct editorPaneNode *strip_leaf = NULL;
+		int strip_col = 0;
+		int strip_cols = 0;
+		if (mouseResolvePaneTabStripCell(event, &strip_leaf, &strip_col, &strip_cols)) {
+			return 0;
+		}
+	}
 	struct editorRect viewport;
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return 0;
@@ -1989,9 +2003,14 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	 * ours: wheel scrolls scrollback, left-drag selects, release+copy lands
 	 * in the clipboard. */
 	if (terminal->mouse_tracking <= 0) {
-		if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
-			(void)editorLayoutSetFocusedLeaf(leaf);
-			editorPaneAnnounceFocus();
+		if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
+			/* A press inside the terminal takes focus away from the drawer, even
+			 * when this leaf was already the focused one. */
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+			if (leaf != E.focused_leaf) {
+				(void)editorLayoutSetFocusedLeaf(leaf);
+				editorPaneAnnounceFocus();
+			}
 		}
 		int log_row = row - terminal->scroll_offset;
 		switch (event->kind) {
@@ -2021,10 +2040,13 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 				return 0;
 		}
 	}
-	/* Click-to-focus for terminal panes. */
-	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
-		(void)editorLayoutSetFocusedLeaf(leaf);
-		editorPaneAnnounceFocus();
+	/* Click-to-focus for terminal panes (also releases drawer focus). */
+	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		if (leaf != E.focused_leaf) {
+			(void)editorLayoutSetFocusedLeaf(leaf);
+			editorPaneAnnounceFocus();
+		}
 	}
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
