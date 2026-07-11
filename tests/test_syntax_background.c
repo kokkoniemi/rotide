@@ -246,6 +246,82 @@ static int test_editor_syntax_background_unsupported_file_stays_plain(void) {
 	return 0;
 }
 
+/* Builds a valid C source buffer of at least min_bytes, one declaration per
+ * line, so tests can exercise the large-file highlighting path. */
+static char *build_large_c_source(size_t min_bytes, size_t *len_out) {
+	size_t cap = min_bytes + 64;
+	char *buf = malloc(cap);
+	if (buf == NULL) {
+		return NULL;
+	}
+	size_t len = 0;
+	unsigned long i = 0;
+	while (len < min_bytes) {
+		int n = snprintf(buf + len, cap - len, "int variable_%08lu = %lu;\n", i, i);
+		if (n <= 0 || (size_t)n >= cap - len) {
+			break;
+		}
+		len += (size_t)n;
+		i++;
+	}
+	buf[len] = '\0';
+	if (len_out != NULL) {
+		*len_out = len;
+	}
+	return buf;
+}
+
+static int test_editor_syntax_background_highlights_large_file(void) {
+	/* > 512 KiB so the interactive parse path would abort without producing a
+	 * tree (the unbounded retry is gated to <= 512 KiB). */
+	size_t source_len = 0;
+	char *source = build_large_c_source((size_t)700 * 1024, &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len > (size_t)512 * 1024);
+
+	char path[] = "/tmp/rotide-test-syntax-large-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(write_all(fd, source, source_len) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+	free(source);
+
+	/* Force the interactive parse deadline to effectively zero. The background
+	 * worker must ignore it and parse to completion, so highlighting still
+	 * activates. A generous query budget keeps capture collection complete. */
+	editorSyntaxTestSetBudgetOverrides(1, 8192, 1000000000ULL, 1ULL);
+	editorSyntaxBackgroundSetEnabledForTests(1);
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.rowoff = 0;
+	E.coloff = 0;
+
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	ASSERT_TRUE(editorSyntaxBackgroundFlushForTests());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
+
+	struct editorRowSyntaxSpan spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int span_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans, (int)(sizeof(spans) / sizeof(spans[0])),
+	                                       &span_count));
+	ASSERT_TRUE(span_count > 0);
+
+	editorSyntaxBackgroundSetEnabledForTests(0);
+	editorSyntaxTestResetBudgetOverrides();
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_length_fits_highlight_ceiling(void) {
+	ASSERT_TRUE(editorSyntaxLengthFitsHighlight(0));
+	ASSERT_TRUE(editorSyntaxLengthFitsHighlight(ROTIDE_SYNTAX_MAX_HIGHLIGHT_BYTES));
+	ASSERT_TRUE(!editorSyntaxLengthFitsHighlight(ROTIDE_SYNTAX_MAX_HIGHLIGHT_BYTES + 1));
+	return 0;
+}
+
 const struct editorTestCase g_syntax_background_tests[] = {
         {"editor_syntax_visible_cache_recomputes_only_changed_rows",
          test_editor_syntax_visible_cache_recomputes_only_changed_rows},
@@ -263,6 +339,10 @@ const struct editorTestCase g_syntax_background_tests[] = {
          test_editor_syntax_background_drops_stale_parse_results},
         {"editor_syntax_background_unsupported_file_stays_plain",
          test_editor_syntax_background_unsupported_file_stays_plain},
+        {"editor_syntax_background_highlights_large_file",
+         test_editor_syntax_background_highlights_large_file},
+        {"editor_syntax_length_fits_highlight_ceiling",
+         test_editor_syntax_length_fits_highlight_ceiling},
 };
 
 const int g_syntax_background_test_count =

@@ -216,6 +216,11 @@ int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 	TSTree *old_tree = incremental ? parsed->tree : NULL;
 	struct editorSyntaxBudgetConfig budget = editorSyntaxBudgetConfigForMode(
 	        state != NULL ? state->perf_mode : EDITOR_SYNTAX_PERF_NORMAL);
+	if (state != NULL && state->background_parse) {
+		/* Off the UI thread: parse to completion instead of aborting at the
+		 * interactive deadline, so large files still get a full syntax tree. */
+		budget.parse_budget_ns = 0;
+	}
 	TSInput input = {.payload = (void *)source,
 	                 .read = editorSyntaxSourceRead,
 	                 .encoding = TSInputEncodingUTF8,
@@ -293,6 +298,7 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	state->host_locals_valid = 0;
 	state->perf_disable_predicates = 0;
 	state->perf_disable_injections = 0;
+	state->background_parse = 0;
 	state->perf_mode = EDITOR_SYNTAX_PERF_NORMAL;
 	state->last_changed_ranges = NULL;
 	state->last_changed_range_count = 0;
@@ -350,6 +356,13 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	state->scratch_secondary_cap = 0;
 	state->source_len = 0;
 	free(state);
+}
+
+void editorSyntaxStateSetBackgroundParse(struct editorSyntaxState *state, int enabled) {
+	if (state == NULL) {
+		return;
+	}
+	state->background_parse = enabled ? 1 : 0;
 }
 
 int editorSyntaxStateParseFull(struct editorSyntaxState *state,

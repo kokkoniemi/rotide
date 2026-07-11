@@ -286,6 +286,11 @@ int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count) {
 		return 1;
 	}
 
+	/* Reject before duplicating input that cannot be highlighted. */
+	if (!editorSyntaxLengthFitsHighlight(editorDocumentLength(E.document))) {
+		return 1;
+	}
+
 	size_t text_len = 0;
 	char *text = editorDupActiveTextSource(&text_len);
 	if (text == NULL) {

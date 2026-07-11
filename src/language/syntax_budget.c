@@ -135,7 +135,7 @@ int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, s
 		return 0;
 	}
 	editorSyntaxStateApplyPerformanceMode(state, source_len);
-	return editorSyntaxLengthFitsTreeSitter(source_len);
+	return editorSyntaxLengthFitsHighlight(source_len);
 }
 
 enum editorSyntaxPerformanceMode

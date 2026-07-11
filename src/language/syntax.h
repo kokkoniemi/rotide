@@ -6,6 +6,12 @@
 
 #define ROTIDE_MAX_SYNTAX_SPANS_PER_ROW 256
 
+/* Upper bound on buffer size we attempt to highlight. Tree-sitter can parse far
+ * larger inputs, but the parse runs to completion on the background worker and
+ * holds a full syntax tree in memory, so we cap it to keep worst-case latency
+ * and memory bounded. Files above this stay plain. */
+#define ROTIDE_SYNTAX_MAX_HIGHLIGHT_BYTES ((size_t)(16 * 1024 * 1024))
+
 enum editorSyntaxLanguage {
 	EDITOR_SYNTAX_NONE = 0,
 	EDITOR_SYNTAX_C,
@@ -177,6 +183,10 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
                                        const struct editorSyntaxEdit *edit,
                                        const struct editorTextSource *source);
 int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, size_t source_len);
+int editorSyntaxLengthFitsHighlight(size_t len);
+/* When enabled, the state's full parse ignores the interactive parse-time
+ * budget and runs to completion. Set on states parsed off the UI thread. */
+void editorSyntaxStateSetBackgroundParse(struct editorSyntaxState *state, int enabled);
 enum editorSyntaxPerformanceMode
 editorSyntaxStatePerformanceMode(const struct editorSyntaxState *state);
 size_t editorSyntaxStateSourceLength(const struct editorSyntaxState *state);
