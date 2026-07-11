@@ -90,6 +90,10 @@ The `:` prompt accepts these Vim-style aliases:
 - `:vterm`: open a terminal in a vertical split
 - `:git`: open the Git drawer; `:git branches` / `log` / `stash` / `commit` /
   `amend` / `push` / `pull` / `fetch` run the matching Git view or action
+- `:lsp`: open the LSP Problems/Symbols drawer; `:lsp install-server <name>`
+  installs a language server (`gopls`, `clangd`, `texlab`,
+  `typescript-language-server`, `vscode-langservers-extracted`), and
+  `:lsp install-server` with no name targets the current buffer's language
 
 Press Tab in the `:` prompt to complete and cycle command names. File-path
 arguments are not completed yet. `:q` keeps RotIDE's quit-app behavior.

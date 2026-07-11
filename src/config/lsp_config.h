@@ -18,6 +18,7 @@ struct editorLspConfig {
 	int json_enabled;
 	int javascript_enabled;
 	int eslint_enabled;
+	int texlab_enabled;
 	char gopls_command[PATH_MAX];
 	char gopls_install_command[PATH_MAX];
 	char clangd_command[PATH_MAX];
@@ -27,6 +28,8 @@ struct editorLspConfig {
 	char javascript_command[PATH_MAX];
 	char javascript_install_command[PATH_MAX];
 	char eslint_command[PATH_MAX];
+	char texlab_command[PATH_MAX];
+	char texlab_install_command[PATH_MAX];
 	char vscode_langservers_install_command[PATH_MAX];
 	int autocomplete_enabled;
 	int autocomplete_max_items;

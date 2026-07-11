@@ -28,6 +28,9 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", config.eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 	              config.vscode_langservers_install_command);
+	ASSERT_EQ_INT(1, config.texlab_enabled);
+	ASSERT_EQ_STR("~/.local/bin/texlab", config.texlab_command);
+	ASSERT_EQ_STR("", config.texlab_install_command);
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -54,6 +57,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	                     "javascript_command = \"javascript-global --stdio\"\n"
 	                     "javascript_install_command = \"javascript-global-install\"\n"
 	                     "eslint_command = \"eslint-global --stdio\"\n"
+	                     "texlab_command = \"texlab-global\"\n"
+	                     "texlab_install_command = \"texlab-global-install\"\n"
 	                     "gopls_install_command = \"global-install\"\n"
 	                     "vscode_langservers_install_command = \"global-vscode-install\"\n"));
 	ASSERT_TRUE(write_text_file(
@@ -73,6 +78,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	                      "javascript_command = \"javascript-project --stdio\"\n"
 	                      "javascript_install_command = \"javascript-project-install\"\n"
 	                      "eslint_command = \"eslint-project --stdio\"\n"
+	                      "texlab_command = \"texlab-project\"\n"
+	                      "texlab_install_command = \"texlab-project-install\"\n"
 	                      "gopls_install_command = \"project-install\"\n"
 	                      "vscode_langservers_install_command = \"project-vscode-install\"\n"));
 
@@ -96,6 +103,9 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_STR("javascript-global-install", config.javascript_install_command);
 	ASSERT_EQ_STR("eslint-project --stdio", config.eslint_command);
 	ASSERT_EQ_STR("global-vscode-install", config.vscode_langservers_install_command);
+	ASSERT_EQ_STR("texlab-project", config.texlab_command);
+	/* Install command is global-only: the project value must not override it. */
+	ASSERT_EQ_STR("texlab-global-install", config.texlab_install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -446,6 +456,58 @@ test_editor_lsp_parse_document_symbols_uses_top_level_name_when_children_appear_
 	return 0;
 }
 
+static int test_editor_lsp_texlab_file_mapping(void) {
+	ASSERT_EQ_INT(EDITOR_LSP_SERVER_TEXLAB,
+	              editorLspServerKindForFile("paper.tex", EDITOR_SYNTAX_LATEX));
+	ASSERT_EQ_STR("texlab", editorLspServerNameForFile("paper.tex", EDITOR_SYNTAX_LATEX));
+	ASSERT_EQ_STR("latex", editorLspLanguageIdForFile("paper.tex", EDITOR_SYNTAX_LATEX));
+	ASSERT_EQ_INT(1, editorLspFileSupportsDefinition("paper.tex", EDITOR_SYNTAX_LATEX));
+
+	ASSERT_EQ_INT(EDITOR_LSP_SERVER_TEXLAB,
+	              editorLspServerKindForFile("refs.bib", EDITOR_SYNTAX_BIBTEX));
+	ASSERT_EQ_STR("texlab", editorLspServerNameForFile("refs.bib", EDITOR_SYNTAX_BIBTEX));
+	ASSERT_EQ_STR("bibtex", editorLspLanguageIdForFile("refs.bib", EDITOR_SYNTAX_BIBTEX));
+	return 0;
+}
+
+static int test_editor_lsp_texlab_prebuilt_asset_mapping(void) {
+	ASSERT_EQ_STR("texlab-x86_64-linux.tar.gz",
+	              editorLanguageTexlabAssetFor("Linux", "x86_64", 0));
+	ASSERT_EQ_STR("texlab-x86_64-alpine.tar.gz",
+	              editorLanguageTexlabAssetFor("Linux", "x86_64", 1));
+	ASSERT_EQ_STR("texlab-aarch64-linux.tar.gz",
+	              editorLanguageTexlabAssetFor("Linux", "aarch64", 0));
+	ASSERT_EQ_STR("texlab-armv7hf-linux.tar.gz",
+	              editorLanguageTexlabAssetFor("Linux", "armv7l", 0));
+	ASSERT_EQ_STR("texlab-x86_64-macos.tar.gz",
+	              editorLanguageTexlabAssetFor("Darwin", "x86_64", 0));
+	ASSERT_EQ_STR("texlab-aarch64-macos.tar.gz",
+	              editorLanguageTexlabAssetFor("Darwin", "arm64", 0));
+	ASSERT_TRUE(editorLanguageTexlabAssetFor("SunOS", "sparc", 0) == NULL);
+	ASSERT_TRUE(editorLanguageTexlabAssetFor("Linux", "riscv64", 0) == NULL);
+	ASSERT_TRUE(editorLanguageTexlabAssetFor(NULL, "x86_64", 0) == NULL);
+	return 0;
+}
+
+static int test_editor_language_server_name_is_installable(void) {
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("gopls"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("clangd"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("texlab"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("typescript-language-server"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("javascript"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("vscode-langservers-extracted"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("html"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("css"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("json"));
+	ASSERT_EQ_INT(1, editorLanguageServerNameIsInstallable("eslint"));
+	/* "LSP" is the fallback name for a buffer with no language server. */
+	ASSERT_EQ_INT(0, editorLanguageServerNameIsInstallable("LSP"));
+	ASSERT_EQ_INT(0, editorLanguageServerNameIsInstallable("nonsense"));
+	ASSERT_EQ_INT(0, editorLanguageServerNameIsInstallable(""));
+	ASSERT_EQ_INT(0, editorLanguageServerNameIsInstallable(NULL));
+	return 0;
+}
+
 const struct editorTestCase g_lsp_protocol_tests[] = {
         {"editor_lsp_config_defaults_and_precedence",
          test_editor_lsp_config_defaults_and_precedence},
@@ -479,13 +541,20 @@ const struct editorTestCase g_lsp_protocol_tests[] = {
          test_editor_lsp_parse_document_symbols_flattens_children},
         {"editor_lsp_parse_document_symbols_uses_top_level_name_when_children_appear_first",
          test_editor_lsp_parse_document_symbols_uses_top_level_name_when_children_appear_first},
+        {"editor_lsp_texlab_file_mapping", test_editor_lsp_texlab_file_mapping},
+        {"editor_lsp_texlab_prebuilt_asset_mapping", test_editor_lsp_texlab_prebuilt_asset_mapping},
+        {"editor_language_server_name_is_installable",
+         test_editor_language_server_name_is_installable},
 };
 
 const int g_lsp_protocol_test_count =
         (int)(sizeof(g_lsp_protocol_tests) / sizeof(g_lsp_protocol_tests[0]));
 #include "config/lsp_config.h"
+#include "input/actions_language.h"
 #include "language/lsp.h"
 #include "language/lsp_responses.h"
+#include "language/lsp_transport.h"
+#include "language/syntax.h"
 
 #include <limits.h>
 #include <stddef.h>

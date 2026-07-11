@@ -12,14 +12,18 @@
 #include "text/document.h"
 #include "workspace/task.h"
 
+#include <stdio.h>
 #include <string.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 
 enum actionsLanguageGoToDefinitionInstallFamily {
 	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE = 0,
 	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS,
 	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD,
 	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT,
-	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS,
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_TEXLAB
 };
 
 int editorLanguageGoToSupported(enum editorSyntaxLanguage language) {
@@ -79,6 +83,9 @@ actionsLanguageGoToInstallFamilyForLanguage(void) {
 	if (server_name != NULL && strcmp(server_name, "typescript-language-server") == 0) {
 		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT;
 	}
+	if (server_name != NULL && strcmp(server_name, "texlab") == 0) {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_TEXLAB;
+	}
 	if (editorLspUsesSharedVscodeInstallPrompt(E.filename, E.syntax_language)) {
 		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
 	}
@@ -115,72 +122,259 @@ void editorLanguagePromptInstallSharedVscodeServers(void) {
 	}
 }
 
-void editorLanguageMaybePromptInstallServer(void) {
-	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-		return;
+const char *editorLanguageTexlabAssetFor(const char *sysname, const char *machine, int is_musl) {
+	if (sysname == NULL || machine == NULL) {
+		return NULL;
 	}
-	switch (actionsLanguageGoToInstallFamilyForLanguage()) {
-		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS:
-			if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
-				editorSetStatusMsg("gopls not installed");
-				return;
-			}
-			if (!editorTaskStart("Task: Install gopls",
-			                     E.lsp_config.gopls_install_command,
-			                     "gopls installed. Retry Ctrl-O",
-			                     "gopls install failed; see task log")) {
-				if (E.statusmsg[0] == '\0') {
-					editorSetStatusMsg("Unable to start gopls install");
-				}
-			}
-			return;
-		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD: {
-			static const char message[] =
-			        "clangd was not found on PATH.\n"
-			        "\n"
-			        "Install instructions:\n"
-			        "https://clangd.llvm.org/installation\n"
-			        "\n"
-			        "clangd usually needs a compile_commands.json compilation database "
-			        "for C/C++ projects.\n"
-			        "\n"
-			        "Create compile_commands.json with CMake:\n"
-			        "- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
-			        "- use build/compile_commands.json, or copy/symlink it into the "
-			        "project root\n"
-			        "\n"
-			        "Create compile_commands.json with Bear:\n"
-			        "- bear -- make\n"
-			        "- or bear -- <your normal build command>\n"
-			        "- this is often a good fit for pure C projects that already build "
-			        "without CMake\n"
-			        "\n"
-			        "After installing clangd and setting up compile_commands.json:\n"
-			        "- retry Ctrl-O or Ctrl + left click\n"
-			        "- set [lsp].clangd_command in .rotide.toml if clangd is installed "
-			        "in a custom location\n";
-			if (!editorPromptYesNo(
-			            "clangd not found. Show install instructions? [y/N] %s")) {
-				editorSetStatusMsg("clangd not installed");
-				return;
-			}
-			if (!editorTaskShowMessage("Task: Install clangd", message,
-			                           "clangd not installed; see task log")) {
-				if (E.statusmsg[0] == '\0') {
-					editorSetStatusMsg("clangd not installed");
-				}
-			}
+	if (strcmp(sysname, "Linux") == 0) {
+		if (strcmp(machine, "x86_64") == 0) {
+			return is_musl ? "texlab-x86_64-alpine.tar.gz"
+			               : "texlab-x86_64-linux.tar.gz";
+		}
+		if (strcmp(machine, "aarch64") == 0 || strcmp(machine, "arm64") == 0) {
+			return "texlab-aarch64-linux.tar.gz";
+		}
+		if (strcmp(machine, "armv7l") == 0 || strcmp(machine, "armv7hf") == 0) {
+			return "texlab-armv7hf-linux.tar.gz";
+		}
+		return NULL;
+	}
+	if (strcmp(sysname, "Darwin") == 0) {
+		if (strcmp(machine, "x86_64") == 0) {
+			return "texlab-x86_64-macos.tar.gz";
+		}
+		if (strcmp(machine, "arm64") == 0 || strcmp(machine, "aarch64") == 0) {
+			return "texlab-aarch64-macos.tar.gz";
+		}
+		return NULL;
+	}
+	return NULL;
+}
+
+/* Resolve the prebuilt texlab asset for the live host, or NULL if none. */
+static const char *actionsLanguageTexlabPrebuiltAsset(void) {
+	struct utsname info;
+	if (uname(&info) != 0) {
+		return NULL;
+	}
+	int is_musl = access("/etc/alpine-release", F_OK) == 0;
+	return editorLanguageTexlabAssetFor(info.sysname, info.machine, is_musl);
+}
+
+/*
+ * Build the hardened download+extract command for a matched asset. The asset
+ * name comes from our own fixed table (no user input), and we still guard
+ * against truncation. TLS-only, fail-on-error curl; no checksum verification
+ * (texlab publishes none) — see PLAN.md "Download integrity".
+ */
+static int actionsLanguageBuildTexlabInstallCommand(const char *asset, char *out, size_t out_size) {
+	if (asset == NULL || out == NULL || out_size == 0) {
+		return 0;
+	}
+	int written = snprintf(out, out_size,
+	                       "mkdir -p ~/.local/bin && curl --proto '=https' --tlsv1.2 -fSL "
+	                       "https://github.com/latex-lsp/texlab/releases/latest/download/%s "
+	                       "| tar -xzf - -C ~/.local/bin texlab",
+	                       asset);
+	return written > 0 && (size_t)written < out_size;
+}
+
+static void actionsLanguagePromptInstallTexlabServer(void) {
+	/* Explicit override wins: run it verbatim, like gopls. */
+	if (E.lsp_config.texlab_install_command[0] != '\0') {
+		if (!editorPromptYesNo("texlab not found. Install now? [y/N] %s")) {
+			editorSetStatusMsg("texlab not installed");
 			return;
 		}
+		if (!editorTaskStart("Task: Install texlab", E.lsp_config.texlab_install_command,
+		                     "texlab installed. Retry Ctrl-O",
+		                     "texlab install failed; see task log")) {
+			if (E.statusmsg[0] == '\0') {
+				editorSetStatusMsg("Unable to start texlab install");
+			}
+		}
+		return;
+	}
+
+	const char *asset = actionsLanguageTexlabPrebuiltAsset();
+	if (asset != NULL) {
+		char command[512];
+		if (!actionsLanguageBuildTexlabInstallCommand(asset, command, sizeof(command))) {
+			editorSetStatusMsg("Unable to build texlab install command");
+			return;
+		}
+		if (!editorPromptYesNo(
+		            "texlab not found. Download prebuilt binary now? [y/N] %s")) {
+			editorSetStatusMsg("texlab not installed");
+			return;
+		}
+		if (!editorTaskStart("Task: Install texlab", command,
+		                     "texlab installed. Retry Ctrl-O",
+		                     "texlab install failed; see task log")) {
+			if (E.statusmsg[0] == '\0') {
+				editorSetStatusMsg("Unable to start texlab install");
+			}
+		}
+		return;
+	}
+
+	/* No prebuilt binary for this platform: show a self-serve guide. */
+	static const char message[] =
+	        "texlab was not found on PATH.\n"
+	        "\n"
+	        "No prebuilt binary is available for this platform, so please install "
+	        "texlab manually.\n"
+	        "\n"
+	        "Project page:\n"
+	        "https://github.com/latex-lsp/texlab\n"
+	        "\n"
+	        "Prebuilt binaries and release notes:\n"
+	        "https://github.com/latex-lsp/texlab/releases\n"
+	        "\n"
+	        "Distro packages (see Repology):\n"
+	        "https://repology.org/project/texlab/versions\n"
+	        "\n"
+	        "After installing texlab:\n"
+	        "- retry Ctrl-O or Ctrl + left click\n"
+	        "- set [lsp].texlab_command in .rotide.toml if texlab is installed in a "
+	        "custom location\n";
+	if (!editorPromptYesNo("texlab not found. Show install instructions? [y/N] %s")) {
+		editorSetStatusMsg("texlab not installed");
+		return;
+	}
+	if (!editorTaskShowMessage("Task: Install texlab", message,
+	                           "texlab not installed; see task log")) {
+		if (E.statusmsg[0] == '\0') {
+			editorSetStatusMsg("texlab not installed");
+		}
+	}
+}
+
+static void actionsLanguagePromptInstallGoplsServer(void) {
+	if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
+		editorSetStatusMsg("gopls not installed");
+		return;
+	}
+	if (!editorTaskStart("Task: Install gopls", E.lsp_config.gopls_install_command,
+	                     "gopls installed. Retry Ctrl-O",
+	                     "gopls install failed; see task log")) {
+		if (E.statusmsg[0] == '\0') {
+			editorSetStatusMsg("Unable to start gopls install");
+		}
+	}
+}
+
+static void actionsLanguagePromptInstallClangdServer(void) {
+	static const char message[] =
+	        "clangd was not found on PATH.\n"
+	        "\n"
+	        "Install instructions:\n"
+	        "https://clangd.llvm.org/installation\n"
+	        "\n"
+	        "clangd usually needs a compile_commands.json compilation database "
+	        "for C/C++ projects.\n"
+	        "\n"
+	        "Create compile_commands.json with CMake:\n"
+	        "- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
+	        "- use build/compile_commands.json, or copy/symlink it into the "
+	        "project root\n"
+	        "\n"
+	        "Create compile_commands.json with Bear:\n"
+	        "- bear -- make\n"
+	        "- or bear -- <your normal build command>\n"
+	        "- this is often a good fit for pure C projects that already build "
+	        "without CMake\n"
+	        "\n"
+	        "After installing clangd and setting up compile_commands.json:\n"
+	        "- retry Ctrl-O or Ctrl + left click\n"
+	        "- set [lsp].clangd_command in .rotide.toml if clangd is installed "
+	        "in a custom location\n";
+	if (!editorPromptYesNo("clangd not found. Show install instructions? [y/N] %s")) {
+		editorSetStatusMsg("clangd not installed");
+		return;
+	}
+	if (!editorTaskShowMessage("Task: Install clangd", message,
+	                           "clangd not installed; see task log")) {
+		if (E.statusmsg[0] == '\0') {
+			editorSetStatusMsg("clangd not installed");
+		}
+	}
+}
+
+/*
+ * Resolve a server name (canonical name or a language alias) to an install
+ * family, or ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE if unrecognized. Pure;
+ * shared by editorLanguageServerNameIsInstallable and
+ * editorLanguageInstallServerByName.
+ */
+static enum actionsLanguageGoToDefinitionInstallFamily
+actionsLanguageInstallFamilyForServerName(const char *name) {
+	if (name == NULL || name[0] == '\0') {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE;
+	}
+	if (strcmp(name, "gopls") == 0) {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS;
+	}
+	if (strcmp(name, "clangd") == 0) {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD;
+	}
+	if (strcmp(name, "texlab") == 0) {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_TEXLAB;
+	}
+	if (strcmp(name, "typescript-language-server") == 0 || strcmp(name, "javascript") == 0 ||
+	    strcmp(name, "typescript") == 0) {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT;
+	}
+	if (strcmp(name, "vscode-langservers-extracted") == 0 || strcmp(name, "html") == 0 ||
+	    strcmp(name, "css") == 0 || strcmp(name, "json") == 0 || strcmp(name, "eslint") == 0) {
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
+	}
+	return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE;
+}
+
+static void
+actionsLanguagePromptInstallFamily(enum actionsLanguageGoToDefinitionInstallFamily family) {
+	switch (family) {
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS:
+			actionsLanguagePromptInstallGoplsServer();
+			return;
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD:
+			actionsLanguagePromptInstallClangdServer();
+			return;
 		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT:
 			actionsLanguagePromptInstallJavascriptServer();
 			return;
 		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
 			editorLanguagePromptInstallSharedVscodeServers();
 			return;
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_TEXLAB:
+			actionsLanguagePromptInstallTexlabServer();
+			return;
 		default:
 			return;
 	}
+}
+
+int editorLanguageServerNameIsInstallable(const char *name) {
+	return actionsLanguageInstallFamilyForServerName(name) !=
+	       ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE;
+}
+
+int editorLanguageInstallServerByName(const char *name) {
+	enum actionsLanguageGoToDefinitionInstallFamily family =
+	        actionsLanguageInstallFamilyForServerName(name);
+	if (family == ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE) {
+		return 0;
+	}
+	actionsLanguagePromptInstallFamily(family);
+	return 1;
+}
+
+void editorLanguageMaybePromptInstallServer(void) {
+	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+		return;
+	}
+	actionsLanguagePromptInstallFamily(actionsLanguageGoToInstallFamilyForLanguage());
 }
 
 /* Buffer position (cy, byte cx) of a diagnostic's start, clamped to the buffer. */
