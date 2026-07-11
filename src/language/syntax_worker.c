@@ -263,6 +263,7 @@ editorSyntaxWorkerRunJob(struct editorSyntaxWorkerJob *job) {
 	if (result->state == NULL) {
 		return result;
 	}
+	editorSyntaxStateSetBackgroundParse(result->state, 1);
 
 	struct editorTextSource source = {0};
 	editorTextSourceInitString(&source, job->text, job->text_len);

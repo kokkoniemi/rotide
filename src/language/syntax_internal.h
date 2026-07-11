@@ -104,6 +104,7 @@ struct editorSyntaxState {
 	int host_locals_valid;
 	int perf_disable_predicates;
 	int perf_disable_injections;
+	int background_parse;
 	enum editorSyntaxPerformanceMode perf_mode;
 	struct editorSyntaxByteRange *last_changed_ranges;
 	int last_changed_range_count;

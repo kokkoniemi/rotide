@@ -57,6 +57,10 @@ int editorSyntaxLengthFitsTreeSitter(size_t len) {
 	return len <= UINT32_MAX;
 }
 
+int editorSyntaxLengthFitsHighlight(size_t len) {
+	return len <= ROTIDE_SYNTAX_MAX_HIGHLIGHT_BYTES;
+}
+
 static uint64_t queriesMonotonicNanos(void) {
 	struct timespec ts;
 	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
