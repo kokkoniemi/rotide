@@ -1070,6 +1070,45 @@ static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
 }
 
+/* Ctrl-W t opens a new terminal tab beside the current one, from Job/Insert mode
+ * and without leaving it or adding a pane. */
+static int test_terminal_input_vim_ctrl_w_t_opens_terminal_tab(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
+	feed_keys("\x17t");
+	struct editorTerminalPane *active = editorTerminalPaneForPane(E.focused_leaf);
+	int failed = E.tab_count != tabs_before + 1 ||
+	             editorPaneTreeLeafCount(E.layout_root) != leaves_before || active == NULL ||
+	             active == t || t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
+	return failed;
+}
+
+/* Ctrl-W t opens a terminal tab from a non-terminal (editor) pane too, since it
+ * resolves through the shared Vim window map. */
+static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	if (!editorTabsInit() || !editorInputSystemActivate("vim")) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
+	feed_keys("\x17t");
+	int failed = E.tab_count != tabs_before + 1 ||
+	             editorPaneTreeLeafCount(E.layout_root) != leaves_before ||
+	             editorTerminalPaneForPane(E.focused_leaf) == NULL;
+	return failed;
+}
+
 /* Ctrl-W h switches panes directly from Job/Insert mode (no mode change). */
 static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
 	struct editorTerminalPane *t = NULL;
@@ -1165,6 +1204,10 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_input_vim_esc_prefixed_stays_insert},
         {"terminal_input_vim_ctrl_w_n_toggles_mode", test_terminal_input_vim_ctrl_w_n_toggles_mode},
         {"terminal_input_vim_ctrl_w_switches_pane", test_terminal_input_vim_ctrl_w_switches_pane},
+        {"terminal_input_vim_ctrl_w_t_opens_terminal_tab",
+         test_terminal_input_vim_ctrl_w_t_opens_terminal_tab},
+        {"terminal_input_vim_ctrl_w_t_from_editor_pane",
+         test_terminal_input_vim_ctrl_w_t_from_editor_pane},
         {"terminal_input_vim_normal_leader_resolves",
          test_terminal_input_vim_normal_leader_resolves},
         {"terminal_input_modes_are_per_tab", test_terminal_input_modes_are_per_tab},

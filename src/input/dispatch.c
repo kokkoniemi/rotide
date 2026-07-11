@@ -3140,7 +3140,8 @@ static int dispatchTryDapConsoleKey(int c) {
 
 /* Dispatch one Ctrl-W window sub-key for a Vim terminal (both modes share this).
  * `Ctrl-W N` enters Normal mode, `Ctrl-W .` sends a literal Ctrl-W to the child,
- * Esc cancels, and h/j/k/l/etc. resolve through the live Vim window map. */
+ * Esc cancels, and h/j/k/l/t/etc. resolve through the live Vim window map (the
+ * same map editor panes use, so `Ctrl-W t` opens a terminal tab everywhere). */
 static void dispatchTerminalVimCtrlW(struct editorTerminalPane *terminal, int c) {
 	if (c == '\x1b') {
 		return;

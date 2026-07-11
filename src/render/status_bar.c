@@ -53,6 +53,9 @@
 #define STATUS_GIT_ICON_COMPRESS "\xEF\x81\xA6"  /* U+F066 compress */
 #define STATUS_GIT_ICON_ABORT "\xEF\x80\x8D"     /* U+F00D close */
 
+/* Terminal action glyphs (same nerd-font PUA range as the drawer icons). */
+#define STATUS_TERM_ICON_NEW "\xEF\x81\xA7" /* U+F067 plus */
+
 #define STATUS_INPUT_SEGMENT_MAX_COLS 24
 
 /*
@@ -430,19 +433,42 @@ static struct editorTerminalPane *statusBarFocusedTerminal(void) {
 	return editorTerminalPaneForPane(E.focused_leaf);
 }
 
-struct statusBarTermButton {
-	const char *label;
-	const char *hotkey;
-	enum editorAction action;
-};
+/* Render a colored mode badge (" TEXT ") using the theme's ANSI palette slot,
+ * mirroring the editor's Vim mode badge, then restore the status style. Advances
+ * *col by the padded width. `color_idx` is an EDITOR_THEME_ANSI_* index. */
+static int statusBarAppendModeBadge(struct writeBuf *wb, const char *text, int color_idx, int *col,
+                                    int max_col) {
+	int width = (int)strlen(text) + 2; /* one padding space each side */
+	if (*col + width > max_col) {
+		return 1;
+	}
+	struct editorThemeColor bg = E.theme.status_segment_bg[color_idx];
+	if (editorThemeColorIsDefault(bg)) {
+		bg = editorThemeResolveAnsi((unsigned)color_idx, 0);
+	}
+	struct editorThemeColor fg = E.theme.styles[EDITOR_THEME_STYLE_STATUS].bg;
+	if (editorThemeColorIsDefault(fg)) {
+		fg = editorThemeResolveAnsi(EDITOR_THEME_ANSI_BRIGHT_WHITE, 1);
+	}
+	if (!editorAppendThemeBackground(wb, bg) || !editorAppendThemeForeground(wb, fg) ||
+	    !wbAppend(wb, VT100_BOLD_ON, (int)strlen(VT100_BOLD_ON)) || !wbAppend(wb, " ", 1) ||
+	    !wbAppend(wb, text, strlen(text)) || !wbAppend(wb, " ", 1) ||
+	    !wbAppend(wb, VT100_BOLD_OFF, (int)strlen(VT100_BOLD_OFF)) ||
+	    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS)) {
+		return 0;
+	}
+	*col += width;
+	return 1;
+}
 
 /*
- * Renders the terminal action segment: a mode badge (INSERT/NORMAL for Vim, TERM
- * for CUA) then mode-aware buttons. Labels and hotkeys teach the keys (Normal →
- * ^WN, Insert → i, panes → ^Wh/^Wl/...). The buttons dispatch editorActions
- * through the same clickable-span table the git/debug segments use, so they act
- * as a mouse escape hatch a fullscreen child cannot intercept. `col_offset` is
- * the segment's absolute start column; writes consumed cols to *col_io.
+ * Renders the terminal action segment: a colored mode badge (green INSERT / blue
+ * NORMAL for Vim, cyan TERM for CUA) then buttons. Pane navigation (Ctrl-W
+ * h/j/k/l) is reserved in both modes, so the segment carries only a mode toggle
+ * (Vim) and a New-terminal button; both name their keys and dispatch
+ * editorActions through the shared clickable-span table, so they double as a
+ * mouse escape hatch a fullscreen child cannot intercept. `col_offset` is the
+ * segment's absolute start column; writes consumed cols to *col_io.
  */
 static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int *col_io,
                                           int col_offset) {
@@ -454,66 +480,43 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 	int normal = is_vim && terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL;
 
 	statusBarButtonsReset(col_offset);
+	/* The mode badge sits flush at the segment's left edge (the input-system
+	 * badge is suppressed while a terminal is focused), matching the editor's
+	 * Vim badge; the badge carries its own leading padding space. */
 	int col = 0;
-	if (col + 1 <= max_col && !wbAppend(wb, " ", 1)) {
-		return 0;
-	}
-	col += (col + 1 <= max_col) ? 1 : 0;
 
 	const char *badge = !is_vim ? "TERM" : (normal ? "NORMAL" : "INSERT");
-	int blen = (int)strlen(badge);
-	if (col + blen <= max_col) {
-		if (!wbAppend(wb, VT100_BOLD_ON, (int)strlen(VT100_BOLD_ON)) ||
-		    !wbAppend(wb, badge, (size_t)blen) ||
-		    !wbAppend(wb, VT100_BOLD_OFF, (int)strlen(VT100_BOLD_OFF))) {
-			return 0;
-		}
-		col += blen;
-		if (col + 2 <= max_col && !wbAppend(wb, "  ", 2)) {
-			return 0;
-		}
-		col += (col + 2 <= max_col) ? 2 : 0;
+	int badge_color = !is_vim ? EDITOR_THEME_ANSI_CYAN
+	                          : (normal ? EDITOR_THEME_ANSI_BLUE : EDITOR_THEME_ANSI_GREEN);
+	if (!statusBarAppendModeBadge(wb, badge, badge_color, &col, max_col)) {
+		return 0;
 	}
-
-	struct statusBarTermButton buttons[6];
-	int count = 0;
-	if (normal) {
-		buttons[count++] = (struct statusBarTermButton){"Insert", "i",
-		                                                EDITOR_ACTION_TERMINAL_MODE_INSERT};
-		buttons[count++] =
-		        (struct statusBarTermButton){"Left", "^Wh", EDITOR_ACTION_FOCUS_LEFT_PANE};
-		buttons[count++] = (struct statusBarTermButton){"Right", "^Wl",
-		                                                EDITOR_ACTION_FOCUS_RIGHT_PANE};
-		buttons[count++] =
-		        (struct statusBarTermButton){"Up", "^Wk", EDITOR_ACTION_FOCUS_UP_PANE};
-		buttons[count++] =
-		        (struct statusBarTermButton){"Down", "^Wj", EDITOR_ACTION_FOCUS_DOWN_PANE};
-	} else if (is_vim) {
-		buttons[count++] = (struct statusBarTermButton){"Normal", "^WN",
-		                                                EDITOR_ACTION_TERMINAL_MODE_NORMAL};
-		buttons[count++] =
-		        (struct statusBarTermButton){"Left", "^Wh", EDITOR_ACTION_FOCUS_LEFT_PANE};
-		buttons[count++] = (struct statusBarTermButton){"Right", "^Wl",
-		                                                EDITOR_ACTION_FOCUS_RIGHT_PANE};
-		/* Click-only: Ctrl-Alt-T reaches the child in Insert mode, so no hotkey. */
-		buttons[count++] = (struct statusBarTermButton){"New term", NULL,
-		                                                EDITOR_ACTION_TERMINAL_NEW_TAB};
-	} else {
-		/* CUA: no modes; the buttons are the click-only escape to move panes and
-		 * open a terminal tab. */
-		buttons[count++] =
-		        (struct statusBarTermButton){"Left", NULL, EDITOR_ACTION_FOCUS_LEFT_PANE};
-		buttons[count++] =
-		        (struct statusBarTermButton){"Right", NULL, EDITOR_ACTION_FOCUS_RIGHT_PANE};
-		buttons[count++] = (struct statusBarTermButton){"New term", NULL,
-		                                                EDITOR_ACTION_TERMINAL_NEW_TAB};
+	if (col + 2 <= max_col && !wbAppend(wb, "  ", 2)) {
+		return 0;
 	}
+	col += (col + 2 <= max_col) ? 2 : 0;
 
-	for (int i = 0; i < count; i++) {
-		if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, buttons[i].label,
-		                           buttons[i].hotkey, buttons[i].action)) {
+	const char *new_icon = E.nerd_fonts_enabled ? STATUS_TERM_ICON_NEW : NULL;
+	if (is_vim) {
+		/* The badge shows the current mode; the toggle button shows the switch. */
+		if (normal) {
+			if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Insert",
+			                           "i", EDITOR_ACTION_TERMINAL_MODE_INSERT)) {
+				return 0;
+			}
+		} else if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Normal",
+		                                  "^WN", EDITOR_ACTION_TERMINAL_MODE_NORMAL)) {
 			return 0;
 		}
+		/* Ctrl-W t opens a terminal tab; Ctrl-W is reserved in both modes. */
+		if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", "^Wt",
+		                           EDITOR_ACTION_TERMINAL_NEW_TAB)) {
+			return 0;
+		}
+	} else if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", NULL,
+	                                  EDITOR_ACTION_TERMINAL_NEW_TAB)) {
+		/* CUA has no modes; only the click-driven New-terminal button. */
+		return 0;
 	}
 	*col_io = col;
 	return 1;

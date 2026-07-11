@@ -435,13 +435,14 @@ static int status_bar_has_button_action(int action) {
 	return 0;
 }
 
-/* The focused terminal owns the status action segment: a mode badge plus mode-
- * aware, clickable buttons that name their hotkeys. Job/Insert shows INSERT + a
- * Normal button; Terminal Normal shows NORMAL + an Insert button; and the button
- * columns resolve to the mode-toggle actions the mouse layer dispatches. */
+/* The focused terminal owns the status action segment: a mode badge plus a mode
+ * toggle and a New-terminal button that name their keys. Job/Insert shows INSERT
+ * + "Switch Normal" (^WN); Terminal Normal shows NORMAL + "Switch Insert" (i);
+ * both show "New term" (^Wt), and the columns resolve to the actions the mouse
+ * layer dispatches. */
 static int test_status_bar_terminal_segment_modes(void) {
 	E.window_rows = 8;
-	E.window_cols = 80;
+	E.window_cols = 100;
 	struct editorTerminalPane *t = open_terminal_tab_in_root("sleep 5");
 	if (t == NULL) {
 		return 1;
@@ -454,19 +455,22 @@ static int test_status_bar_terminal_segment_modes(void) {
 	size_t len = 0;
 	char *out = refresh_screen_and_capture(&len);
 	ASSERT_TRUE(out != NULL);
-	int insert_ok = strstr(out, "INSERT") != NULL && strstr(out, "Normal") != NULL &&
-	                strstr(out, "^WN") != NULL;
+	int insert_ok = strstr(out, "INSERT") != NULL && strstr(out, "Switch Normal") != NULL &&
+	                strstr(out, "^WN") != NULL && strstr(out, "New terminal") != NULL;
 	free(out);
-	if (!insert_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_NORMAL)) {
+	if (!insert_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_NORMAL) ||
+	    !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_NEW_TAB)) {
 		return 1;
 	}
 
 	t->input_mode = EDITOR_TERMINAL_INPUT_NORMAL;
 	out = refresh_screen_and_capture(&len);
 	ASSERT_TRUE(out != NULL);
-	int normal_ok = strstr(out, "NORMAL") != NULL && strstr(out, "Insert") != NULL;
+	int normal_ok = strstr(out, "NORMAL") != NULL && strstr(out, "Switch Insert") != NULL &&
+	                strstr(out, "New terminal") != NULL;
 	free(out);
-	if (!normal_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_INSERT)) {
+	if (!normal_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_INSERT) ||
+	    !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_NEW_TAB)) {
 		return 1;
 	}
 	return 0;

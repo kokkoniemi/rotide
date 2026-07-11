@@ -291,6 +291,9 @@ static int vimSystemCtrlWAction(int c, enum editorAction *action_out) {
 		case 'o':
 			action = EDITOR_ACTION_CLOSE_OTHER_PANES;
 			break;
+		case 't':
+			action = EDITOR_ACTION_TERMINAL_NEW_TAB;
+			break;
 		case 'w':
 		case CTRL_KEY('w'):
 			action = EDITOR_ACTION_FOCUS_NEXT_PANE;
