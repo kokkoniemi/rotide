@@ -7,6 +7,7 @@
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "input/actions_file_tab.h"
+#include "input/actions_language.h"
 #include "input/dispatch.h"
 #include "input/input_system.h"
 #include "input/prompt.h"
@@ -215,8 +216,8 @@ static const struct vimExCommand g_vim_ex_commands[] = {
 static const size_t g_vim_ex_command_count =
         sizeof(g_vim_ex_commands) / sizeof(g_vim_ex_commands[0]);
 
-static const char *const g_vim_ex_builtin_commands[] = {"w", "q", "q!",   "wq",
-                                                        "x", "e", "edit", "git"};
+static const char *const g_vim_ex_builtin_commands[] = {"w", "q",    "q!",  "wq", "x",
+                                                        "e", "edit", "git", "lsp"};
 
 static const size_t g_vim_ex_builtin_command_count =
         sizeof(g_vim_ex_builtin_commands) / sizeof(g_vim_ex_builtin_commands[0]);
@@ -3247,6 +3248,47 @@ static void vimSystemExGit(const char *args, int *effects_out) {
 	editorSetStatusMsg("Unknown :git subcommand: %s", args);
 }
 
+/*
+ * `:lsp [subcommand]` — no args opens the LSP drawer. `install-server [name]`
+ * installs a language server; with no name it targets the current buffer's
+ * language server.
+ */
+static void vimSystemExLsp(const char *args, int *effects_out) {
+	if (args == NULL || args[0] == '\0') {
+		vimSystemExDispatch(EDITOR_ACTION_LSP_DRAWER, effects_out);
+		return;
+	}
+
+	const char *sub = args;
+	size_t sub_len = strcspn(sub, " \t");
+	const char *name = sub + sub_len;
+	while (*name == ' ' || *name == '\t') {
+		name++;
+	}
+
+	if (strncmp(sub, "install-server", sub_len) == 0 && sub_len == strlen("install-server")) {
+		if (name[0] == '\0') {
+			/* No name: install the current buffer's language server. */
+			const char *current = editorLanguageGoToServerName();
+			if (current == NULL || !editorLanguageInstallServerByName(current)) {
+				editorSetStatusMsg(
+				        "No installable language server for this buffer; "
+				        "name one: :lsp install-server <server>");
+			}
+			return;
+		}
+		if (!editorLanguageInstallServerByName(name)) {
+			editorSetStatusMsg("Unknown language server: %s (try gopls, clangd, "
+			                   "texlab, typescript-language-server, "
+			                   "vscode-langservers-extracted)",
+			                   name);
+		}
+		return;
+	}
+
+	editorSetStatusMsg("Unknown :lsp subcommand: %s", args);
+}
+
 static void vimSystemRunExCommand(char *line, int *effects_out) {
 	char *cmd = line;
 	char *args = NULL;
@@ -3299,6 +3341,10 @@ static void vimSystemRunExCommand(char *line, int *effects_out) {
 	}
 	if (strcmp(cmd, "git") == 0) {
 		vimSystemExGit(args, effects_out);
+		return;
+	}
+	if (strcmp(cmd, "lsp") == 0) {
+		vimSystemExLsp(args, effects_out);
 		return;
 	}
 	if (args != NULL && args[0] != '\0') {

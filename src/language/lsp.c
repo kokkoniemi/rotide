@@ -153,6 +153,9 @@ enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 			return EDITOR_LSP_SERVER_CSS;
 		case EDITOR_SYNTAX_JAVASCRIPT:
 			return EDITOR_LSP_SERVER_JAVASCRIPT;
+		case EDITOR_SYNTAX_LATEX:
+		case EDITOR_SYNTAX_BIBTEX:
+			return EDITOR_LSP_SERVER_TEXLAB;
 		default:
 			return EDITOR_LSP_SERVER_NONE;
 	}
@@ -174,6 +177,8 @@ static const char *lspCommandForServerKind(enum editorLspServerKind server_kind)
 			return E.lsp_config.javascript_command;
 		case EDITOR_LSP_SERVER_ESLINT:
 			return E.lsp_config.eslint_command;
+		case EDITOR_LSP_SERVER_TEXLAB:
+			return E.lsp_config.texlab_command;
 		default:
 			return NULL;
 	}
@@ -195,6 +200,8 @@ static const char *lspServerNameForServerKind(enum editorLspServerKind server_ki
 			return "typescript-language-server";
 		case EDITOR_LSP_SERVER_ESLINT:
 			return "vscode-eslint-language-server";
+		case EDITOR_LSP_SERVER_TEXLAB:
+			return "texlab";
 		default:
 			return "LSP";
 	}
@@ -216,6 +223,8 @@ static const char *lspCommandSettingNameForServerKind(enum editorLspServerKind s
 			return "javascript_command";
 		case EDITOR_LSP_SERVER_ESLINT:
 			return "eslint_command";
+		case EDITOR_LSP_SERVER_TEXLAB:
+			return "texlab_command";
 		default:
 			return NULL;
 	}
@@ -237,6 +246,8 @@ static const char *lspLanguageLabelForServerKind(enum editorLspServerKind server
 			return "JavaScript";
 		case EDITOR_LSP_SERVER_ESLINT:
 			return "JavaScript";
+		case EDITOR_LSP_SERVER_TEXLAB:
+			return "LaTeX";
 		default:
 			return NULL;
 	}
@@ -258,6 +269,8 @@ static int lspServerKindEnabled(enum editorLspServerKind server_kind) {
 			return E.lsp_config.javascript_enabled;
 		case EDITOR_LSP_SERVER_ESLINT:
 			return E.lsp_config.eslint_enabled;
+		case EDITOR_LSP_SERVER_TEXLAB:
+			return E.lsp_config.texlab_enabled;
 		default:
 			return 0;
 	}
@@ -278,7 +291,9 @@ int editorLspEslintEnabledForFile(const char *filename, enum editorSyntaxLanguag
 static int lspServerKindSupportsDefinition(enum editorLspServerKind server_kind) {
 	return server_kind == EDITOR_LSP_SERVER_GOPLS || server_kind == EDITOR_LSP_SERVER_CLANGD ||
 	       server_kind == EDITOR_LSP_SERVER_HTML || server_kind == EDITOR_LSP_SERVER_CSS ||
-	       server_kind == EDITOR_LSP_SERVER_JSON || server_kind == EDITOR_LSP_SERVER_JAVASCRIPT;
+	       server_kind == EDITOR_LSP_SERVER_JSON ||
+	       server_kind == EDITOR_LSP_SERVER_JAVASCRIPT ||
+	       server_kind == EDITOR_LSP_SERVER_TEXLAB;
 }
 
 int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language) {
@@ -307,6 +322,10 @@ const char *editorLspLanguageIdForFile(const char *filename, enum editorSyntaxLa
 			                       strcmp(strrchr(filename, '.'), ".jsx") == 0
 			               ? "javascriptreact"
 			               : "javascript";
+		case EDITOR_SYNTAX_LATEX:
+			return "latex";
+		case EDITOR_SYNTAX_BIBTEX:
+			return "bibtex";
 		default:
 			break;
 	}
@@ -400,6 +419,9 @@ static char *lspBuildWorkspaceRootPathForFile(const char *filename,
 	static const char *const html_markers[] = {"package.json", ".rotide.toml", ".git"};
 	static const char *const javascript_markers[] = {"tsconfig.json", "jsconfig.json",
 	                                                 "package.json", ".rotide.toml", ".git"};
+	static const char *const texlab_markers[] = {".latexmkrc",  "latexmkrc",  "Tectonic.toml",
+	                                             ".texlabroot", "texlabroot", ".rotide.toml",
+	                                             ".git"};
 
 	char *file_path = editorPathAbsoluteDup(filename);
 	char *file_dir = NULL;
@@ -429,6 +451,9 @@ static char *lspBuildWorkspaceRootPathForFile(const char *filename,
 		} else if (server_kind == EDITOR_LSP_SERVER_JAVASCRIPT) {
 			markers = javascript_markers;
 			marker_count = sizeof(javascript_markers) / sizeof(javascript_markers[0]);
+		} else if (server_kind == EDITOR_LSP_SERVER_TEXLAB) {
+			markers = texlab_markers;
+			marker_count = sizeof(texlab_markers) / sizeof(texlab_markers[0]);
 		}
 
 		if (markers != NULL) {

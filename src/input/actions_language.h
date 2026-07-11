@@ -22,4 +22,23 @@ const char *editorLanguageGoToCommandSettingName(void);
 void editorLanguageMaybePromptInstallServer(void);
 void editorLanguagePromptInstallSharedVscodeServers(void);
 
+/*
+ * Install a language server by canonical name (or a language alias, e.g.
+ * "html"/"css"/"json"/"eslint" -> vscode-langservers-extracted, "javascript" ->
+ * typescript-language-server). Starts the same confirm+install/guide flow as the
+ * automatic "server not found" prompt. Returns 1 if the name was recognized
+ * (flow started or user declined), 0 if the name is not an installable server.
+ */
+int editorLanguageInstallServerByName(const char *name);
+/* Pure recognition check for editorLanguageInstallServerByName; no side effects. */
+int editorLanguageServerNameIsInstallable(const char *name);
+
+/*
+ * Pure OS/arch -> texlab prebuilt-asset mapping. Returns the release asset file
+ * name for the given `uname` sysname/machine (and musl flag for the Linux
+ * alpine build), or NULL if no prebuilt binary exists for that platform.
+ * Exposed for unit testing without touching the live host.
+ */
+const char *editorLanguageTexlabAssetFor(const char *sysname, const char *machine, int is_musl);
+
 #endif

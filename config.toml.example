@@ -63,9 +63,13 @@ name = "terminal"
 # is still accepted as a shorthand that toggles all servers together.
 # *_command sets the command/path used to start each server.
 # Install commands (gopls_install_command, javascript_install_command,
-# vscode_langservers_install_command) are global-only.
+# vscode_langservers_install_command, texlab_install_command) are global-only.
 # Default javascript_install_command:
 #   "npm install --global --prefix ~/.local typescript typescript-language-server"
+# texlab_install_command is optional: when empty (the default), rotide downloads
+# the matching prebuilt binary from the texlab GitHub releases into ~/.local/bin.
+# Set it only to override with a custom installer. Users with a package-manager
+# texlab can instead set texlab_command = "texlab".
 # Invalid [lsp] values fall back to defaults with a warning.
 [lsp]
 gopls_enabled = true
@@ -75,6 +79,7 @@ css_enabled = true
 json_enabled = true
 javascript_enabled = true
 eslint_enabled = true
+texlab_enabled = true
 gopls_command = "gopls"
 clangd_command = "clangd"
 html_command = "~/.local/bin/vscode-html-language-server --stdio"
@@ -82,6 +87,7 @@ css_command = "~/.local/bin/vscode-css-language-server --stdio"
 json_command = "~/.local/bin/vscode-json-language-server --stdio"
 javascript_command = "~/.local/bin/typescript-language-server --stdio"
 eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
+texlab_command = "~/.local/bin/texlab"
 
 # --- [dap] --------------------------------------------------------------------
 # Adapter commands are global-only. Project launch configs live in ./.rotide.toml

@@ -28,6 +28,7 @@ void editorLspConfigInitDefaults(struct editorLspConfig *config) {
 	config->json_enabled = 1;
 	config->javascript_enabled = 1;
 	config->eslint_enabled = 1;
+	config->texlab_enabled = 1;
 	(void)snprintf(config->gopls_command, sizeof(config->gopls_command), "%s", "gopls");
 	(void)snprintf(config->gopls_install_command, sizeof(config->gopls_install_command), "%s",
 	               "go install golang.org/x/tools/gopls@latest");
@@ -46,6 +47,15 @@ void editorLspConfigInitDefaults(struct editorLspConfig *config) {
 	               "typescript-language-server");
 	(void)snprintf(config->eslint_command, sizeof(config->eslint_command), "%s",
 	               "~/.local/bin/vscode-eslint-language-server --stdio");
+	(void)snprintf(config->texlab_command, sizeof(config->texlab_command), "%s",
+	               "~/.local/bin/texlab");
+	/*
+	 * Empty by default: the install command is derived at runtime from the host
+	 * OS/arch (see editorLanguageMaybePromptInstallServer), because the correct
+	 * prebuilt texlab asset is platform-specific. A non-empty override is used
+	 * verbatim.
+	 */
+	config->texlab_install_command[0] = '\0';
 	(void)snprintf(config->vscode_langservers_install_command,
 	               sizeof(config->vscode_langservers_install_command), "%s",
 	               "npm install --global --prefix ~/.local vscode-langservers-extracted");
@@ -96,6 +106,7 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 		config->json_enabled = enabled;
 		config->javascript_enabled = enabled;
 		config->eslint_enabled = enabled;
+		config->texlab_enabled = enabled;
 		return 1;
 	}
 	if (strcmp(key, "gopls_enabled") == 0) {
@@ -118,6 +129,9 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 	}
 	if (strcmp(key, "javascript_enabled") == 0) {
 		return lspConfigParseBooleanValue(value, &config->javascript_enabled);
+	}
+	if (strcmp(key, "texlab_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->texlab_enabled);
 	}
 	if (strcmp(key, "autocomplete") == 0) {
 		return lspConfigParseBooleanValue(value, &config->autocomplete_enabled);
@@ -162,6 +176,18 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 	if (strcmp(key, "eslint_command") == 0) {
 		return lspConfigParseCommandValue(value, config->eslint_command,
 		                                  sizeof(config->eslint_command));
+	}
+	if (strcmp(key, "texlab_command") == 0) {
+		return lspConfigParseCommandValue(value, config->texlab_command,
+		                                  sizeof(config->texlab_command));
+	}
+	if (strcmp(key, "texlab_install_command") == 0) {
+		if (!apply->allow_install_command_override) {
+			return 1;
+		}
+		/* Empty is allowed: it forces the runtime auto-detect path. */
+		return editorConfigParseQuotedValue(value, config->texlab_install_command,
+		                                    sizeof(config->texlab_install_command));
 	}
 	if (strcmp(key, "javascript_command") == 0) {
 		return lspConfigParseCommandValue(value, config->javascript_command,
