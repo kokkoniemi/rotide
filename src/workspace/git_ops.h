@@ -25,6 +25,8 @@ int editorGitOpsDiscardFile(const char *rel_path, int untracked);
 int editorGitOpsCommit(const char *message, int amend, char *short_sha_out, size_t sha_size);
 char *editorGitOpsLastCommitMessageDup(void);
 char *editorGitOpsBranchListRawDup(size_t *len_out);
+int editorGitOpsCurrentBranchPushRemote(char *remote_out, size_t remote_size,
+                                        int *has_upstream_out);
 int editorGitOpsBranchCreate(const char *name);
 int editorGitOpsCheckout(const char *name);
 int editorGitOpsBranchDelete(const char *name);

@@ -86,8 +86,9 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	/* ctrl+alt+p is unbound by default (ctrl+alt+a is now the terminal prefix). */
 	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
-	                                          "new_tab = \"ctrl+alt+a\"\n"));
+	                                          "new_tab = \"ctrl+alt+p\"\n"));
 
 	enum editorKeymapLoadStatus status =
 	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
@@ -95,7 +96,7 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_EQ_INT(1, editorTabCount());
 
-	char input[] = {'\x1b', CTRL_KEY('a')};
+	char input[] = {'\x1b', CTRL_KEY('p')};
 	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());

@@ -1,4 +1,6 @@
+#include "input/input_system.h"
 #include "render/screen.h"
+#include "render/status_bar.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -370,6 +372,132 @@ static int test_editor_refresh_screen_renders_terminal_pane(void) {
 	return found ? 0 : 1;
 }
 
+static int test_editor_refresh_screen_terminal_repaints_unchanged_slice(void) {
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	struct editorTerminalPane *t =
+	        open_terminal_tab_in_root("printf 'rotide-stale-marker\\n'; sleep 3");
+	if (t == NULL) {
+		return 1;
+	}
+	int waited = 0;
+	int saw_marker = 0;
+	while (waited < 2000 && !saw_marker) {
+		(void)editorTerminalPanePump(t);
+		char buf[4096];
+		VTermRect rect = {
+		        .start_row = 0, .end_row = t->rows, .start_col = 0, .end_col = t->cols};
+		size_t n = vterm_screen_get_text(t->screen, buf, sizeof(buf) - 1, rect);
+		if (n >= sizeof(buf)) {
+			n = sizeof(buf) - 1;
+		}
+		buf[n] = '\0';
+		saw_marker = strstr(buf, "rotide-stale-marker") != NULL;
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	if (!saw_marker) {
+		return 1;
+	}
+
+	size_t first_len = 0;
+	char *first = refresh_screen_and_capture(&first_len);
+	ASSERT_TRUE(first != NULL);
+	int in_first = strstr(first, "rotide-stale-marker") != NULL;
+	free(first);
+
+	size_t second_len = 0;
+	char *second = refresh_screen_and_capture(&second_len);
+	ASSERT_TRUE(second != NULL);
+	int in_second = strstr(second, "rotide-stale-marker") != NULL;
+	free(second);
+
+	return (in_first && in_second) ? 0 : 1;
+}
+
+static int test_editor_refresh_screen_reconciles_terminal_geometry(void) {
+	E.window_rows = 24;
+	E.window_cols = 100;
+
+	struct editorTerminalPane *t = open_terminal_tab_in_root("sleep 5");
+	if (t == NULL) {
+		return 1;
+	}
+	size_t len = 0;
+	char *out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	free(out);
+	int pre_cols = t->cols;
+
+	(void)editorDrawerSetCollapsed(!editorDrawerIsCollapsed());
+
+	out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	free(out);
+
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	if (!editorLayoutEditorViewport(&viewport) ||
+	    !editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                  E.layout_root, &rect)) {
+		return 1;
+	}
+	int vrows = 0;
+	int vcols = 0;
+	vterm_get_size(t->vt, &vrows, &vcols);
+	ASSERT_TRUE(rect.w != pre_cols);
+	int failed = t->cols != rect.w || t->rows != rect.h || vcols != rect.w || vrows != rect.h;
+	return failed;
+}
+
+static int status_bar_has_button_action(int action) {
+	for (int col = 0; col < E.window_cols; col++) {
+		int got = 0;
+		if (editorStatusBarButtonAt(col, &got) && got == action) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int test_status_bar_terminal_segment_modes(void) {
+	E.window_rows = 8;
+	E.window_cols = 100;
+	struct editorTerminalPane *t = open_terminal_tab_in_root("sleep 5");
+	if (t == NULL) {
+		return 1;
+	}
+	if (!editorInputSystemActivate("vim")) {
+		return 1;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	size_t len = 0;
+	char *out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	int insert_ok = strstr(out, "INSERT") != NULL && strstr(out, "Switch Normal") != NULL &&
+	                strstr(out, "^WN") != NULL && strstr(out, "New terminal") != NULL;
+	free(out);
+	if (!insert_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_NORMAL) ||
+	    !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_NEW_TAB)) {
+		return 1;
+	}
+
+	t->input_mode = EDITOR_TERMINAL_INPUT_NORMAL;
+	out = refresh_screen_and_capture(&len);
+	ASSERT_TRUE(out != NULL);
+	int normal_ok = strstr(out, "NORMAL") != NULL && strstr(out, "Switch Insert") != NULL &&
+	                strstr(out, "New terminal") != NULL;
+	free(out);
+	if (!normal_ok || !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_MODE_INSERT) ||
+	    !status_bar_has_button_action(EDITOR_ACTION_TERMINAL_NEW_TAB)) {
+		return 1;
+	}
+	return 0;
+}
+
 static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
@@ -525,6 +653,11 @@ const struct editorTestCase g_render_terminal_tests[] = {
          test_editor_refresh_screen_hides_git_blame_indicator_for_dirty_buffer},
         {"editor_refresh_screen_renders_terminal_pane",
          test_editor_refresh_screen_renders_terminal_pane},
+        {"editor_refresh_screen_terminal_repaints_unchanged_slice",
+         test_editor_refresh_screen_terminal_repaints_unchanged_slice},
+        {"editor_refresh_screen_reconciles_terminal_geometry",
+         test_editor_refresh_screen_reconciles_terminal_geometry},
+        {"status_bar_terminal_segment_modes", test_status_bar_terminal_segment_modes},
         {"editor_refresh_screen_terminal_exit_overlay",
          test_editor_refresh_screen_terminal_exit_overlay},
         {"editor_refresh_screen_closes_exited_terminal_without_keypress",

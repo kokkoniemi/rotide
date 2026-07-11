@@ -101,8 +101,8 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 		file_search.c git.c git_ops.c git_view.c watch.c project_search.c \
 		recovery.c workspace_state.c layout.c) \
 	$(addprefix $(SRC_DIR)/input/, \
-		actions_edit.c actions_file_tab.c actions_language.c \
-		actions_terminal_debug.c actions_workspace.c mouse.c \
+		actions_debug.c actions_edit.c actions_file_tab.c actions_language.c \
+		actions_terminal.c actions_workspace.c mouse.c \
 		prompt.c text_pairs.c input_system.c system_cua.c system_vim.c dispatch.c) \
 	$(addprefix $(SRC_DIR)/render/, \
 		write_buf.c ansi_style.c display_text.c drawer_view.c \

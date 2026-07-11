@@ -212,6 +212,30 @@ static int test_editor_prompt_ignores_resize_events(void) {
 	return 0;
 }
 
+/* Conversion specifiers in an untrusted label must remain literal. */
+static int test_editor_prompt_yes_no_literal_does_not_format_label(void) {
+	const char label[] = "Create remote branch on ori%sgin-%d? [y/N] ";
+	const char input[] = "y\r";
+	int saved_stdin;
+	size_t stdout_len = 0;
+	struct stdoutCapture capture;
+
+	E.window_rows = 24;
+	E.window_cols = 120;
+
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input) - 1, &saved_stdin) == 0);
+	int accepted = editorPromptYesNoLiteral(label);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
+	ASSERT_TRUE(stdout_bytes != NULL);
+
+	ASSERT_TRUE(accepted == 1);
+	ASSERT_TRUE(strstr(stdout_bytes, "ori%sgin-%d?") != NULL);
+	free(stdout_bytes);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_b_toggles_drawer(void) {
 	add_row("abcd");
 	E.cy = 0;
@@ -851,6 +875,8 @@ const struct editorTestCase g_input_selection_tests[] = {
         {"editor_process_keypress_typed_char_replaces_selection",
          test_editor_process_keypress_typed_char_replaces_selection},
         {"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
+        {"editor_prompt_yes_no_literal_does_not_format_label",
+         test_editor_prompt_yes_no_literal_does_not_format_label},
         {"editor_process_keypress_ctrl_b_toggles_drawer",
          test_editor_process_keypress_ctrl_b_toggles_drawer},
         {"editor_process_keypress_ctrl_a_selects_whole_buffer",

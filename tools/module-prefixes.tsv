@@ -28,10 +28,11 @@ src/editing/post_edit_notify.c	postEditNotify
 src/editing/row_cache.c	rowCache
 src/editing/selection.c	selection
 src/editing/text_source.c	textSource
+src/input/actions_debug.c	actionsDebug
 src/input/actions_edit.c	actionsEdit
 src/input/actions_file_tab.c	actionsFileTab
 src/input/actions_language.c	actionsLanguage
-src/input/actions_terminal_debug.c	actionsTerminalDebug
+src/input/actions_terminal.c	actionsTerminal
 src/input/actions_workspace.c	actionsWorkspace
 src/input/dispatch.c	dispatch
 src/input/input_system.c	inputSystem

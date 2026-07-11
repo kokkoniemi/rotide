@@ -242,6 +242,36 @@ static int test_git_ops_branch_round_trip(void) {
 	return 0;
 }
 
+static int test_git_ops_push_remote_precedence(void) {
+	SKIP_WITHOUT_GIT();
+	reset_editor_state();
+	char *repo = git_ops_test_repo_create();
+	ASSERT_TRUE(repo != NULL);
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' remote add origin .", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' remote add backup .", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' remote add release .", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' config branch.main.remote origin", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' config remote.pushDefault backup", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' config branch.main.pushRemote release", repo));
+
+	char remote[64];
+	int has_upstream = -1;
+	ASSERT_TRUE(editorGitOpsCurrentBranchPushRemote(remote, sizeof(remote), &has_upstream));
+	ASSERT_EQ_STR("release", remote);
+	ASSERT_EQ_INT(0, has_upstream);
+
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' config --unset branch.main.pushRemote", repo));
+	ASSERT_TRUE(editorGitOpsCurrentBranchPushRemote(remote, sizeof(remote), &has_upstream));
+	ASSERT_EQ_STR("backup", remote);
+
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' config --unset remote.pushDefault", repo));
+	ASSERT_TRUE(editorGitOpsCurrentBranchPushRemote(remote, sizeof(remote), &has_upstream));
+	ASSERT_EQ_STR("origin", remote);
+
+	git_ops_test_repo_destroy(repo);
+	return 0;
+}
+
 /* Ref/tag names git would parse as options must be refused before reaching argv
  * (these subcommands take the name positionally, so "--" cannot shield it). A
  * regression would let e.g. checkout "-f" through and mutate the working tree. */
@@ -559,6 +589,7 @@ const struct editorTestCase g_git_ops_tests[] = {
         {"git_ops_commit_and_amend", test_git_ops_commit_and_amend},
         {"git_ops_commit_nothing_staged_fails", test_git_ops_commit_nothing_staged_fails},
         {"git_ops_branch_round_trip", test_git_ops_branch_round_trip},
+        {"git_ops_push_remote_precedence", test_git_ops_push_remote_precedence},
         {"git_ops_rejects_option_like_names", test_git_ops_rejects_option_like_names},
         {"git_ops_branch_delete_unmerged_fails", test_git_ops_branch_delete_unmerged_fails},
         {"git_ops_stash_round_trip", test_git_ops_stash_round_trip},

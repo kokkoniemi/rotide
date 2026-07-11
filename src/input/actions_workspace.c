@@ -932,13 +932,35 @@ int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction)
 
 static void actionsWorkspaceSplit(enum editorSplitOrientation orientation) {
 	editorHistoryBreakGroup();
-	if (editorLayoutSplitFocused(orientation, 0.5) != NULL) {
-		editorPaneAnnounceFocus();
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(orientation, 0.5);
+	if (sibling == NULL) {
+		return;
 	}
+	/* Terminal tabs are single-hosted, so their new sibling needs an editor tab. */
+	if (!sibling->is_split && sibling->as.leaf.view.active_tab_idx < 0) {
+		int empty_idx = editorTabAppendEmptyForPane(sibling);
+		if (empty_idx >= 0) {
+			(void)editorTabSwitchToIndex(empty_idx);
+		}
+	}
+	editorPaneAnnounceFocus();
 }
 
 static void actionsWorkspaceFocusDirection(enum editorFocusDirection dir) {
 	editorHistoryBreakGroup();
+	/* Pane navigation does not clear drawer focus; right returns to the last pane. */
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER && dir == EDITOR_FOCUS_RIGHT) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		struct editorPaneNode *target = E.focused_leaf;
+		if (target == NULL || target->is_split) {
+			target = editorPaneNodeFirstLeaf(E.layout_root);
+		}
+		if (target != NULL) {
+			(void)editorLayoutSetFocusedLeaf(target);
+		}
+		editorPaneAnnounceFocus();
+		return;
+	}
 	if (editorLayoutFocusDirection(dir)) {
 		editorPaneAnnounceFocus();
 		return;

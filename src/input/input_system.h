@@ -39,4 +39,9 @@ const struct editorInputSystem *editorInputSystemById(const char *id);
  * (re)applying `[keymap.vim]` config so reloads do not accumulate bindings. */
 void editorVimKeymapResetDefaults(void);
 
+/* Terminal Normal mode shares the configured Vim sequence maps. */
+int editorVimLeaderKey(void);
+int editorVimLeaderAction(int c, int *action_out);
+int editorVimCtrlWAction(int c, int *action_out);
+
 #endif

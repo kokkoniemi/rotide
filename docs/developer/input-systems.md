@@ -191,6 +191,39 @@ Built-in control bindings:
 `u` undoes and `Ctrl-R` redoes through the shared `EDITOR_ACTION_UNDO`/`REDO`
 paths; both suppress dot-repeat recording so `.` never replays an undo/redo.
 
+## Terminal focus input
+
+A focused terminal leaf intercepts keys before the active input system's document
+handling, in `dispatchTryTerminalPaneKey` (`src/input/dispatch.c`). The routing
+differs by input system, and the terminal input mode is stored per terminal tab
+(`editorTerminalPane.input_mode`), not in the global Vim state.
+
+Vim terminals are modal, mirroring Vim's `:terminal`:
+
+- Job/Insert mode (the default for a new terminal) forwards every key to the
+  child PTY through `editorTerminalPaneSendKey`, including `Esc` and every
+  Esc-prefixed sequence, `Space`, and Vim command letters — the `<leader>` map is
+  not consulted, so `Space` then `p` sends the literal bytes `" p"`. The one
+  reserved key is `Ctrl-W`: `Ctrl-W h/j/k/l` (and the other window commands)
+  switch panes, `Ctrl-W N` enters Terminal Normal mode, and `Ctrl-W .` sends a
+  literal `Ctrl-W` (`0x17`) to the child. The window sub-keys resolve through the
+  shared `editorVimCtrlWAction`, so `Ctrl-W t` opens a terminal tab here too.
+- Terminal Normal mode resolves `<leader>` and `Ctrl-W` sequences against rotide
+  via `editorVimLeaderAction` / `editorVimCtrlWAction` (the same live maps editor
+  buffers use, not a copy) and never forwards to the child; `i`/`a`/`I`/`A` return
+  to Job/Insert. Other keys are inert, leaving room for future scrollback motions.
+  The cursor renders as a steady block and the status badge shows `NORMAL`.
+
+CUA terminals have no modes: every key goes to the PTY except `terminal_prefix`
+(default `Ctrl-Alt-A`), which routes exactly one following command to normal
+dispatch (`dispatchTerminalCuaKey` returns 0 so the keymap sees the next key).
+
+Pending terminal sequence state (`pending_ctrl_w`, `pending_leader`) is cleared
+on focus change via `editorTerminalPaneResetPendingInput`. The focused terminal
+owns the status bar's left context segment with a mode badge and clickable,
+hotkey-labelled buttons that dispatch actions independent of the PTY, so a
+fullscreen child that grabs the keyboard can still be escaped with the mouse.
+
 ## Visual selection rendering
 
 Charwise Visual is cursor-inclusive and Visual-Line spans whole lines, which the

@@ -365,6 +365,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 	struct editorPaneView *view = &leaf->as.leaf.view;
 	int tab_idx = editorTabOverflowHitTestColumnForPane(view, tab_col, tab_cols);
 	if (tab_idx >= 0) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
 		mouseArmTabDrag(leaf, tab_idx, event);
@@ -379,6 +380,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 		int is_double_click =
 		        E.tab_last_click_idx == tab_idx && E.tab_last_click_ms > 0 && now_ms > 0 &&
 		        now_ms - E.tab_last_click_ms <= MOUSE_DOUBLE_CLICK_THRESHOLD_MS;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
 		mouseArmTabDrag(leaf, tab_idx, event);
@@ -871,7 +873,7 @@ static long long mouseMonotonicMillis(void) {
 }
 
 #define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 8
-#define MOUSE_TAB_CONTEXT_MAX_ITEMS 2
+#define MOUSE_TAB_CONTEXT_MAX_ITEMS 3
 
 static enum editorAction g_mouse_editor_context_actions[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
 static int g_mouse_editor_context_action_count;
@@ -1013,6 +1015,7 @@ int editorOpenTabContextMenuAt(int screen_row, int screen_col, struct editorPane
 	if (tab_idx >= 0 && editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx)) {
 		mouseAppendTabContextItem(items, &count, "Close Tab", EDITOR_ACTION_CLOSE_TAB);
 	}
+	mouseAppendTabContextItem(items, &count, "New Terminal", EDITOR_ACTION_TERMINAL_NEW_TAB);
 	mouseAppendTabContextItem(items, &count, "New Tab", EDITOR_ACTION_NEW_TAB);
 
 	g_mouse_tab_context_action_count = count;
@@ -1052,6 +1055,12 @@ int editorTabContextMenuActivate(editorProcessMappedActionFn process_mapped_acti
 	if (action == EDITOR_ACTION_CLOSE_TAB) {
 		if (!editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx) ||
 		    !editorTabSwitchToIndex(tab_idx)) {
+			return 0;
+		}
+	} else if (action == EDITOR_ACTION_TERMINAL_NEW_TAB && tab_idx >= 0 &&
+	           editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx)) {
+		/* Placement is relative to the tab that opened the menu. */
+		if (!editorTabSwitchToIndex(tab_idx)) {
 			return 0;
 		}
 	}
@@ -1154,7 +1163,8 @@ static int mouseHandleRightPress(const struct editorMouseEvent *event) {
 	return popup_was_open;
 }
 
-/* A left-press on a status-bar debug-control button dispatches its DAP action.
+/* A left-press on a status-bar action button dispatches its action (a DAP
+ * control, git action, or terminal mode/pane control, per the active segment).
  * The status bar is the row just below the text area (E.window_rows + 2,
  * 1-based). Returns 1 if the press hit a button. */
 static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
@@ -1163,7 +1173,7 @@ static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
 		return 0;
 	}
 	int action = 0;
-	if (!editorStatusBarDebugButtonAt(event->x - 1, &action)) {
+	if (!editorStatusBarButtonAt(event->x - 1, &action)) {
 		return 0;
 	}
 	int effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
@@ -1950,6 +1960,15 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	                              event->kind == EDITOR_MOUSE_EVENT_LEFT_RELEASE)) {
 		return 0;
 	}
+	/* Let the tab-strip handler activate the tab and release drawer focus. */
+	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
+		struct editorPaneNode *strip_leaf = NULL;
+		int strip_col = 0;
+		int strip_cols = 0;
+		if (mouseResolvePaneTabStripCell(event, &strip_leaf, &strip_col, &strip_cols)) {
+			return 0;
+		}
+	}
 	struct editorRect viewport;
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return 0;
@@ -1979,9 +1998,12 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	 * ours: wheel scrolls scrollback, left-drag selects, release+copy lands
 	 * in the clipboard. */
 	if (terminal->mouse_tracking <= 0) {
-		if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
-			(void)editorLayoutSetFocusedLeaf(leaf);
-			editorPaneAnnounceFocus();
+		if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+			if (leaf != E.focused_leaf) {
+				(void)editorLayoutSetFocusedLeaf(leaf);
+				editorPaneAnnounceFocus();
+			}
 		}
 		int log_row = row - terminal->scroll_offset;
 		switch (event->kind) {
@@ -2011,10 +2033,12 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 				return 0;
 		}
 	}
-	/* Click-to-focus for terminal panes. */
-	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
-		(void)editorLayoutSetFocusedLeaf(leaf);
-		editorPaneAnnounceFocus();
+	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		if (leaf != E.focused_leaf) {
+			(void)editorLayoutSetFocusedLeaf(leaf);
+			editorPaneAnnounceFocus();
+		}
 	}
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_LEFT_PRESS:

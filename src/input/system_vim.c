@@ -154,7 +154,8 @@ static struct vimBindableCommand g_vim_commands[] = {
         {"normal_mode", VIM_SYSTEM_MODE_INSERT, '\x1b', '\x1b'},
 };
 
-static const size_t g_vim_command_count = sizeof(g_vim_commands) / sizeof(g_vim_commands[0]);
+#define VIM_COMMAND_COUNT (sizeof(g_vim_commands) / sizeof(g_vim_commands[0]))
+static const size_t g_vim_command_count = VIM_COMMAND_COUNT;
 
 /* Leader sequences: `<leader>` followed by one key dispatches an editor action.
  * Leader is space by default. Both the leader key and each sub-key are bindable
@@ -180,7 +181,8 @@ static struct vimLeaderBinding g_vim_leader_map[] = {
         {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
 };
 
-static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);
+#define VIM_LEADER_MAP_COUNT (sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]))
+static const size_t g_vim_leader_count = VIM_LEADER_MAP_COUNT;
 
 static int g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
 
@@ -190,14 +192,23 @@ struct vimExCommand {
 };
 
 static const struct vimExCommand g_vim_ex_commands[] = {
-        {"split", EDITOR_ACTION_SPLIT_HORIZONTAL}, {"sp", EDITOR_ACTION_SPLIT_HORIZONTAL},
-        {"vsplit", EDITOR_ACTION_SPLIT_VERTICAL},  {"vs", EDITOR_ACTION_SPLIT_VERTICAL},
-        {"vsp", EDITOR_ACTION_SPLIT_VERTICAL},     {"close", EDITOR_ACTION_CLOSE_PANE},
-        {"clo", EDITOR_ACTION_CLOSE_PANE},         {"tabclose", EDITOR_ACTION_CLOSE_TAB},
-        {"tabc", EDITOR_ACTION_CLOSE_TAB},         {"bd", EDITOR_ACTION_CLOSE_TAB},
-        {"bdelete", EDITOR_ACTION_CLOSE_TAB},      {"term", EDITOR_ACTION_TERMINAL_OPEN},
-        {"terminal", EDITOR_ACTION_TERMINAL_OPEN}, {"vterm", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
-        {"only", EDITOR_ACTION_CLOSE_OTHER_PANES}, {"on", EDITOR_ACTION_CLOSE_OTHER_PANES},
+        {"split", EDITOR_ACTION_SPLIT_HORIZONTAL},
+        {"sp", EDITOR_ACTION_SPLIT_HORIZONTAL},
+        {"vsplit", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"vs", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"vsp", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"close", EDITOR_ACTION_CLOSE_PANE},
+        {"clo", EDITOR_ACTION_CLOSE_PANE},
+        {"tabclose", EDITOR_ACTION_CLOSE_TAB},
+        {"tabc", EDITOR_ACTION_CLOSE_TAB},
+        {"bd", EDITOR_ACTION_CLOSE_TAB},
+        {"bdelete", EDITOR_ACTION_CLOSE_TAB},
+        {"term", EDITOR_ACTION_TERMINAL_OPEN},
+        {"terminal", EDITOR_ACTION_TERMINAL_OPEN},
+        {"vterm", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
+        {"tabterm", EDITOR_ACTION_TERMINAL_NEW_TAB},
+        {"only", EDITOR_ACTION_CLOSE_OTHER_PANES},
+        {"on", EDITOR_ACTION_CLOSE_OTHER_PANES},
         {"tabnew", EDITOR_ACTION_NEW_TAB},
 };
 
@@ -282,6 +293,9 @@ static int vimSystemCtrlWAction(int c, enum editorAction *action_out) {
 		case 'o':
 			action = EDITOR_ACTION_CLOSE_OTHER_PANES;
 			break;
+		case 't':
+			action = EDITOR_ACTION_TERMINAL_NEW_TAB;
+			break;
 		case 'w':
 		case CTRL_KEY('w'):
 			action = EDITOR_ACTION_FOCUS_NEXT_PANE;
@@ -324,6 +338,28 @@ static int vimSystemCtrlWAction(int c, enum editorAction *action_out) {
 		*action_out = action;
 	}
 	return 1;
+}
+
+int editorVimLeaderKey(void) {
+	return g_vim_leader_key;
+}
+
+int editorVimLeaderAction(int c, int *action_out) {
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	int ok = vimSystemLeaderLookup(c, &action);
+	if (ok && action_out != NULL) {
+		*action_out = (int)action;
+	}
+	return ok;
+}
+
+int editorVimCtrlWAction(int c, int *action_out) {
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	int ok = vimSystemCtrlWAction(c, &action);
+	if (ok && action_out != NULL) {
+		*action_out = (int)action;
+	}
+	return ok;
 }
 
 static enum vimSystemMode vimSystemRemapLookupMode(enum vimSystemMode mode) {

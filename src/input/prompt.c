@@ -48,8 +48,10 @@ void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
-static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCallback callback,
-                           editorPromptCompleteFn complete_fn, void *complete_ctx) {
+/* Keep caller-provided labels out of the format-string position. */
+static char *promptRunLoop(const char *prompt, const char *literal_label, int allow_empty,
+                           editorPromptCallback callback, editorPromptCompleteFn complete_fn,
+                           void *complete_ctx) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {
@@ -63,7 +65,11 @@ static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCall
 	char *tab_anchor = NULL;
 
 	while (1) {
-		editorSetStatusMsg(prompt, buf);
+		if (literal_label != NULL) {
+			editorSetStatusMsg("%s%s", literal_label, buf);
+		} else {
+			editorSetStatusMsg(prompt, buf);
+		}
 		editorRefreshScreen();
 
 		int c = editorReadKey();
@@ -169,20 +175,20 @@ static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCall
 }
 
 char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback) {
-	return promptRunLoop(prompt, allow_empty, callback, NULL, NULL);
+	return promptRunLoop(prompt, NULL, allow_empty, callback, NULL, NULL);
 }
 
 char *editorPromptWithCompletion(const char *prompt, int allow_empty,
                                  editorPromptCompleteFn complete_fn, void *complete_ctx) {
-	return promptRunLoop(prompt, allow_empty, NULL, complete_fn, complete_ctx);
+	return promptRunLoop(prompt, NULL, allow_empty, NULL, complete_fn, complete_ctx);
 }
 
 char *editorPrompt(const char *prompt) {
-	return promptRunLoop(prompt, 0, NULL, NULL, NULL);
+	return promptRunLoop(prompt, NULL, 0, NULL, NULL, NULL);
 }
 
-int editorPromptYesNo(const char *prompt) {
-	char *response = promptRunLoop(prompt, 1, NULL, NULL, NULL);
+static int promptYesNo(const char *prompt, const char *literal_label) {
+	char *response = promptRunLoop(prompt, literal_label, 1, NULL, NULL, NULL);
 	int accepted = 0;
 	if (response == NULL) {
 		return 0;
@@ -192,4 +198,12 @@ int editorPromptYesNo(const char *prompt) {
 	}
 	free(response);
 	return accepted;
+}
+
+int editorPromptYesNo(const char *prompt) {
+	return promptYesNo(prompt, NULL);
+}
+
+int editorPromptYesNoLiteral(const char *label) {
+	return promptYesNo(NULL, label);
 }

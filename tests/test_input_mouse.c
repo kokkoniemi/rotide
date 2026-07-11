@@ -903,9 +903,10 @@ static int test_editor_process_keypress_mouse_tab_bar_right_click_opens_menu(voi
 
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
-	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
 	ASSERT_EQ_STR("Close Tab", E.popup.items[0].label);
-	ASSERT_EQ_STR("New Tab", E.popup.items[1].label);
+	ASSERT_EQ_STR("New Terminal", E.popup.items[1].label);
+	ASSERT_EQ_STR("New Tab", E.popup.items[2].label);
 	ASSERT_EQ_INT(2, editorTabActiveIndex());
 	return 0;
 }
@@ -951,12 +952,15 @@ static int test_editor_process_keypress_mouse_tab_bar_blank_context_creates_tab(
 	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
-	ASSERT_EQ_INT(1, editorPopupItemCount());
-	ASSERT_EQ_STR("New Tab", E.popup.items[0].label);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("New Terminal", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Tab", E.popup.items[1].label);
 
+	/* Click the "New Tab" item (index 1) to keep this an empty-tab regression
+	 * without spawning a PTY. */
 	char left[32];
 	ASSERT_TRUE(format_sgr_mouse_event(left, sizeof(left), 0, E.popup.anchor_col,
-	                                   E.popup.anchor_row + 1, 'M'));
+	                                   E.popup.anchor_row + 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(left, strlen(left)) == 0);
 
 	ASSERT_EQ_INT(2, editorTabCount());
@@ -1089,9 +1093,10 @@ static int test_editor_process_keypress_mouse_pane_strip_context_close_targets_c
 
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
-	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
 	ASSERT_EQ_STR("Close Tab", E.popup.items[0].label);
-	ASSERT_EQ_STR("New Tab", E.popup.items[1].label);
+	ASSERT_EQ_STR("New Terminal", E.popup.items[1].label);
+	ASSERT_EQ_STR("New Tab", E.popup.items[2].label);
 	ASSERT_TRUE(E.focused_leaf == bottom);
 	ASSERT_EQ_INT(2, editorTabActiveIndex());
 
@@ -3137,7 +3142,7 @@ static int test_editor_terminal_tab_context_menu_close_closes_terminal(void) {
 
 	ASSERT_TRUE(editorOpenTabContextMenuAt(1, 1, sibling, term_idx));
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
-	ASSERT_EQ_INT(2, editorPopupItemCount()); /* Close Tab + New Tab */
+	ASSERT_EQ_INT(3, editorPopupItemCount()); /* Close Tab + New Terminal + New Tab */
 	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
 
 	int effects = 0;

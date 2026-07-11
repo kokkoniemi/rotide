@@ -413,16 +413,28 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # example uses ctrl+alt+y / ctrl+alt+u (any unused letter works).
 # pane_grow = "ctrl+alt+y"
 # pane_shrink = "ctrl+alt+u"
-# terminal_open splits the focused pane top/bottom and runs $SHELL
-# (falling back to /bin/sh) in the new sibling. terminal_open_vertical
-# does the same with a left/right split. When focus is on a terminal pane, every
-# keystroke is routed to the child PTY by default — to invoke a rotide
-# action from there, first press terminal_prefix and then the action key.
-# The prefix-armed state lasts for exactly one keypress and is shown in
-# the message bar.
-# terminal_open = "ctrl+alt+t"
-# terminal_open_vertical = "ctrl+alt+y"
-# terminal_prefix = "ctrl+alt+a"
+# terminal_new_tab opens $SHELL (falling back to /bin/sh) as a new terminal tab
+# beside the current tab in the focused pane — no new pane is created. It is also
+# reachable from the tab-row context menu ("New Terminal") and the focused
+# terminal's status-bar "New term" button.
+terminal_new_tab = "ctrl+alt+t"
+# terminal_open and terminal_open_vertical instead split the focused pane and run
+# the shell in a new sibling pane (top/bottom and left/right respectively). They
+# have no default binding; uncomment with an unused chord to enable.
+# terminal_open = "ctrl+alt+j"
+# terminal_open_vertical = "ctrl+alt+k"
+#
+# CUA terminal focus: every keystroke is routed to the child PTY, including Esc
+# and Esc-prefixed input (arrows, function keys, Alt chords, mouse, paste), so a
+# shell or fullscreen TUI receives ordinary input byte-for-byte. There is no
+# terminal mode in CUA. To invoke one rotide action from a focused terminal,
+# press terminal_prefix and then the action key (e.g. a pane switch or
+# terminal_new_tab). The prefix stays armed only until the escaped command
+# completes, and the armed state is shown in the message bar. The status-bar
+# terminal buttons dispatch the same actions with the mouse, so a fullscreen
+# child that grabs the keyboard can still be escaped. (In Vim mode the terminal
+# is modal and uses Ctrl-W instead — see [keymap.vim] below.)
+terminal_prefix = "ctrl+alt+a"
 # open_settings has no default binding; the File > Settings menu item opens it.
 # open_settings = "ctrl+alt+s"
 
@@ -459,13 +471,32 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 #
 # Built-in Vim window commands are not configurable yet: Ctrl-W s/v splits,
 # Ctrl-W c/q closes the focused pane, Ctrl-W o closes other panes, Ctrl-W w and
-# Ctrl-W W cycle pane focus, Ctrl-W h/j/k/l (or arrows) move focus, and
-# Ctrl-W H/J/K/L move the active tab to a neighbour pane. Ctrl-W q is pane-close;
-# use :q or Ctrl-Q to quit the app.
+# Ctrl-W W cycle pane focus, Ctrl-W h/j/k/l (or arrows) move focus,
+# Ctrl-W H/J/K/L move the active tab to a neighbour pane, and Ctrl-W t opens a
+# new terminal tab beside the current one. Ctrl-W q is pane-close; use :q or
+# Ctrl-Q to quit the app.
+#
+# Vim terminal focus is modal, like Vim's :terminal, and the mode is shown in the
+# status bar. New terminals start in Job/Insert mode, which forwards every key to
+# the child PTY unchanged — Esc, all Esc-prefixed input (arrows, function keys,
+# Alt chords, mouse, bracketed paste), Space, and every Vim command letter. The
+# Vim leader is NOT recognized here: typing Space then p sends the literal bytes
+# " p" to the child. Esc is never an escape mechanism (it is ordinary child
+# input). The one reserved key is Ctrl-W, the Vim window key:
+#   Ctrl-W h/j/k/l (and the other window commands above) switch panes directly
+#     from Job/Insert mode;
+#   Ctrl-W N enters Terminal Normal mode;
+#   Ctrl-W . sends a literal Ctrl-W byte to the child.
+# In Terminal Normal mode the Vim <leader> and Ctrl-W maps run against rotide (so
+# <leader>p, <leader>e, Ctrl-W h/l, etc. work), keys are not sent to the child,
+# and i/a/I/A return to Job/Insert mode. (Ctrl-W is a built-in window key and not
+# yet rebindable; a shell that wants readline's Ctrl-W can use Ctrl-W . to send a
+# literal Ctrl-W.)
 #
 # Built-in ex aliases include :split/:sp, :vsplit/:vs/:vsp, :e/:edit <file>,
 # :split <file>, :vsplit <file>, :close/:clo, :only/:on, :tabclose/:tabc,
-# :bd/:bdelete, :tabnew, :term/:terminal, and :vterm. The :git command opens
+# :bd/:bdelete, :tabnew, :term/:terminal, :vterm, and :tabterm (a terminal tab
+# beside the current one, like Ctrl-W t). The :git command opens
 # the Git drawer; :git branches|log|stash|commit|amend|push|pull|fetch runs the
 # matching view or action. Press Tab in the : prompt to complete/cycle command
 # names. These spellings are built in and are not configured under [keymap.vim].

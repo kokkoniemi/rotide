@@ -351,13 +351,10 @@ static void tabsLoadActiveTab(int tab_idx) {
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
 		(void)editorPaneViewActivateTab(&E.focused_leaf->as.leaf.view, tab_idx);
 	}
-	/* Non-editor active tab: E.active_buffer stays detached/empty and no editor
-	 * (syntax/LSP/document) setup runs. The payload owns the tab's real state. */
+	/* Widget payloads own their state; E.active_buffer stays detached. */
 	if (E.tabs[tab_idx].kind != EDITOR_PANE_KIND_EDITOR) {
-		/* A re-shown terminal tab must fully repaint: its rows are "clean" but
-		 * the previously-active tab painted over them. */
 		if (E.tabs[tab_idx].kind == EDITOR_PANE_KIND_TERMINAL) {
-			editorTerminalPaneMarkDirty(
+			editorTerminalPaneResetPendingInput(
 			        (struct editorTerminalPane *)E.tabs[tab_idx].payload);
 		}
 		editorResetActiveBufferFields();
@@ -541,6 +538,51 @@ int editorTabAdoptInPane(struct editorPaneNode *pane, enum editorPaneKind kind, 
 	}
 	E.active_tab = new_idx;
 	tabsLoadActiveTab(new_idx);
+	return new_idx;
+}
+
+int editorTabNewTerminalBesideActive(const char *command) {
+	if (command == NULL) {
+		return -1;
+	}
+	struct editorPaneNode *pane = E.focused_leaf;
+	if (pane == NULL || pane->is_split || pane->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return -1;
+	}
+	if (E.tab_count >= ROTIDE_MAX_TABS || !tabsEnsureTabCapacity(E.tab_count + 1)) {
+		return -1;
+	}
+	struct editorRect rect = {0};
+	int cols = 80;
+	int rows = 24;
+	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0 && rect.h > 0) {
+		cols = rect.w;
+		rows = rect.h;
+	}
+	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
+	if (terminal == NULL) {
+		return -1;
+	}
+	tabsStoreActiveTab();
+	int new_idx =
+	        editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, terminal, editorTerminalPaneFree);
+	if (new_idx < 0) {
+		editorTerminalPaneFree(terminal);
+		tabsLoadActiveTab(E.active_tab);
+		return -1;
+	}
+	int active_slot = editorPaneViewIndexOfTab(&pane->as.leaf.view, E.active_tab);
+	int slot = active_slot < 0 ? pane->as.leaf.view.pane_tab_count : active_slot + 1;
+	if (!editorPaneViewInsertTabAt(&pane->as.leaf.view, new_idx, slot)) {
+		/* The tab owns the terminal after editorTabCreateWidget succeeds. */
+		E.tab_count--;
+		tabsStateFree(&E.tabs[new_idx]);
+		tabsLoadActiveTab(E.active_tab);
+		return -1;
+	}
+	E.active_tab = new_idx;
+	tabsLoadActiveTab(new_idx);
+	(void)editorPaneViewActivateTab(&pane->as.leaf.view, new_idx);
 	return new_idx;
 }
 

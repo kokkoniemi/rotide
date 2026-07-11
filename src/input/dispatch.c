@@ -11,10 +11,11 @@
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "editing/text_source.h"
+#include "input/actions_debug.h"
 #include "input/actions_edit.h"
 #include "input/actions_file_tab.h"
 #include "input/actions_language.h"
-#include "input/actions_terminal_debug.h"
+#include "input/actions_terminal.h"
 #include "input/actions_workspace.h"
 #include "input/input_system.h"
 #include "input/mouse.h"
@@ -2545,7 +2546,10 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	if (editorHandleFileTabMappedAction(action)) {
 		return 1;
 	}
-	if (editorHandleTerminalDebugMappedAction(action)) {
+	if (editorHandleTerminalMappedAction(action)) {
+		return 1;
+	}
+	if (editorHandleDebugMappedAction(action)) {
 		return 1;
 	}
 	if (editorHandleWorkspaceMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
@@ -3134,15 +3138,80 @@ static int dispatchTryDapConsoleKey(int c) {
 	}
 }
 
-/* Returns 1 when the key was forwarded to the terminal pane (caller must return). */
-static int dispatchTryTerminalPaneKey(int c) {
-	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
-	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
-		return 0;
+/* Keep terminal Ctrl-W commands on the configured Vim window map. */
+static void dispatchTerminalVimCtrlW(struct editorTerminalPane *terminal, int c) {
+	if (c == '\x1b') {
+		return;
 	}
+	if (c == 'N' || c == 'n') {
+		terminal->input_mode = EDITOR_TERMINAL_INPUT_NORMAL;
+		editorSetStatusMsg("Terminal: NORMAL (i to insert)");
+		return;
+	}
+	if (c == '.') {
+		(void)editorTerminalPaneSendKey(terminal, CTRL_KEY('w'));
+		return;
+	}
+	int action = EDITOR_ACTION_COUNT;
+	if (editorVimCtrlWAction(c, &action)) {
+		int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorDispatchProcessMappedAction((enum editorAction)action, &effects);
+	}
+}
+
+static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, int c) {
+	if (terminal->pending_leader) {
+		terminal->pending_leader = 0;
+		int action = EDITOR_ACTION_COUNT;
+		if (c != '\x1b' && editorVimLeaderAction(c, &action)) {
+			int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+			(void)editorDispatchProcessMappedAction((enum editorAction)action,
+			                                        &effects);
+		}
+		return;
+	}
+	if (c == 'i' || c == 'a' || c == 'I' || c == 'A') {
+		terminal->input_mode = EDITOR_TERMINAL_INPUT_INSERT;
+		return;
+	}
+	if (c == CTRL_KEY('w')) {
+		terminal->pending_ctrl_w = 1;
+		return;
+	}
+	if (c == editorVimLeaderKey()) {
+		terminal->pending_leader = 1;
+		return;
+	}
+}
+
+static void dispatchTerminalVimKey(struct editorTerminalPane *terminal, int c) {
+	if (terminal->pending_ctrl_w) {
+		terminal->pending_ctrl_w = 0;
+		dispatchTerminalVimCtrlW(terminal, c);
+		return;
+	}
+	if (terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL) {
+		dispatchTerminalVimNormalKey(terminal, c);
+		return;
+	}
+	if (c == CTRL_KEY('w')) {
+		terminal->pending_ctrl_w = 1;
+		return;
+	}
+	(void)editorTerminalPaneSendKey(terminal, c);
+}
+
+static int dispatchTerminalCuaKey(struct editorTerminalPane *terminal, int c) {
 	if (E.terminal_prefix_armed) {
 		E.terminal_prefix_armed = 0;
-		return 0;
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+			int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+			(void)editorDispatchProcessMappedAction(action, &effects);
+		} else {
+			editorSetStatusMsg("Unbound terminal command");
+		}
+		return 1;
 	}
 	enum editorAction terminal_action = EDITOR_ACTION_COUNT;
 	if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
@@ -3153,6 +3222,18 @@ static int dispatchTryTerminalPaneKey(int c) {
 	}
 	(void)editorTerminalPaneSendKey(terminal, c);
 	return 1;
+}
+
+static int dispatchTryTerminalPaneKey(int c) {
+	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
+	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return 0;
+	}
+	if (editorInputSystemActive() == &editorVimInputSystem) {
+		dispatchTerminalVimKey(terminal, c);
+		return 1;
+	}
+	return dispatchTerminalCuaKey(terminal, c);
 }
 
 static void dispatchInsertTextByte(int c, int *effects) {

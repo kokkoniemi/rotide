@@ -998,7 +998,8 @@ struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orie
 		 * pane also shows it as a preview; pinning stays per-pane. */
 		int was_preview = sibling->as.leaf.view.preview_tab_idx == tab_idx;
 		editorPaneViewClearTabs(&sibling->as.leaf.view);
-		if (tab_idx >= 0) {
+		/* A terminal cannot serve two independently sized pane hosts. */
+		if (tab_idx >= 0 && editorTabKindAt(tab_idx) != EDITOR_PANE_KIND_TERMINAL) {
 			(void)editorPaneViewActivateTab(&sibling->as.leaf.view, tab_idx);
 			if (was_preview) {
 				sibling->as.leaf.view.preview_tab_idx = tab_idx;

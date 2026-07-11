@@ -309,7 +309,7 @@ static int git_view_status_bar_has_action(enum editorAction action) {
 	free(out);
 	for (int col = 0; col < E.window_cols; col++) {
 		int found = 0;
-		if (editorStatusBarDebugButtonAt(col, &found) && found == (int)action) {
+		if (editorStatusBarButtonAt(col, &found) && found == (int)action) {
 			return 1;
 		}
 	}
@@ -408,7 +408,7 @@ static int test_git_view_status_bar_git_drawer_buttons(void) {
 	ASSERT_TRUE(first_name != NULL);
 	ASSERT_TRUE(strstr(first_name + 1, "visible-name.c") != NULL);
 	int action = 0;
-	ASSERT_TRUE(!editorStatusBarDebugButtonAt(1, &action));
+	ASSERT_TRUE(!editorStatusBarButtonAt(1, &action));
 	free(out);
 	editorGitFree();
 	return 0;
@@ -473,7 +473,7 @@ static int test_git_view_status_bar_view_context_buttons(void) {
 	int action = 0;
 	int found_checkout = 0;
 	for (int col = 0; col < E.window_cols; col++) {
-		if (editorStatusBarDebugButtonAt(col, &action) &&
+		if (editorStatusBarButtonAt(col, &action) &&
 		    action == (int)EDITOR_ACTION_GIT_VIEW_ACTIVATE) {
 			found_checkout = 1;
 			break;

@@ -149,6 +149,22 @@ static int git_input_select_group_row(const char *name) {
 	return 0;
 }
 
+static int git_input_select_action_row(const char *name) {
+	int visible = editorDrawerVisibleCount();
+	for (int idx = 0; idx < visible; idx++) {
+		struct editorDrawerEntryView view;
+		if (!editorDrawerVisibleEntryView(idx, &view)) {
+			continue;
+		}
+		if (!view.is_dir && strcmp(view.name, name) == 0) {
+			E.drawer_selected_index = idx;
+			return 1;
+		}
+	}
+	E.drawer_selected_index = -1;
+	return 0;
+}
+
 /* Feeds decoded keys straight to the active input system: raw ESC bytes in a
  * stdin buffer would be decoded as escape-sequence prefixes, not Esc. */
 static int git_input_feed_keys(const char *keys) {
@@ -318,6 +334,30 @@ static int test_git_input_keys_inert_in_tree_mode(void) {
 	return 0;
 }
 
+static int test_git_input_push_without_upstream_can_cancel(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+
+	char bare[600];
+	(void)snprintf(bare, sizeof(bare), "%s-bare", repo);
+	ASSERT_TRUE(git_input_run_cmd("git init -q --bare '%s'", bare));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' remote add origin '%s'", repo, bare));
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_action_row("Push"));
+	ASSERT_TRUE(editor_process_keypress_with_input("\rn\r", 3) == 0);
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_EQ_STR("Push cancelled", E.statusmsg);
+	ASSERT_TRUE(!git_input_run_cmd(
+	        "git -c safe.bareRepository=all -C '%s' rev-parse -q --verify main >/dev/null",
+	        bare));
+
+	ASSERT_TRUE(git_input_run_cmd("rm -rf '%s'", bare));
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
 static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
@@ -327,22 +367,10 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	(void)snprintf(bare, sizeof(bare), "%s-bare", repo);
 	ASSERT_TRUE(git_input_run_cmd("git init -q --bare '%s'", bare));
 	ASSERT_TRUE(git_input_run_cmd("git -C '%s' remote add origin '%s'", repo, bare));
-	ASSERT_TRUE(git_input_run_cmd("git -C '%s' config push.default current", repo));
 
 	ASSERT_TRUE(editorDrawerGitToggle());
-	int push_row = -1;
-	int visible = editorDrawerVisibleCount();
-	for (int i = 0; i < visible; i++) {
-		struct editorDrawerEntryView view;
-		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
-		if (strcmp(view.name, "Push") == 0) {
-			push_row = i;
-			break;
-		}
-	}
-	ASSERT_TRUE(push_row > 0);
-	E.drawer_selected_index = push_row;
-	ASSERT_TRUE(editor_process_keypress_with_input("\r", 1) == 0);
+	ASSERT_TRUE(git_input_select_action_row("Push"));
+	ASSERT_TRUE(editor_process_keypress_with_input("\ry\r", 3) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 
 	for (int i = 0; i < 1000 && editorTaskIsRunning(); i++) {
@@ -356,8 +384,33 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	ASSERT_TRUE(git_input_run_cmd(
 	        "git -c safe.bareRepository=all -C '%s' rev-parse -q --verify main >/dev/null",
 	        bare));
+	ASSERT_TRUE(git_input_run_cmd(
+	        "test \"$(git -C '%s' rev-parse --abbrev-ref --symbolic-full-name '@{u}')\" "
+	        "= origin/main",
+	        repo));
 
 	ASSERT_TRUE(git_input_run_cmd("rm -rf '%s'", bare));
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_push_prompt_handles_adversarial_remote_name(void) {
+	SKIP_WITHOUT_GIT();
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup("vim", &repo));
+
+	const char *evil_remote = "ori%sgin%d";
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' remote add '%s' '%s-bare'", repo, evil_remote,
+	                              repo));
+	editorGitRefresh();
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_action_row("Push"));
+	ASSERT_TRUE(editor_process_keypress_with_input("\rn\r", 3) == 0);
+
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_EQ_STR("Push cancelled", E.statusmsg);
+
 	git_input_repo_destroy(repo);
 	return 0;
 }
@@ -867,7 +920,7 @@ static int test_git_input_status_bar_button_click_stages_file(void) {
 	int stage_col = -1;
 	for (int col = 0; col < E.window_cols; col++) {
 		int action = 0;
-		if (editorStatusBarDebugButtonAt(col, &action) &&
+		if (editorStatusBarButtonAt(col, &action) &&
 		    action == (int)EDITOR_ACTION_GIT_STAGE) {
 			stage_col = col;
 			break;
@@ -1194,8 +1247,12 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_group_header_menu_stages_group", test_git_input_group_header_menu_stages_group},
         {"git_input_discard_confirm_and_cancel", test_git_input_discard_confirm_and_cancel},
         {"git_input_keys_inert_in_tree_mode", test_git_input_keys_inert_in_tree_mode},
+        {"git_input_push_without_upstream_can_cancel",
+         test_git_input_push_without_upstream_can_cancel},
         {"git_input_push_key_runs_task_to_bare_remote",
          test_git_input_push_key_runs_task_to_bare_remote},
+        {"git_input_push_prompt_handles_adversarial_remote_name",
+         test_git_input_push_prompt_handles_adversarial_remote_name},
         {"git_input_commit_via_vim_write", test_git_input_commit_via_vim_write},
         {"git_input_commit_via_cua_ctrl_s", test_git_input_commit_via_cua_ctrl_s},
         {"git_input_commit_amend_prefills_last_message",

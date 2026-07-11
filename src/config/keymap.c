@@ -180,6 +180,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"pane_shrink", EDITOR_ACTION_PANE_SHRINK},
         {"terminal_open", EDITOR_ACTION_TERMINAL_OPEN},
         {"terminal_open_vertical", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
+        {"terminal_new_tab", EDITOR_ACTION_TERMINAL_NEW_TAB},
         {"terminal_prefix", EDITOR_ACTION_TERMINAL_PREFIX},
         {"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
         {"git_stage", EDITOR_ACTION_GIT_STAGE},
@@ -865,6 +866,10 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	                          EDITOR_ACTION_LSP_DRAWER);
 	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('b'),
 	                          EDITOR_ACTION_DAP_DRAWER);
+	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('a'),
+	                          EDITOR_ACTION_TERMINAL_PREFIX);
+	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('t'),
+	                          EDITOR_ACTION_TERMINAL_NEW_TAB);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,

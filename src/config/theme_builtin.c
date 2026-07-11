@@ -40,8 +40,8 @@ struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, un
 /* Mixes `accent_pct`% of `accent` into `base`, both RGB. Used to derive a subtle
  * tinted background from an accent color and the editor background. Falls back to
  * a dim 256 yellow when either input is not RGB. */
-static struct editorThemeColor themeBlendRgb(struct editorThemeColor accent,
-                                             struct editorThemeColor base, int accent_pct) {
+static struct editorThemeColor themeBuiltinBlendRgb(struct editorThemeColor accent,
+                                                    struct editorThemeColor base, int accent_pct) {
 	if (accent.kind != EDITOR_THEME_COLOR_RGB || base.kind != EDITOR_THEME_COLOR_RGB) {
 		return editorTheme256Color(58);
 	}
@@ -68,7 +68,7 @@ struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *them
 	if (bg.kind == EDITOR_THEME_COLOR_RGB) {
 		struct editorThemeColor accent = added ? editorThemeRgbColor(0x2E, 0xA0, 0x43)
 		                                       : editorThemeRgbColor(0xD1, 0x37, 0x3F);
-		return themeBlendRgb(accent, bg, 22);
+		return themeBuiltinBlendRgb(accent, bg, 22);
 	}
 	return editorTheme256Color(added ? 22 : 52);
 }
@@ -1114,8 +1114,8 @@ static void themeBuiltinFinalize(struct editorTheme *theme) {
 	 * the editor background (like the current-line highlight, but amber). */
 	if (theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG].kind == EDITOR_THEME_COLOR_DEFAULT) {
 		theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG] =
-		        themeBlendRgb(theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE],
-		                      theme->ui[EDITOR_THEME_UI_BACKGROUND], 30);
+		        themeBuiltinBlendRgb(theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE],
+		                             theme->ui[EDITOR_THEME_UI_BACKGROUND], 30);
 	}
 }
 

@@ -5,12 +5,7 @@
 
 int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent);
 
-/*
- * If `col` (0-based column within the status row) falls on a debug-control
- * button recorded by the most recent editorDrawStatusBar, writes the button's
- * editorAction (as int) to *action_out and returns 1; otherwise returns 0.
- */
-int editorStatusBarDebugButtonAt(int col, int *action_out);
+int editorStatusBarButtonAt(int col, int *action_out);
 int editorDrawMessageBar(struct writeBuf *wb);
 int editorDrawDiagnosticPopdownMessage(struct writeBuf *wb, const char *message,
                                        int cursor_screen_row, int cursor_screen_col,

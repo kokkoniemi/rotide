@@ -1115,7 +1115,8 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	char *tab0 = vimSystemExCompletionTest("tab", 0);
 	char *tab1 = vimSystemExCompletionTest("tab", 1);
 	char *tab2 = vimSystemExCompletionTest("tab", 2);
-	char *wrap = vimSystemExCompletionTest("tab", 3);
+	char *tab3 = vimSystemExCompletionTest("tab", 3);
+	char *wrap = vimSystemExCompletionTest("tab", 4);
 	char *builtin = vimSystemExCompletionTest("x", 0);
 	char *missing = vimSystemExCompletionTest("zz", 0);
 
@@ -1124,7 +1125,8 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	ASSERT_EQ_STR("split", third);
 	ASSERT_EQ_STR("tabclose", tab0);
 	ASSERT_EQ_STR("tabc", tab1);
-	ASSERT_EQ_STR("tabnew", tab2);
+	ASSERT_EQ_STR("tabterm", tab2);
+	ASSERT_EQ_STR("tabnew", tab3);
 	ASSERT_EQ_STR("tabclose", wrap);
 	ASSERT_EQ_STR("x", builtin);
 	ASSERT_TRUE(missing == NULL);
@@ -1134,6 +1136,7 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	free(tab0);
 	free(tab1);
 	free(tab2);
+	free(tab3);
 	free(wrap);
 	free(builtin);
 	return 0;
@@ -1253,6 +1256,31 @@ static int test_input_vim_ctrl_w_h_prefers_left_editor_neighbor_over_drawer(void
 	(void)vim_test_ctrl_w_h();
 	ASSERT_TRUE(E.focused_leaf == left);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	return 0;
+}
+
+static int test_input_vim_ctrl_w_l_returns_to_editor_from_drawer(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	(void)vim_test_key('s');
+	ASSERT_TRUE(E.layout_root->is_split &&
+	            E.layout_root->as.split.orientation == EDITOR_SPLIT_HORIZONTAL);
+	struct editorPaneNode *upper = editorPaneNodeFirstLeaf(E.layout_root);
+	ASSERT_TRUE(upper != NULL);
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(upper));
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	(void)vim_test_ctrl_w_h();
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+
+	(void)vim_test_ctrl_w_key('l');
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	ASSERT_TRUE(E.focused_leaf == upper);
 	return 0;
 }
 
@@ -2754,6 +2782,8 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_ctrl_w_h_prefers_left_editor_neighbor_over_drawer},
         {"input_vim_ctrl_w_h_does_not_focus_collapsed_drawer",
          test_input_vim_ctrl_w_h_does_not_focus_collapsed_drawer},
+        {"input_vim_ctrl_w_l_returns_to_editor_from_drawer",
+         test_input_vim_ctrl_w_l_returns_to_editor_from_drawer},
         {"input_vim_ctrl_w_w_cycles_through_visible_drawer",
          test_input_vim_ctrl_w_w_cycles_through_visible_drawer},
         {"input_vim_drawer_focus_jk_navigates_drawer_not_text",
