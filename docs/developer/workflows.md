@@ -25,7 +25,7 @@ quit: DAP, LSP, syntax worker, terminal restore. See
 
 ## Input dispatch
 
-[Action dispatch](../diagrams/svg/action-dispatch.svg)
+![Action dispatch](../diagrams/svg/action-dispatch.svg)
 
 Input flows through gates before reaching the keymap so that prompts,
 mouse hits in terminal panes, and direct-to-PTY keystrokes can short-
