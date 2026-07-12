@@ -3,6 +3,7 @@
 
 # Generated headers
 src/language/syntax_query_data.h
+src/config/default_config_data.h
 
 # Object files
 *.o
