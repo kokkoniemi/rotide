@@ -86,11 +86,30 @@ cursor forwards / backwards (and prime `n`/`N`).
 - `~`: toggle case and advance; `J`: join the current line with the next
 - `>>` / `<<`: indent / dedent the line(s); `>`/`<` also take motions (`>ip`) and
   work over a Visual selection
-- `m<a-z>` sets a mark; `` `<a-z> `` jumps to it, `'<a-z>` to its line
+- `m<a-z>` sets a mark; `` `<a-z> `` jumps to it, `'<a-z>` to its line. Marks are
+  file-qualified: jumping to a mark set in another file switches to that file
 - `.` repeats the last change; `ZZ` saves and quits, `ZQ` quits without saving
 - `gq` re-wraps text to the text width: `gqq` the current line, `gqap` a
   paragraph, `gq{motion}`, or `gq` over a Visual selection (default width 80;
   the first line's indent is preserved)
+
+## Vim jumplist
+
+Rotide keeps a per-pane jumplist of the positions you jumped from, so you can
+retrace navigation across lines and files:
+
+- `Ctrl-O`: jump back to the previous position
+- `Ctrl-I` / `Tab`: jump forward again
+- both take a count, e.g. `3` `Ctrl-O` jumps back three entries
+- `:jumps` prints a compact summary (`jumps <index>/<count>`) with the immediate
+  back and forward targets
+
+"Jump" motions that record an entry match Vim: `G`, `gg`, `/`, `?`, `n`, `N`,
+`*`, `#`, `{`, `}`, `%`, `H`/`M`/`L`, mark jumps (`` ` ``/`'`), `:<number>`, and
+LSP navigation (`gd`/`gi`/`gr`). Stepwise motions (`h`/`j`/`k`/`l`, `w`/`b`,
+`f`/`t`, scrolling) do not. Each editor pane has its own list; a split inherits
+the list of the pane it was split from, and the lists persist across sessions in
+the workspace state.
 
 ## Vim text objects
 

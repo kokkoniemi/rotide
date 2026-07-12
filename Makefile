@@ -93,7 +93,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/editing/, \
 		document_bridge.c document_position.c buffer_search.c \
 		edit_pipeline.c post_edit_notify.c row_cache.c text_source.c \
-		buffer_core.c edit.c selection.c history.c) \
+		buffer_core.c edit.c selection.c history.c jumplist.c) \
 	$(addprefix $(SRC_DIR)/workspace/, \
 		tabs.c drawer.c drawer_modes.c drawer_mode_menu.c \
 		drawer_mode_git.c drawer_mode_lsp.c drawer_mode_dap.c \

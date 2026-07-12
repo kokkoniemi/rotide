@@ -8,6 +8,7 @@
 #include "editing/edit.h"
 #include "editing/edit_pipeline.h"
 #include "editing/history.h"
+#include "editing/jumplist.h"
 #include "editing/selection.h"
 #include "editing/text_source.h"
 #include "input/actions_debug.h"
@@ -1255,6 +1256,8 @@ static int dispatchJumpToPathLocation(const char *path, int line, int character,
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
+	/* Cross-file navigation is a Vim jump. */
+	editorJumplistRecord();
 	int opened = preview ? editorTabOpenOrSwitchToPreviewFile(path)
 	                     : editorTabOpenOrSwitchToFile(path);
 	if (!opened) {
@@ -1312,6 +1315,72 @@ static int dispatchJumpToDefinitionLocation(const struct editorLspLocation *loca
 	}
 	return dispatchJumpToPathLocation(location->path, location->line, location->character, 0,
 	                                  0);
+}
+
+/* Clamps buffer coordinates and leaves jumplist history to the caller. */
+int editorDispatchGoToBufferPosition(const char *path, int cy, int cx) {
+	if (path != NULL && path[0] != '\0') {
+		int already_here = E.filename != NULL && strcmp(E.filename, path) == 0;
+		if (!already_here && !editorTabOpenOrSwitchToFile(path)) {
+			return 0;
+		}
+	}
+	if (E.numrows <= 0) {
+		(void)dispatchSetCursorFromOffset(0);
+		editorViewportEnsureCursorVisible();
+		return 1;
+	}
+	if (cy < 0) {
+		cy = 0;
+	}
+	if (cy >= E.numrows) {
+		cy = E.numrows - 1;
+	}
+	if (cx < 0) {
+		cx = 0;
+	}
+	struct editorLineView lview = {0};
+	if (editorDocumentLineView(E.document, cy, &lview)) {
+		if (cx > lview.size) {
+			cx = lview.size;
+		}
+		cx = editorBytesClampCxToClusterBoundary(lview.data, lview.size, cx);
+		editorLineViewRelease(&lview);
+	}
+	size_t target_offset = 0;
+	if (!editorBufferPosToOffset(cy, cx, &target_offset) ||
+	    !dispatchSetCursorFromOffset(target_offset)) {
+		(void)dispatchSetCursorFromOffset(0);
+	}
+	editorViewportEnsureCursorVisible();
+	return 1;
+}
+
+/* Failed targets still advance the index so dead entries can be passed. */
+int editorDispatchJumplistBack(int count, int *effects_out) {
+	struct editorJumpEntry target;
+	if (!editorJumplistStepBack(count, &target)) {
+		return 0;
+	}
+	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(target.path_id), target.cy,
+	                                       target.cx);
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+	}
+	return 1;
+}
+
+int editorDispatchJumplistForward(int count, int *effects_out) {
+	struct editorJumpEntry target;
+	if (!editorJumplistStepForward(count, &target)) {
+		return 0;
+	}
+	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(target.path_id), target.cy,
+	                                       target.cx);
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+	}
+	return 1;
 }
 
 static int dispatchPromptLocationChoice(const char *kind_capitalized, int count, int *choice_out) {

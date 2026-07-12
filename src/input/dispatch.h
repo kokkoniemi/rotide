@@ -12,6 +12,9 @@
 #include "input/text_pairs.h"
 
 int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out);
+int editorDispatchGoToBufferPosition(const char *path, int cy, int cx);
+int editorDispatchJumplistBack(int count, int *effects_out);
+int editorDispatchJumplistForward(int count, int *effects_out);
 void editorDispatchHandleTextByte(int c, int *effects_out);
 int editorDispatchOpenGitBlameDetailsAt(int row_idx, int anchor_col, int report_status);
 void editorProcessKeypress(void);

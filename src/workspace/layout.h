@@ -1,7 +1,8 @@
 #ifndef ROTIDE_WORKSPACE_LAYOUT_H
 #define ROTIDE_WORKSPACE_LAYOUT_H
 
-#include "rotide.h" /* enum editorPaneKind */
+#include "editing/jumplist.h"
+#include "rotide.h"
 
 #include <stddef.h>
 
@@ -63,6 +64,8 @@ struct editorPaneView {
 	/* Preview is per-pane: a tab shared across a split can be preview in one
 	 * pane and pinned in another, so pinning affects only that pane. -1 = none. */
 	int preview_tab_idx;
+	/* Path ids keep by-value pane copies non-owning. */
+	struct editorJumplist jumplist;
 };
 
 struct editorPane {

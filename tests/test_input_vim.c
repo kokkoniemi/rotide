@@ -1,4 +1,5 @@
 #include "editing/history.h"
+#include "editing/jumplist.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/system_vim.h"
@@ -2589,7 +2590,262 @@ static int test_input_vim_visual_block_escape_clears(void) {
 	return 0;
 }
 
+static int test_input_vim_jumplist_g_then_ctrl_o_returns_to_origin(void) {
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	add_row("four");
+
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+	E.cy = 1;
+	E.cx = 2;
+
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_EQ_INT(3, E.cy);
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('o')) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('i')) == 0);
+	ASSERT_EQ_INT(3, E.cy);
+	return 0;
+}
+
+static int test_input_vim_jumplist_records_and_walks_back(void) {
+	for (int i = 0; i < 9; i++) {
+		add_row("line");
+	}
+
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+
+	E.cx = 0;
+	E.cy = 1;
+	editorJumplistRecord();
+	E.cy = 3;
+	editorJumplistRecord();
+	E.cy = 5;
+	editorJumplistRecord();
+	ASSERT_EQ_INT(3, editorJumplistActiveCount());
+
+	E.cy = 8;
+	struct editorJumpEntry out;
+	ASSERT_TRUE(editorJumplistStepBack(1, &out) == 1);
+	ASSERT_EQ_INT(5, out.cy);
+	ASSERT_TRUE(editorJumplistStepBack(1, &out) == 1);
+	ASSERT_EQ_INT(3, out.cy);
+	ASSERT_TRUE(editorJumplistStepBack(1, &out) == 1);
+	ASSERT_EQ_INT(1, out.cy);
+	ASSERT_TRUE(editorJumplistStepBack(1, &out) == 0);
+
+	ASSERT_TRUE(editorJumplistStepForward(1, &out) == 1);
+	ASSERT_EQ_INT(3, out.cy);
+	return 0;
+}
+
+static int test_input_vim_jumplist_new_jump_truncates_forward(void) {
+	for (int i = 0; i < 9; i++) {
+		add_row("line");
+	}
+
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+
+	E.cx = 0;
+	E.cy = 1;
+	editorJumplistRecord();
+	E.cy = 3;
+	editorJumplistRecord();
+
+	struct editorJumpEntry out;
+	E.cy = 6;
+	ASSERT_TRUE(editorJumplistStepBack(1, &out) == 1);
+	ASSERT_EQ_INT(3, out.cy);
+
+	E.cy = 7;
+	editorJumplistRecord();
+	ASSERT_TRUE(editorJumplistStepForward(1, &out) == 0);
+	return 0;
+}
+
+static int test_input_vim_jumplist_dedupes_same_line(void) {
+	add_row("a");
+	add_row("b");
+	add_row("c");
+
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+
+	E.cx = 0;
+	E.cy = 2;
+	editorJumplistRecord();
+	E.cy = 2;
+	editorJumplistRecord();
+	ASSERT_EQ_INT(1, editorJumplistActiveCount());
+	return 0;
+}
+
+static int test_input_vim_jumplist_survives_paneview_copy(void) {
+	add_row("a");
+	add_row("b");
+	add_row("c");
+
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+	E.cx = 0;
+	E.cy = 1;
+	editorJumplistRecord();
+	E.cy = 2;
+	editorJumplistRecord();
+
+	struct editorPaneView copy = E.focused_leaf->as.leaf.view;
+	ASSERT_EQ_INT(2, copy.jumplist.count);
+	ASSERT_EQ_INT(1, copy.jumplist.entries[0].cy);
+	ASSERT_EQ_INT(2, copy.jumplist.entries[1].cy);
+	return 0;
+}
+
+static int test_input_vim_jumplist_search_then_ctrl_o_returns(void) {
+	char search[] = {'/', 'f', 'o', 'o', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo bar");
+	add_row("baz");
+	add_row("more foo");
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+	E.cy = 1;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_keypress_with_input(search, sizeof(search)) == 0);
+	ASSERT_EQ_INT(2, E.cy);
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('o')) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
+static int test_input_vim_jumps_command_reports_status(void) {
+	char cmd[] = {':', 'j', 'u', 'm', 'p', 's', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	add_row("four");
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "empty") != NULL);
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "jumps ") != NULL);
+	ASSERT_TRUE(strlen(E.statusmsg) < sizeof(E.statusmsg));
+	return 0;
+}
+
+static int test_input_vim_mark_jumps_within_file(void) {
+	add_row("  alpha");
+	add_row("beta");
+	add_row("gamma");
+
+	ASSERT_TRUE(vim_test_activate());
+	editorJumplistResetActive();
+	E.cy = 0;
+	E.cx = 4;
+	ASSERT_TRUE(vim_test_key('m') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+
+	E.cy = 2;
+	E.cx = 0;
+	/* Backtick restores the exact column. */
+	ASSERT_TRUE(vim_test_key('`') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+
+	E.cy = 2;
+	E.cx = 0;
+	/* Apostrophe lands on the first non-blank of the marked line. */
+	ASSERT_TRUE(vim_test_key('\'') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	return 0;
+}
+
+static int test_input_vim_mark_unset_is_noop(void) {
+	add_row("alpha");
+	add_row("beta");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 1;
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_key('`') == 0);
+	ASSERT_TRUE(vim_test_key('z') == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	return 0;
+}
+
+static int test_input_vim_mark_jumps_across_files(void) {
+	char path_a[] = "/tmp/rotide-mark-a-XXXXXX";
+	char path_b[] = "/tmp/rotide-mark-b-XXXXXX";
+	int fd_a = mkstemp(path_a);
+	int fd_b = mkstemp(path_b);
+
+	ASSERT_TRUE(fd_a != -1 && fd_b != -1);
+	ASSERT_TRUE(write_all(fd_a, "a0\na1\na2\n", 9) == 0);
+	ASSERT_TRUE(write_all(fd_b, "b0\nb1\n", 6) == 0);
+	ASSERT_TRUE(close(fd_a) == 0);
+	ASSERT_TRUE(close(fd_b) == 0);
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(path_a));
+	E.cy = 2;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('m') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(path_b));
+	ASSERT_TRUE(E.filename != NULL && strcmp(E.filename, path_b) == 0);
+
+	ASSERT_TRUE(vim_test_key('`') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_TRUE(E.filename != NULL && strcmp(E.filename, path_a) == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+
+	unlink(path_a);
+	unlink(path_b);
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
+        {"input_vim_jumplist_g_then_ctrl_o_returns_to_origin",
+         test_input_vim_jumplist_g_then_ctrl_o_returns_to_origin},
+        {"input_vim_jumplist_records_and_walks_back",
+         test_input_vim_jumplist_records_and_walks_back},
+        {"input_vim_jumplist_new_jump_truncates_forward",
+         test_input_vim_jumplist_new_jump_truncates_forward},
+        {"input_vim_jumplist_dedupes_same_line", test_input_vim_jumplist_dedupes_same_line},
+        {"input_vim_jumplist_survives_paneview_copy",
+         test_input_vim_jumplist_survives_paneview_copy},
+        {"input_vim_jumplist_search_then_ctrl_o_returns",
+         test_input_vim_jumplist_search_then_ctrl_o_returns},
+        {"input_vim_jumps_command_reports_status", test_input_vim_jumps_command_reports_status},
+        {"input_vim_mark_jumps_within_file", test_input_vim_mark_jumps_within_file},
+        {"input_vim_mark_unset_is_noop", test_input_vim_mark_unset_is_noop},
+        {"input_vim_mark_jumps_across_files", test_input_vim_mark_jumps_across_files},
         {"input_vim_visual_block_delete", test_input_vim_visual_block_delete},
         {"input_vim_visual_block_yank", test_input_vim_visual_block_yank},
         {"input_vim_visual_block_yank_named_register",
