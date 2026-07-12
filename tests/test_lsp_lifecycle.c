@@ -12,7 +12,7 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorOpen(txt_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
 
-	char goto_def_txt[] = {CTRL_KEY('o')};
+	char goto_def_txt[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_txt, sizeof(goto_def_txt)) ==
 	            0);
 
@@ -28,7 +28,7 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
-	char goto_def_go[] = {CTRL_KEY('o')};
+	char goto_def_go[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_go, sizeof(goto_def_go)) ==
 	            0);
 
@@ -53,7 +53,7 @@ static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 	editorOpen(go_path);
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	struct editorLspTestStats stats = {0};
@@ -95,7 +95,7 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_a
 	E.cx = 15;
 	struct editorLspLocation go_target = {.path = go_path, .line = 2, .character = 5};
 	editorLspTestSetMockDefinitionResponse(1, &go_target, 1);
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	editorOpen(c_path);
@@ -165,7 +165,7 @@ static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes
 	editorOpen(file_a);
 	E.cy = 1;
 	E.cx = 24;
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	target.path = file_b;
@@ -225,7 +225,7 @@ static int test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes(v
 	editorOpen(file_a);
 	E.cy = 1;
 	E.cx = 11;
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	target.path = file_b;
@@ -517,7 +517,7 @@ static int test_editor_lsp_full_document_change_uses_active_source(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	ASSERT_TRUE(editorLspNotifyDidChange(E.filename, E.syntax_language, &E.lsp_doc_open,
@@ -580,7 +580,7 @@ static int test_editor_lsp_html_language_id_routing_for_supported_extensions(voi
 
 	struct editorLspLocation target = {.path = html_path, .line = 0, .character = 9};
 	char language_id[32];
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 
 	editorOpen(html_path);
 	E.cy = 1;
@@ -637,7 +637,7 @@ static int test_editor_lsp_language_id_routing_for_css_scss_and_json(void) {
 
 	struct editorLspLocation target = {.path = css_path, .line = 0, .character = 8};
 	char language_id[32];
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 
 	editorOpen(css_path);
 	E.cy = 1;
@@ -699,7 +699,7 @@ static int test_editor_lsp_language_id_routing_for_javascript_extensions(void) {
 
 	struct editorLspLocation target = {.path = js_path, .line = 0, .character = 6};
 	char language_id[32];
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 
 	editorOpen(js_path);
 	E.cy = 2;

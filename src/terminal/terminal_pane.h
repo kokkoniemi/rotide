@@ -14,7 +14,7 @@ struct terminalScrollbackRow {
 	VTermScreenCell *cells;
 };
 
-/* Vim terminal mode is per tab; CUA terminals ignore it. */
+/* Terminal input mode is per tab. */
 enum editorTerminalInputMode {
 	EDITOR_TERMINAL_INPUT_INSERT = 0,
 	EDITOR_TERMINAL_INPUT_NORMAL,

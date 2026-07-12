@@ -103,14 +103,14 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/input/, \
 		actions_debug.c actions_edit.c actions_file_tab.c actions_language.c \
 		actions_terminal.c actions_workspace.c mouse.c \
-		prompt.c text_pairs.c input_system.c system_cua.c system_vim.c dispatch.c) \
+		prompt.c text_pairs.c system_vim.c dispatch.c) \
 	$(addprefix $(SRC_DIR)/render/, \
 		write_buf.c ansi_style.c display_text.c drawer_view.c \
 		pane_view.c status_bar.c tab_bar.c terminal_view.c \
 		wrap.c viewport.c screen.c popup.c) \
 	$(addprefix $(SRC_DIR)/config/, \
 		common.c keymap.c runtime_config.c editor_config.c \
-		input_config.c theme_builtin.c theme_parse.c lsp_config.c dap_config.c) \
+		theme_builtin.c theme_parse.c lsp_config.c dap_config.c) \
 	$(addprefix $(SRC_DIR)/language/, \
 		syntax.c queries.c syntax_budget.c syntax_captures.c \
 		syntax_detect.c syntax_indent.c syntax_injections.c \
@@ -136,7 +136,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_git_ops.c test_git_input.c test_git_view.c \
 	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
 	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \
-	test_input_system.c test_input_vim.c test_input_actions.c test_input_selection.c test_input_mouse.c \
+	test_input_vim.c test_input_actions.c test_input_selection.c test_input_mouse.c \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \

@@ -1,7 +1,6 @@
 #include "input/actions_file_tab.h"
 
 #include "config/common.h"
-#include "config/keymap.h"
 #include "debug/dap.h"
 #include "editing/edit.h"
 #include "editing/history.h"
@@ -20,51 +19,19 @@ static int g_actions_file_tab_quit_confirmed = 0;
 static int g_actions_file_tab_quit_task_confirmed = 0;
 
 static void actionsFileTabSetQuitConfirmStatus(void) {
-	char quit_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
-	                              sizeof(quit_binding))) {
-		editorSetStatusMsg("File has unsaved changes. Press %s again to quit",
-		                   quit_binding);
-		return;
-	}
-
-	editorSetStatusMsg("File has unsaved changes. Press quit key again to quit");
+	editorSetStatusMsg("File has unsaved changes. Use :q again to quit");
 }
 
 static void actionsFileTabSetQuitTaskConfirmStatus(void) {
-	char quit_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
-	                              sizeof(quit_binding))) {
-		editorSetStatusMsg("Task is still running. Press %s again to terminate it and quit",
-		                   quit_binding);
-		return;
-	}
-	editorSetStatusMsg("Task is still running. Press quit key again to terminate it and quit");
+	editorSetStatusMsg("Task is still running. Use :q again to terminate it and quit");
 }
 
 static void actionsFileTabSetCloseTabConfirmStatus(void) {
-	char close_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
-	                              sizeof(close_binding))) {
-		editorSetStatusMsg("Tab has unsaved changes. Press %s again to close tab",
-		                   close_binding);
-		return;
-	}
-
-	editorSetStatusMsg("Tab has unsaved changes. Press close key again to close tab");
+	editorSetStatusMsg("Tab has unsaved changes. Use :bd again to close tab");
 }
 
 static void actionsFileTabSetCloseTaskConfirmStatus(void) {
-	char close_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
-	                              sizeof(close_binding))) {
-		editorSetStatusMsg(
-		        "Task is still running. Press %s again to terminate it and close tab",
-		        close_binding);
-		return;
-	}
-	editorSetStatusMsg(
-	        "Task is still running. Press close key again to terminate it and close tab");
+	editorSetStatusMsg("Task is still running. Use :bd again to terminate it and close tab");
 }
 
 static void actionsFileTabPerformQuit(void) {

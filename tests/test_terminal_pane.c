@@ -1,6 +1,6 @@
 #include "input/actions_workspace.h"
-#include "input/input_system.h"
 #include "input/mouse.h"
+#include "input/system_vim.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -1021,12 +1021,13 @@ static int test_terminal_new_tab_null_command_leaves_state(void) {
 	       E.focused_leaf->as.leaf.view.pane_tab_count != members_before;
 }
 
-static struct editorPaneNode *setup_focused_terminal(const char *command, const char *system_id,
+static struct editorPaneNode *setup_focused_terminal(const char *command,
                                                      struct editorTerminalPane **term_out) {
 	E.window_cols = 120;
 	E.window_rows = 40;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-	if (!editorTabsInit() || !editorInputSystemActivate(system_id)) {
+	editorVimReset();
+	if (!editorTabsInit()) {
 		return NULL;
 	}
 	struct editorPaneNode *leaf = editorTerminalPaneOpenSplit(command, EDITOR_SPLIT_VERTICAL);
@@ -1049,7 +1050,7 @@ static void feed_keys(const char *s) {
 
 static int test_terminal_input_vim_insert_forwards_bytes(void) {
 	struct editorTerminalPane *t = NULL;
-	struct editorPaneNode *leaf = setup_focused_terminal("cat", "vim", &t);
+	struct editorPaneNode *leaf = setup_focused_terminal("cat", &t);
 	if (leaf == NULL) {
 		return 1;
 	}
@@ -1063,7 +1064,7 @@ static int test_terminal_input_vim_insert_forwards_bytes(void) {
 /* The pipe harness needs a byte after Esc to avoid treating it as EOF. */
 static int test_terminal_input_vim_esc_prefixed_stays_insert(void) {
 	struct editorTerminalPane *t = NULL;
-	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
 	if (leaf == NULL) {
 		return 1;
 	}
@@ -1073,7 +1074,7 @@ static int test_terminal_input_vim_esc_prefixed_stays_insert(void) {
 
 static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 	struct editorTerminalPane *t = NULL;
-	if (setup_focused_terminal("sleep 5", "vim", &t) == NULL) {
+	if (setup_focused_terminal("sleep 5", &t) == NULL) {
 		return 1;
 	}
 	feed_keys("\x17N");
@@ -1086,7 +1087,7 @@ static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 
 static int test_terminal_input_vim_ctrl_w_t_opens_terminal_tab(void) {
 	struct editorTerminalPane *t = NULL;
-	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
 	if (leaf == NULL) {
 		return 1;
 	}
@@ -1107,7 +1108,8 @@ static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
 	E.window_cols = 120;
 	E.window_rows = 40;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-	if (!editorTabsInit() || !editorInputSystemActivate("vim")) {
+	editorVimReset();
+	if (!editorTabsInit()) {
 		return 1;
 	}
 	int tabs_before = E.tab_count;
@@ -1121,7 +1123,7 @@ static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
 
 static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
 	struct editorTerminalPane *t = NULL;
-	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "vim", &t);
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
 	if (leaf == NULL || E.focused_leaf != leaf) {
 		return 1;
 	}
@@ -1132,7 +1134,7 @@ static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
 
 static int test_terminal_input_vim_normal_leader_resolves(void) {
 	struct editorTerminalPane *t = NULL;
-	if (setup_focused_terminal("sleep 5", "vim", &t) == NULL) {
+	if (setup_focused_terminal("sleep 5", &t) == NULL) {
 		return 1;
 	}
 	feed_keys("\x17N");
@@ -1145,7 +1147,7 @@ static int test_terminal_input_vim_normal_leader_resolves(void) {
 
 static int test_terminal_input_modes_are_per_tab(void) {
 	struct editorTerminalPane *a = NULL;
-	struct editorPaneNode *leaf_a = setup_focused_terminal("sleep 5", "vim", &a);
+	struct editorPaneNode *leaf_a = setup_focused_terminal("sleep 5", &a);
 	if (leaf_a == NULL) {
 		return 1;
 	}
@@ -1180,33 +1182,6 @@ static int test_terminal_input_modes_are_per_tab(void) {
 	return b->pending_ctrl_w != 0;
 }
 
-static int test_terminal_input_cua_prefix_and_ctrl_w_literal(void) {
-	struct editorTerminalPane *t = NULL;
-	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", "cua", &t);
-	if (leaf == NULL) {
-		return 1;
-	}
-	feed_keys("\x17");
-	if (E.focused_leaf != leaf) {
-		return 1;
-	}
-	feed_keys("\x1b\x01");
-	if (!E.terminal_prefix_armed) {
-		return 1;
-	}
-	int tabs_before = E.tab_count;
-	feed_keys("\x1b\x14");
-	if (E.terminal_prefix_armed || E.tab_count != tabs_before + 1 ||
-	    editorTerminalPaneForPane(E.focused_leaf) == NULL) {
-		return 1;
-	}
-
-	feed_keys("\x1b\x01");
-	feed_keys("x");
-	return E.terminal_prefix_armed || E.tab_count != tabs_before + 1 ||
-	       strcmp(E.statusmsg, "Unbound terminal command") != 0;
-}
-
 const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_input_vim_insert_forwards_bytes", test_terminal_input_vim_insert_forwards_bytes},
         {"terminal_input_vim_esc_prefixed_stays_insert",
@@ -1220,8 +1195,6 @@ const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_input_vim_normal_leader_resolves",
          test_terminal_input_vim_normal_leader_resolves},
         {"terminal_input_modes_are_per_tab", test_terminal_input_modes_are_per_tab},
-        {"terminal_input_cua_prefix_and_ctrl_w_literal",
-         test_terminal_input_cua_prefix_and_ctrl_w_literal},
         {"terminal_new_tab_inserts_beside_active", test_terminal_new_tab_inserts_beside_active},
         {"terminal_new_tab_order_with_following_tab",
          test_terminal_new_tab_order_with_following_tab},

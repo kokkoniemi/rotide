@@ -102,8 +102,8 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(output_len > 0);
 	ASSERT_TRUE(strstr(output, "\x1b[?25l") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;white\a") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[5 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[1 q") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
 	free(output);
@@ -112,7 +112,7 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	        /* golden-start */
 	        "              │1  first line\n"
 	        "              │2  second line\n"
-	        "sample.txt [+]     2,4    100%\n"
+	        " NORMAL ....txt [+]2,4    100%\n"
 	        "status message\n"
 	        /* golden-end */
 	);
@@ -157,6 +157,7 @@ static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
 	add_row("cursor style");
 	E.window_rows = 4;
 	E.window_cols = 30;
+	ASSERT_TRUE(editor_process_single_key('i') == 0);
 
 	E.cursor_style = EDITOR_CURSOR_STYLE_BLOCK;
 	size_t output_len = 0;
@@ -252,7 +253,7 @@ static int test_editor_refresh_screen_applies_modus_operandi_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:00/00/00\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;255;255;255m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;0;95;95mint") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;114;16;69mmain") != NULL);
@@ -278,7 +279,7 @@ static int test_editor_refresh_screen_applies_github_light_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:1f/23/28\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;255;255;255m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;26;127;55mint") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;149;56;0ms") == NULL);
@@ -305,7 +306,7 @@ static int test_editor_refresh_screen_applies_github_dark_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:e6/ed/f3\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;13;17;23m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;126;231;135mint") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;166;87ms") == NULL);
@@ -332,7 +333,7 @@ static int test_editor_refresh_screen_applies_acme_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:00/00/00\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;255;255;234m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;80;80;80m// comment") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;175;95;0mreturn") != NULL);
@@ -357,7 +358,7 @@ static int test_editor_refresh_screen_applies_silentium_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:e6/e6/e6\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;20;20;20m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;126;107mreturn") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;166;166;166m\"txt\"") != NULL);
@@ -384,7 +385,7 @@ static int test_editor_refresh_screen_applies_molokai_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:f8/f8/f2\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;27;29;30m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;102;217;239mint") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;166;226;46mmain") != NULL);
@@ -413,7 +414,7 @@ static int test_editor_refresh_screen_applies_kanagawa_wave_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:dc/d7/ba\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;31;31;40m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;122;168;159mint") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;126;156;216mmain") != NULL);
@@ -2999,7 +3000,7 @@ static int test_editor_refresh_screen_applies_a11y_dark_truecolor_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:f8/f8/f2\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;102;221;236mint") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;215;0mmain") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;212;208;171m// comment") != NULL);
@@ -3025,7 +3026,7 @@ static int test_editor_refresh_screen_applies_256noir_theme(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b]12;white\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;5;16m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;5;255mint") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;5;255mmain") != NULL);

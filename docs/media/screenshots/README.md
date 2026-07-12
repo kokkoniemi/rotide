@@ -8,10 +8,6 @@ make docs-media
 
 ## Features
 
-### Editor Source (CUA input)
-
-![Editor source with the CUA input system](editor-source-cua.png)
-
 ### Editor Source (drawer hidden)
 
 ![Editor source with drawer hidden](editor-source-no-drawer.png)

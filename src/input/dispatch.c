@@ -1,6 +1,5 @@
 #include "input/dispatch.h"
 
-#include "config/keymap.h"
 #include "debug/dap.h"
 #include "debug/dap_console.h"
 #include "editing/buffer_core.h"
@@ -17,9 +16,9 @@
 #include "input/actions_language.h"
 #include "input/actions_terminal.h"
 #include "input/actions_workspace.h"
-#include "input/input_system.h"
 #include "input/mouse.h"
 #include "input/prompt.h"
+#include "input/system_vim.h"
 #include "input/text_pairs.h"
 #include "language/autocomplete.h"
 #include "language/lsp.h"
@@ -3201,39 +3200,13 @@ static void dispatchTerminalVimKey(struct editorTerminalPane *terminal, int c) {
 	(void)editorTerminalPaneSendKey(terminal, c);
 }
 
-static int dispatchTerminalCuaKey(struct editorTerminalPane *terminal, int c) {
-	if (E.terminal_prefix_armed) {
-		E.terminal_prefix_armed = 0;
-		enum editorAction action = EDITOR_ACTION_COUNT;
-		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
-			int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-			(void)editorDispatchProcessMappedAction(action, &effects);
-		} else {
-			editorSetStatusMsg("Unbound terminal command");
-		}
-		return 1;
-	}
-	enum editorAction terminal_action = EDITOR_ACTION_COUNT;
-	if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
-	    terminal_action == EDITOR_ACTION_TERMINAL_PREFIX) {
-		E.terminal_prefix_armed = 1;
-		editorSetStatusMsg("Terminal prefix armed: next key is rotide");
-		return 1;
-	}
-	(void)editorTerminalPaneSendKey(terminal, c);
-	return 1;
-}
-
 static int dispatchTryTerminalPaneKey(int c) {
 	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
 	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return 0;
 	}
-	if (editorInputSystemActive() == &editorVimInputSystem) {
-		dispatchTerminalVimKey(terminal, c);
-		return 1;
-	}
-	return dispatchTerminalCuaKey(terminal, c);
+	dispatchTerminalVimKey(terminal, c);
+	return 1;
 }
 
 static void dispatchInsertTextByte(int c, int *effects) {
@@ -3296,9 +3269,45 @@ void editorDispatchHandleTextByte(int c, int *effects) {
 	dispatchInsertTextByte(c, effects);
 }
 
-/* Single-letter git shortcuts while the Git drawer is focused; runs before the
- * input systems so the same keys work in vim and CUA. Navigation keys
- * (j/k/h/l/arrows/Enter/Esc) are left to the existing drawer-focus paths. */
+static int dispatchTryDrawerSearchFieldKey(int c, int *effects) {
+	enum editorAction action;
+
+	if (editorDrawerIsCollapsed() ||
+	    (!editorFileSearchIsActive() && !editorProjectSearchIsActive())) {
+		return 0;
+	}
+	switch (c) {
+		case ARROW_UP:
+			action = EDITOR_ACTION_MOVE_UP;
+			break;
+		case ARROW_DOWN:
+			action = EDITOR_ACTION_MOVE_DOWN;
+			break;
+		case '\r':
+		case '\n':
+			action = EDITOR_ACTION_NEWLINE;
+			break;
+		case '\x1b':
+			action = EDITOR_ACTION_ESCAPE;
+			break;
+		case BACKSPACE:
+			action = EDITOR_ACTION_BACKSPACE;
+			break;
+		case DEL_KEY:
+			action = EDITOR_ACTION_DELETE_CHAR;
+			break;
+		default:
+			if (editorByteShouldInsertAsText(c)) {
+				editorDispatchHandleTextByte(c, effects);
+			}
+			return 1;
+	}
+	(void)editorDispatchProcessMappedAction(action, effects);
+	return 1;
+}
+
+/* Single-letter Git shortcuts run before Vim while the Git drawer is focused.
+ * Navigation keys are left to the existing drawer-focus paths. */
 static int dispatchTryGitDrawerKey(int c, int *effects) {
 	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER ||
 	    E.drawer_mode != EDITOR_DRAWER_MODE_GIT || editorDrawerIsCollapsed()) {
@@ -3428,9 +3437,7 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 
 /* Returns 1 when the key was fully handled and caller must return immediately. */
 static int dispatchHandleKeyboardKey(int c, int *effects) {
-	const struct editorInputSystem *system = editorInputSystemActive();
-	int input_sequence_pending = system != NULL && system->key_sequence_pending != NULL &&
-	                             system->key_sequence_pending();
+	int input_sequence_pending = editorVimKeySequencePending();
 
 	if (editorClearHoverLinkState()) {
 		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -3441,8 +3448,7 @@ static int dispatchHandleKeyboardKey(int c, int *effects) {
 	if (dispatchTryTerminalPaneKey(c)) {
 		return 1;
 	}
-	/* Contextual one-key actions yield to the second key of an input-system
-	 * sequence (for example Vim <leader>d or gd). */
+	/* Contextual one-key actions yield to the second key of a Vim sequence. */
 	if (!input_sequence_pending) {
 		if (dispatchTryGitDrawerKey(c, effects)) {
 			return 1;
@@ -3451,17 +3457,10 @@ static int dispatchHandleKeyboardKey(int c, int *effects) {
 			return 1;
 		}
 	}
-	/* The find-file / project-search drawer fields are plain text inputs: route
-	 * keys through CUA so typing filters regardless of a modal system's state
-	 * (e.g. Vim Normal mode would otherwise treat the keys as commands). */
-	if (!editorDrawerIsCollapsed() &&
-	    (editorFileSearchIsActive() || editorProjectSearchIsActive())) {
-		system = &editorCuaInputSystem;
+	if (dispatchTryDrawerSearchFieldKey(c, effects)) {
+		return 1;
 	}
-	if (system != NULL && system->handle_key != NULL) {
-		return system->handle_key(c, effects);
-	}
-	return 0;
+	return editorVimHandleKey(c, effects);
 }
 
 void editorProcessKeypress(void) {

@@ -87,16 +87,11 @@ workspace state file; per-pane kind-state is session-bound.
 
 **Input** decodes keys, mice, and synthetic events. It is a chain of
 gates (synthetic events, prompts, mouse hit-testing, terminal-pane
-forwarding); at the key→action seam it delegates to the active
-**input system** (`editorInputSystemActive()->handle_key`). Input systems
-are a compiled-in registry behind `struct editorInputSystem`: CUA maps
-keys straight to `editorAction`s via the configured keymap, while Vim (the
-default) adds modal state, motions, operators, counts, registers,
-in-buffer search, text objects, and an ex command line. Either way keys
-resolve to actions/commands — systems do not bypass dispatch, which stays
-the only entry point to editor behavior; mouse, drawer, and DAP commands
-take the same route. The active system is chosen by `[input] system` and
-may contribute a status-bar segment (Vim shows its mode). See
+forwarding, focus-specific Git and drawer keys) followed by
+`editorVimHandleKey`. Vim owns modal state, motions, operators, counts,
+registers, in-buffer search, text objects, and the ex command line. Shared
+behavior still resolves through `enum editorAction`; mouse, drawer, DAP, and
+Vim commands use the same dispatcher. See
 [input-systems.md](input-systems.md).
 
 **Text engine** owns documents, edits, history, selection, and the edit
@@ -138,8 +133,8 @@ session ends.
 
 **Config** loads editor, theme, keymap, LSP, and DAP settings from TOML.
 Most sections read only the global `~/.rotide/config.toml`; the project
-file (`<project>/.rotide.toml`) is consulted only for `[input]`,
-`[keymap.*]`, and `[dap.launch.*]`, where it overrides global. Config fans
+file (`<project>/.rotide.toml`) is consulted only for `[keymap.vim]` and
+`[dap.launch.*]`, where it overrides global. Config fans
 out to consumers at startup; runtime reloads go through the same path.
 
 ## Concurrency and shutdown

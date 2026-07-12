@@ -117,7 +117,7 @@ static int test_grid_snapshot_matches_baked_chrome_layout(void) {
 	        "           │2  world\n"
 	        "           │  ~\n"
 	        "           │  ~\n"
-	        "[No Name] [+]1,1    100%\n"
+	        " NORMAL . [+]1,1    100%\n"
 	        "ready\n"
 	        /* golden-end */
 	);

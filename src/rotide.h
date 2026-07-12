@@ -22,7 +22,6 @@
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
 #define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
-#define ROTIDE_KEYMAP_MAX_BINDINGS 128
 #define ROTIDE_MAX_TABS 128
 #define ROTIDE_TAB_TITLE_MAX_COLS 25
 #define ROTIDE_TAB_TRUNC_MARKER "..."
@@ -379,7 +378,6 @@ enum editorAction {
 	EDITOR_ACTION_TERMINAL_OPEN,
 	EDITOR_ACTION_TERMINAL_OPEN_VERTICAL,
 	EDITOR_ACTION_TERMINAL_NEW_TAB,
-	EDITOR_ACTION_TERMINAL_PREFIX,
 	EDITOR_ACTION_TERMINAL_MODE_NORMAL,
 	EDITOR_ACTION_TERMINAL_MODE_INSERT,
 	EDITOR_ACTION_OPEN_SETTINGS,
@@ -407,16 +405,6 @@ enum editorAction {
 	EDITOR_ACTION_GIT_STASH_DROP,
 	EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT,
 	EDITOR_ACTION_COUNT
-};
-
-struct editorKeyBinding {
-	int key;
-	enum editorAction action;
-};
-
-struct editorKeymap {
-	struct editorKeyBinding bindings[ROTIDE_KEYMAP_MAX_BINDINGS];
-	size_t len;
 };
 
 enum editorEditKind {
@@ -842,14 +830,7 @@ struct editorConfig {
 	struct editorPaneNode *layout_root;
 	struct editorPaneNode *focused_leaf;
 
-	/* --- Input transient: one-shot terminal-prefix and paste gates --- */
-	/*
-	 * When non-zero, the next keypress is interpreted as a rotide keymap
-	 * action even though the focused pane is a terminal (which normally
-	 * routes keys straight to its PTY). Set by the terminal_prefix action
-	 * and cleared after the following key is dispatched.
-	 */
-	int terminal_prefix_armed;
+	/* --- Input transient: paste gate --- */
 	/*
 	 * Non-zero between BRACKETED_PASTE_START_EVENT and
 	 * BRACKETED_PASTE_END_EVENT. Used by terminal panes so the
@@ -859,7 +840,6 @@ struct editorConfig {
 	int paste_active;
 
 	/* --- Environment: keymap, popup overlay, saved termios --- */
-	struct editorKeymap keymap;
 	struct editorPopupState popup;
 	struct termios orig_attrs;
 };

@@ -1,9 +1,8 @@
-#include "config/keymap.h"
 #include "editing/buffer_core.h"
 #include "editor_test_api.h"
 #include "input/actions_workspace.h"
 #include "input/dispatch.h"
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "render/popup.h"
@@ -16,7 +15,6 @@
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
-#include "workspace/project_search.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 
@@ -28,97 +26,18 @@
 #include <time.h>
 #include <unistd.h>
 
-static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
-	char dir_template[] = "/tmp/rotide-test-keymap-dispatch-XXXXXX";
-	char *dir_path = mkdtemp(dir_template);
-	ASSERT_TRUE(dir_path != NULL);
-
-	char project_path[512];
-	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
-	                                          "save = \"ctrl+u\"\n"
-	                                          "redraw = \"ctrl+s\"\n"));
-
-	enum editorKeymapLoadStatus status =
-	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
-	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
-
-	char save_path[] = "/tmp/rotide-test-keymap-dispatch-save-XXXXXX";
-	int fd = mkstemp(save_path);
-	ASSERT_TRUE(fd != -1);
-	ASSERT_TRUE(close(fd) == 0);
-
-	add_row("line1");
-	E.filename = strdup(save_path);
-	ASSERT_TRUE(E.filename != NULL);
-	E.dirty = 1;
-
-	char ctrl_s[] = {CTRL_KEY('s')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_s, sizeof(ctrl_s)) == 0);
-	ASSERT_EQ_INT(1, E.dirty);
-
-	size_t first_read_len = 0;
-	char *first_contents = read_file_contents(save_path, &first_read_len);
-	ASSERT_TRUE(first_contents != NULL);
-	ASSERT_EQ_INT(0, first_read_len);
-	free(first_contents);
-
-	char ctrl_u[] = {CTRL_KEY('u')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_u, sizeof(ctrl_u)) == 0);
-	ASSERT_EQ_INT(0, E.dirty);
-
-	size_t second_read_len = 0;
-	char *second_contents = read_file_contents(save_path, &second_read_len);
-	ASSERT_TRUE(second_contents != NULL);
-	ASSERT_MEM_EQ("line1\n", second_contents, second_read_len);
-	free(second_contents);
-
-	ASSERT_TRUE(unlink(save_path) == 0);
-	ASSERT_TRUE(unlink(project_path) == 0);
-	ASSERT_TRUE(rmdir(dir_path) == 0);
-	return 0;
+static int input_actions_dispatch(enum editorAction action) {
+	int effects = 0;
+	return editorDispatchProcessMappedAction(action, &effects);
 }
 
-static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action(void) {
-	char dir_template[] = "/tmp/rotide-test-keymap-ctrl-alt-dispatch-XXXXXX";
-	char *dir_path = mkdtemp(dir_template);
-	ASSERT_TRUE(dir_path != NULL);
-
-	char project_path[512];
-	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	/* ctrl+alt+p is unbound by default (ctrl+alt+a is now the terminal prefix). */
-	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
-	                                          "new_tab = \"ctrl+alt+p\"\n"));
-
-	enum editorKeymapLoadStatus status =
-	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
-	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
-	ASSERT_TRUE(editorTabsInit());
-	ASSERT_EQ_INT(1, editorTabCount());
-
-	char input[] = {'\x1b', CTRL_KEY('p')};
-	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
-	ASSERT_EQ_INT(2, editorTabCount());
-	ASSERT_EQ_INT(1, editorTabActiveIndex());
-
-	ASSERT_TRUE(unlink(project_path) == 0);
-	ASSERT_TRUE(rmdir(dir_path) == 0);
-	return 0;
+static int input_actions_enter_insert(void) {
+	return editor_process_single_key('i');
 }
 
-static int test_editor_process_keypress_alt_b_git_blame_details_reports_no_repo(void) {
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
-	ASSERT_TRUE(editorTabsInit());
-	add_row("hello");
-	E.filename = strdup("/tmp/rotide-cua-git-blame.c");
-	ASSERT_TRUE(E.filename != NULL);
-	E.dirty = 0;
-
-	const char alt_b[] = {'\x1b', 'b'};
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_b, sizeof(alt_b)) == 0);
-	ASSERT_EQ_STR("No Git repository", E.statusmsg);
-	ASSERT_TRUE(!editorPopupIsVisible());
-	return 0;
+static int input_actions_vim_key(int key) {
+	int effects = 0;
+	return editorVimHandleKey(key, &effects);
 }
 
 static int input_actions_seed_git_blame_cache(int one_based_line, const char *author,
@@ -166,8 +85,8 @@ static int input_actions_seed_git_blame_cache(int one_based_line, const char *au
 }
 
 static int test_editor_process_keypress_alt_b_git_blame_details_popup_behaviors(void) {
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	ASSERT_TRUE(editorTabsInit());
+	editorVimReset();
 	add_row("alpha");
 	E.window_rows = 6;
 	E.window_cols = 100;
@@ -202,6 +121,8 @@ static int test_editor_process_keypress_alt_b_git_blame_details_popup_behaviors(
 
 	ASSERT_TRUE(editorDispatchOpenGitBlameDetailsAt(0, 0, 1));
 	ASSERT_TRUE(editorPopupIsVisible());
+	char insert[] = {'i'};
+	ASSERT_TRUE(editor_process_keypress_with_input(insert, sizeof(insert)) == 0);
 	char x[] = {'x'};
 	ASSERT_TRUE(editor_process_keypress_with_input(x, sizeof(x)) == 0);
 	ASSERT_TRUE(!editorPopupIsVisible());
@@ -256,13 +177,12 @@ static int test_editor_task_runner_merges_stderr_and_close_requires_confirmation
 	                            NULL, NULL));
 	ASSERT_TRUE(editorTaskIsRunning());
 
-	char close_once[] = {CTRL_KEY('w')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(close_once, sizeof(close_once)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_TRUE(strstr(E.statusmsg, "Task is still running") != NULL);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_EQ_INT(2, editorTabCount());
 
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(close_once, sizeof(close_once)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_TRUE(!editorTaskIsRunning());
 	ASSERT_EQ_INT(1, editorTabCount());
 	ASSERT_TRUE(!editorActiveTabIsTaskLog());
@@ -291,78 +211,6 @@ static int test_editor_task_runner_truncates_large_output(void) {
 	ASSERT_TRUE(textlen <= ROTIDE_TASK_LOG_MAX_BYTES + 256);
 	ASSERT_TRUE(strstr(text, "[output truncated]") != NULL);
 	free(text);
-	return 0;
-}
-
-static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
-	E.window_cols = 40;
-	E.drawer_width_cols = 10;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-
-	const char alt_shift_right[] = "\x1b[1;4C";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-	                                               sizeof(alt_shift_right) - 1) == 0);
-	ASSERT_EQ_INT(11, editorDrawerWidthForCols(E.window_cols));
-
-	const char alt_shift_left[] = "\x1b[1;4D";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
-	                                               sizeof(alt_shift_left) - 1) == 0);
-	ASSERT_EQ_INT(10, editorDrawerWidthForCols(E.window_cols));
-
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
-	                                               sizeof(alt_shift_left) - 1) == 0);
-	ASSERT_EQ_INT(9, editorDrawerWidthForCols(E.window_cols));
-
-	E.drawer_width_cols = 1;
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
-	                                               sizeof(alt_shift_left) - 1) == 0);
-	ASSERT_EQ_INT(1, editorDrawerWidthForCols(E.window_cols));
-	return 0;
-}
-
-static int test_editor_process_keypress_pane_grow_shrink_via_custom_keymap(void) {
-	char dir_template[] = "/tmp/rotide-test-pane-resize-keymap-XXXXXX";
-	char *dir_path = mkdtemp(dir_template);
-	ASSERT_TRUE(dir_path != NULL);
-
-	char project_path[512];
-	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	/* keymapParseLetterToken accepts only [A-Za-z], so non-letter tokens
-	 * like ctrl+alt+= silently fail to bind. */
-	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
-	                                          "pane_grow = \"ctrl+alt+y\"\n"
-	                                          "pane_shrink = \"ctrl+alt+u\"\n"));
-
-	enum editorKeymapLoadStatus status =
-	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
-	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
-
-	ASSERT_TRUE(editorTabsInit());
-	add_row("a");
-	E.window_rows = 8;
-	E.window_cols = 80;
-
-	struct editorPaneNode *original = E.focused_leaf;
-	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
-	ASSERT_TRUE(sibling != NULL);
-	/* Refocus original so growing it changes ratio in the "first" direction. */
-	ASSERT_TRUE(editorLayoutSetFocusedLeaf(original));
-
-	struct editorPaneNode *parent = editorPaneTreeFindParent(E.layout_root, original);
-	ASSERT_TRUE(parent != NULL);
-	double baseline = parent->as.split.ratio;
-
-	char ctrl_alt_y[] = {'\x1b', CTRL_KEY('y')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_y, sizeof(ctrl_alt_y)) == 0);
-	ASSERT_TRUE(parent->as.split.ratio > baseline + 1e-9);
-
-	double after_grow = parent->as.split.ratio;
-	char ctrl_alt_u[] = {'\x1b', CTRL_KEY('u')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_u, sizeof(ctrl_alt_u)) == 0);
-	ASSERT_TRUE(parent->as.split.ratio < after_grow - 1e-9);
-
-	ASSERT_TRUE(unlink(project_path) == 0);
-	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -567,87 +415,25 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	char toggle_drawer[] = {CTRL_KEY('b')};
-	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_TOGGLE_DRAWER);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_TOGGLE_DRAWER);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
 
 	ASSERT_TRUE(editorDrawerSetCollapsed(1));
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-	char focus_drawer[] = {CTRL_KEY('e')};
-	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_FOCUS_DRAWER);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
-	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_FOCUS_DRAWER);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
-
-	cleanup_recovery_test_env(&env);
-	return 0;
-}
-
-static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(void) {
-	struct recoveryTestEnv env;
-	ASSERT_TRUE(setup_recovery_test_env(&env));
-	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
-	add_row("body");
-
-	char find_file[] = {CTRL_KEY('p')};
-	ASSERT_TRUE(editor_process_keypress_with_input(find_file, sizeof(find_file)) == 0);
-	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	char file_query[] = {'a'};
-	ASSERT_TRUE(editor_process_keypress_with_input(file_query, sizeof(file_query)) == 0);
-	ASSERT_EQ_STR("a", editorFileSearchQuery());
-
-	char toggle_drawer[] = {CTRL_KEY('b')};
-	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
-	ASSERT_TRUE(editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
-
-	char hidden_file_query_input[] = {'b'};
-	ASSERT_TRUE(editor_process_keypress_with_input(hidden_file_query_input,
-	                                               sizeof(hidden_file_query_input)) == 0);
-	ASSERT_EQ_STR("a", editorFileSearchQuery());
-
-	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
-	ASSERT_TRUE(!editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
-	ASSERT_EQ_STR("a", editorFileSearchQuery());
-	editorFileSearchExit(1);
-
-	char project_search[] = {'\x1b', CTRL_KEY('f')};
-	ASSERT_TRUE(editor_process_keypress_with_input(project_search, sizeof(project_search)) ==
-	            0);
-	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	char project_query[] = {'x'};
-	ASSERT_TRUE(editor_process_keypress_with_input(project_query, sizeof(project_query)) == 0);
-	ASSERT_EQ_STR("x", editorProjectSearchQuery());
-
-	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
-	ASSERT_TRUE(editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
-
-	char hidden_project_query_input[] = {'y'};
-	ASSERT_TRUE(editor_process_keypress_with_input(hidden_project_query_input,
-	                                               sizeof(hidden_project_query_input)) == 0);
-	ASSERT_EQ_STR("x", editorProjectSearchQuery());
-
-	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
-	ASSERT_TRUE(!editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
-	ASSERT_EQ_STR("x", editorProjectSearchQuery());
-	editorProjectSearchExit(1);
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -760,8 +546,8 @@ static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	const char alt_m[] = "\x1bm";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_m, sizeof(alt_m) - 1) == 0);
+	const char menu[] = {' ', 'm'};
+	ASSERT_TRUE(editor_process_keypress_with_input(menu, sizeof(menu)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 	ASSERT_EQ_INT(-1, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
@@ -786,8 +572,8 @@ static int test_editor_process_keypress_main_menu_project_files_opens_tree(void)
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	const char alt_m[] = "\x1bm";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_m, sizeof(alt_m) - 1) == 0);
+	const char menu[] = {' ', 'm'};
+	ASSERT_TRUE(editor_process_keypress_with_input(menu, sizeof(menu)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 
 	int project_files_idx = -1;
@@ -810,8 +596,7 @@ static int test_editor_process_keypress_context_menu_runs_split_action(void) {
 	E.cy = 0;
 	E.cx = 2;
 
-	char open_menu[] = {'\x1b', CTRL_KEY('m')};
-	ASSERT_TRUE(editor_process_keypress_with_input(open_menu, sizeof(open_menu)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CONTEXT_MENU);
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU, E.popup.kind);
 	ASSERT_EQ_STR("Split Vertically", E.popup.items[0].label);
@@ -987,13 +772,12 @@ static int test_editor_process_keypress_ctrl_w_dirty_requires_second_press(void)
 	add_row("dirty");
 	E.dirty = 1;
 
-	char ctrl_w[] = {CTRL_KEY('w')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_w, sizeof(ctrl_w)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_EQ_INT(1, editorTabCount());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_TRUE(strstr(E.statusmsg, "unsaved changes") != NULL);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_w, sizeof(ctrl_w)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_EQ_INT(1, editorTabCount());
 	ASSERT_EQ_INT(0, E.numrows);
 	ASSERT_EQ_INT(0, E.dirty);
@@ -1005,17 +789,16 @@ static int test_editor_process_keypress_close_tab_confirmation_resets_on_other_a
 	add_row("dirty");
 	E.dirty = 1;
 
-	char ctrl_w[] = {CTRL_KEY('w')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_w, sizeof(ctrl_w)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_EQ_INT(1, E.numrows);
 
 	const char move_right[] = "\x1b[C";
 	ASSERT_TRUE(editor_process_keypress_with_input(move_right, sizeof(move_right) - 1) == 0);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_w, sizeof(ctrl_w)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_EQ_INT(1, E.numrows);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_w, sizeof(ctrl_w)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
 	ASSERT_EQ_INT(0, E.numrows);
 	return 0;
 }
@@ -1029,8 +812,7 @@ static int test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally(void) 
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(0, E.dirty);
 
-	char ctrl_q[] = {CTRL_KEY('q')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_QUIT);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_TRUE(strstr(E.statusmsg, "unsaved changes") != NULL);
 	return 0;
@@ -1040,8 +822,7 @@ static int test_editor_process_keypress_tab_actions_new_next_prev(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("left");
 
-	char ctrl_n[] = {CTRL_KEY('n')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_n, sizeof(ctrl_n)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_NEW_TAB);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(0, E.numrows);
@@ -1140,12 +921,11 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 	int initial_cy = E.cy;
 	int initial_cx = E.cx;
 
-	char focus_drawer[] = {CTRL_KEY('e')};
-	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_FOCUS_DRAWER);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
-	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_FOCUS_DRAWER);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
-	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_FOCUS_DRAWER);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	const char arrow_down[] = "\x1b[B";
@@ -1179,7 +959,7 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 	return 0;
 }
 
-static int test_editor_process_keypress_cua_drawer_modes_arrow_navigation_keeps_text_cursor(void) {
+static int test_editor_process_keypress_drawer_modes_arrow_navigation_keeps_text_cursor(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 	ASSERT_TRUE(editorTabsInit());
@@ -1300,6 +1080,8 @@ static int test_editor_process_keypress_insert_move_and_backspace(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 2;
+	char insert_mode[] = {'i'};
+	ASSERT_TRUE(editor_process_keypress_with_input(insert_mode, sizeof(insert_mode)) == 0);
 
 	char backspace[] = {BACKSPACE};
 	ASSERT_TRUE(editor_process_keypress_with_input(backspace, sizeof(backspace)) == 0);
@@ -1412,15 +1194,17 @@ static int test_editor_process_keypress_opening_pair_autocloses_and_undoes_toget
 	add_row("a");
 	E.cy = 0;
 	E.cx = 1;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key('(') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "a()");
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_TRUE(input_actions_vim_key('\x1b') == 0);
+	ASSERT_TRUE(input_actions_vim_key('u') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "a");
-	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(0, E.cx);
 	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
 	return 0;
 }
@@ -1429,6 +1213,7 @@ static int test_editor_process_keypress_quote_pair_autocloses(void) {
 	add_row("");
 	E.cy = 0;
 	E.cx = 0;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key('"') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "\"\"");
@@ -1442,6 +1227,7 @@ static int test_editor_process_keypress_closing_pair_skips_existing_byte(void) {
 	E.cy = 0;
 	E.cx = 1;
 	int dirty_before = E.dirty;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key(')') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "()");
@@ -1455,6 +1241,7 @@ static int test_editor_process_keypress_opening_pair_before_word_inserts_literal
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key('(') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "a(b");
@@ -1463,35 +1250,34 @@ static int test_editor_process_keypress_opening_pair_before_word_inserts_literal
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket(void) {
+static int test_editor_process_keypress_vim_percent_jumps_to_matching_bracket(void) {
 	add_row("a(b[c]d)e");
 	E.cy = 0;
 	E.cx = 1;
 	int dirty_before = E.dirty;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY(']')) == 0);
+	ASSERT_TRUE(editor_process_single_key('%') == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(7, E.cx);
 	ASSERT_EQ_INT(dirty_before, E.dirty);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY(']')) == 0);
+	ASSERT_TRUE(editor_process_single_key('%') == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 	ASSERT_EQ_INT(dirty_before, E.dirty);
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_bracket_reports_missing_match(void) {
+static int test_editor_process_keypress_vim_percent_reports_missing_match(void) {
 	add_row("abc");
 	E.cy = 0;
 	E.cx = 1;
 	int dirty_before = E.dirty;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY(']')) == 0);
+	ASSERT_TRUE(editor_process_single_key('%') == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 	ASSERT_EQ_INT(dirty_before, E.dirty);
-	ASSERT_EQ_STR("No bracket near cursor", E.statusmsg);
 	return 0;
 }
 
@@ -1505,6 +1291,7 @@ static int test_editor_process_keypress_tab_indents_selection(void) {
 	ASSERT_TRUE(set_selection_anchor(0, 0));
 	E.cy = 1;
 	E.cx = editor_test_row_size(1);
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key('\t') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "\talpha");
@@ -1525,6 +1312,7 @@ static int test_editor_process_keypress_tab_indents_selection_drops_terminating_
 	// Selection ending at column 0 of the next row should not indent that row.
 	E.cy = 2;
 	E.cx = 0;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key('\t') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "\tone");
@@ -1589,6 +1377,7 @@ static int test_editor_process_keypress_backspace_deletes_active_selection(void)
 	E.cx = 5;
 	E.selection_mode_active = 1;
 	ASSERT_TRUE(set_selection_anchor(0, 0));
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	char backspace[] = {BACKSPACE};
 	ASSERT_TRUE(editor_process_keypress_with_input(backspace, sizeof(backspace)) == 0);
@@ -1605,6 +1394,7 @@ static int test_editor_process_keypress_delete_deletes_active_selection(void) {
 	E.cx = 5;
 	E.selection_mode_active = 1;
 	ASSERT_TRUE(set_selection_anchor(0, 0));
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	const char del_key[] = "\x1b[3~";
 	ASSERT_TRUE(editor_process_keypress_with_input(del_key, sizeof(del_key) - 1) == 0);
@@ -1632,6 +1422,7 @@ static int test_editor_process_keypress_tab_inserts_literal_tab(void) {
 	add_row("");
 	E.cy = 0;
 	E.cx = 0;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	ASSERT_TRUE(editor_process_single_key('\t') == 0);
 	ASSERT_EQ_INT(1, editor_test_row_size(0));
@@ -1648,6 +1439,7 @@ static int test_editor_process_keypress_utf8_bytes_insert_verbatim(void) {
 	add_row("");
 	E.cy = 0;
 	E.cx = 0;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	for (size_t i = 0; i < sizeof(input); i++) {
 		ASSERT_TRUE(editor_process_single_key((char)input[i]) == 0);
@@ -1669,6 +1461,7 @@ static int test_editor_process_keypress_delete_key(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 1;
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 
 	char del_key[] = "\x1b[3~";
 	ASSERT_TRUE(editor_process_keypress_with_input(del_key, sizeof(del_key) - 1) == 0);
@@ -1702,8 +1495,7 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 7;
 
-	char ctrl_s[] = {CTRL_KEY('s')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_s, sizeof(ctrl_s)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_SAVE);
 	ASSERT_EQ_INT(0, E.dirty);
 
 	size_t content_len = 0;
@@ -1909,8 +1701,7 @@ static int test_editor_drawer_arrow_navigation_opens_preview_tab(void) {
 	ASSERT_TRUE(start_visible >= 0);
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(start_visible, E.window_rows + 1));
 
-	char focus_drawer[] = {CTRL_KEY('e')};
-	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_FOCUS_DRAWER);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	int tab_count_before = editorTabCount();
@@ -1948,15 +1739,13 @@ static int test_editor_process_keypress_page_up_down_scroll_viewport_without_mov
 	E.cx = 2;
 	E.rowoff = 4;
 
-	const char page_down[] = "\x1b[6~";
-	ASSERT_TRUE(editor_process_keypress_with_input(page_down, sizeof(page_down) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_PAGE_DOWN);
 	ASSERT_EQ_INT(10, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(9, E.rowoff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
-	const char page_up[] = "\x1b[5~";
-	ASSERT_TRUE(editor_process_keypress_with_input(page_up, sizeof(page_up) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_PAGE_UP);
 	ASSERT_EQ_INT(10, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(4, E.rowoff);
@@ -2064,15 +1853,13 @@ static int test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport(void)
 	E.cx = 2;
 	E.rowoff = 8;
 
-	const char ctrl_down[] = "\x1b[1;5B";
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_down, sizeof(ctrl_down) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_SCROLL_DOWN);
 	ASSERT_EQ_INT(10, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(9, E.rowoff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
-	const char ctrl_up[] = "\x1b[1;5A";
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_up, sizeof(ctrl_up) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_SCROLL_UP);
 	ASSERT_EQ_INT(10, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(8, E.rowoff);
@@ -2089,33 +1876,31 @@ static int test_editor_process_keypress_ctrl_arrow_moves_by_word(void) {
 	E.cx = 0;
 	E.coloff = 0;
 
-	const char ctrl_right[] = "\x1b[1;5C";
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_RIGHT);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_RIGHT);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(10, E.cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_RIGHT);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(16, E.cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_RIGHT);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(7, E.cx);
 
-	const char ctrl_left[] = "\x1b[1;5D";
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_LEFT);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_LEFT);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(11, E.cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_MOVE_WORD_LEFT);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(6, E.cx);
 	return 0;
@@ -2184,7 +1969,7 @@ static int test_editor_process_keypress_edit_resyncs_follow_scroll(void) {
 	ASSERT_TRUE(E.cy < E.rowoff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
-	const char insert_char[] = {'x'};
+	const char insert_char[] = {'i', 'x'};
 	ASSERT_TRUE(editor_process_keypress_with_input(insert_char, sizeof(insert_char)) == 0);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FOLLOW_CURSOR, E.viewport_mode);
 	ASSERT_EQ_INT(0, E.rowoff);
@@ -2197,60 +1982,64 @@ static int test_editor_process_keypress_edit_resyncs_follow_scroll(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero(void) {
+static int test_editor_goto_line_action_jumps_to_line_and_sets_col_zero(void) {
 	add_row("one");
 	add_row("two");
 	add_row("three");
 	E.cy = 2;
 	E.cx = 4;
 
-	const char input[] = {CTRL_KEY('g'), '2', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'2', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, input,
+	                                              sizeof(input)) == 0);
 
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_g_clamps_to_last_line(void) {
+static int test_editor_goto_line_action_clamps_to_last_line(void) {
 	add_row("first");
 	add_row("last");
 	E.cy = 0;
 	E.cx = 2;
 
-	const char input[] = {CTRL_KEY('g'), '9', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'9', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, input,
+	                                              sizeof(input)) == 0);
 
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_g_rejects_invalid_input(void) {
+static int test_editor_goto_line_action_rejects_invalid_input(void) {
 	add_row("alpha");
 	add_row("beta");
 	E.cy = 1;
 	E.cx = 2;
 
-	const char letters[] = {CTRL_KEY('g'), 'a', 'b', 'c', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(letters, sizeof(letters)) == 0);
+	const char letters[] = {'a', 'b', 'c', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, letters,
+	                                              sizeof(letters)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_STR("Invalid line number", E.statusmsg);
 
-	const char zero[] = {CTRL_KEY('g'), '0', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(zero, sizeof(zero)) == 0);
+	const char zero[] = {'0', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, zero,
+	                                              sizeof(zero)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_STR("Invalid line number", E.statusmsg);
 
-	char overflow[66];
-	overflow[0] = CTRL_KEY('g');
-	for (size_t i = 1; i < sizeof(overflow) - 1; i++) {
+	char overflow[65];
+	for (size_t i = 0; i < sizeof(overflow) - 1; i++) {
 		overflow[i] = '9';
 	}
 	overflow[sizeof(overflow) - 1] = '\r';
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(overflow, sizeof(overflow)) == 0);
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, overflow,
+	                                              sizeof(overflow)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_STR("Invalid line number", E.statusmsg);
@@ -2258,26 +2047,28 @@ static int test_editor_process_keypress_ctrl_g_rejects_invalid_input(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_g_escape_cancels(void) {
+static int test_editor_goto_line_action_escape_cancels(void) {
 	add_row("alpha");
 	add_row("beta");
 	E.cy = 1;
 	E.cx = 2;
 
-	const char input[] = {CTRL_KEY('g'), '1', '2', '\x1b', '[', 'x'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'1', '2', '\x1b', '[', 'x'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, input,
+	                                              sizeof(input)) == 0);
 
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_g_empty_buffer_sets_status(void) {
+static int test_editor_goto_line_action_empty_buffer_sets_status(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	const char input[] = {CTRL_KEY('g'), '1', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'1', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, input,
+	                                              sizeof(input)) == 0);
 
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
@@ -2285,29 +2076,30 @@ static int test_editor_process_keypress_ctrl_g_empty_buffer_sets_status(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group(void) {
+static int test_editor_goto_line_action_breaks_undo_typed_run_group(void) {
+	ASSERT_TRUE(input_actions_enter_insert() == 0);
 	ASSERT_TRUE(editor_process_single_key('a') == 0);
 	ASSERT_TRUE(editor_process_single_key('b') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "ab");
 
-	const char goto_first_line[] = {CTRL_KEY('g'), '1', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_first_line,
-	                                                      sizeof(goto_first_line)) == 0);
+	const char goto_first_line[] = {'1', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_GOTO_LINE, goto_first_line,
+	                                              sizeof(goto_first_line)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 
 	ASSERT_TRUE(editor_process_single_key('z') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "zab");
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_UNDO);
 	ASSERT_ROW_TEXT_EQ(0, "ab");
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	(void)input_actions_dispatch(EDITOR_ACTION_UNDO);
 	ASSERT_EQ_INT(0, E.numrows);
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_q_exits_promptly(void) {
+static int test_editor_process_keypress_vim_ex_q_exits_promptly(void) {
 	pid_t pid = fork();
 	ASSERT_TRUE(pid != -1);
 
@@ -2317,8 +2109,8 @@ static int test_editor_process_keypress_ctrl_q_exits_promptly(void) {
 			_exit(91);
 		}
 
-		char ctrl_q[] = {CTRL_KEY('q')};
-		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+		char quit[] = {':', 'q', '\r'};
+		if (editor_process_keypress_with_input(quit, sizeof(quit)) == -1) {
 			_exit(92);
 		}
 		_exit(93);
@@ -2331,7 +2123,7 @@ static int test_editor_process_keypress_ctrl_q_exits_promptly(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_q_restores_cursor_shape(void) {
+static int test_editor_process_keypress_vim_ex_q_restores_cursor_shape(void) {
 	int pipefd[2];
 	ASSERT_TRUE(pipe(pipefd) == 0);
 
@@ -2349,8 +2141,8 @@ static int test_editor_process_keypress_ctrl_q_restores_cursor_shape(void) {
 			_exit(113);
 		}
 
-		char ctrl_q[] = {CTRL_KEY('q')};
-		if (editor_process_keypress_with_input_to_stdout(ctrl_q, sizeof(ctrl_q)) == -1) {
+		char quit[] = {':', 'q', '\r'};
+		if (editor_process_keypress_with_input_to_stdout(quit, sizeof(quit)) == -1) {
 			_exit(114);
 		}
 		_exit(115);
@@ -2375,7 +2167,7 @@ static int test_editor_process_keypress_ctrl_q_restores_cursor_shape(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_q_dirty_requires_second_press(void) {
+static int test_editor_process_keypress_vim_ex_q_dirty_requires_force(void) {
 	pid_t pid = fork();
 	ASSERT_TRUE(pid != -1);
 
@@ -2388,15 +2180,15 @@ static int test_editor_process_keypress_ctrl_q_dirty_requires_second_press(void)
 		add_row("unsaved");
 		E.dirty = 1;
 
-		char ctrl_q[] = {CTRL_KEY('q')};
-		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+		char quit[] = {':', 'q', '\r'};
+		if (editor_process_keypress_with_input(quit, sizeof(quit)) == -1) {
 			_exit(102);
 		}
-		if (strcmp(E.statusmsg, "File has unsaved changes. Press Ctrl-Q again to quit") !=
-		    0) {
+		if (strcmp(E.statusmsg, "No write since last change (add ! to override)") != 0) {
 			_exit(103);
 		}
-		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+		char force_quit[] = {':', 'q', '!', '\r'};
+		if (editor_process_keypress_with_input(force_quit, sizeof(force_quit)) == -1) {
 			_exit(104);
 		}
 
@@ -2481,7 +2273,7 @@ static int test_editor_process_keypress_eof_restores_terminal_visual_state(void)
 	return 0;
 }
 
-static int test_editor_process_keypress_prompt_eof_exits_with_failure(void) {
+static int test_editor_find_action_prompt_eof_exits_with_failure(void) {
 	pid_t pid = fork();
 	ASSERT_TRUE(pid != -1);
 
@@ -2491,8 +2283,7 @@ static int test_editor_process_keypress_prompt_eof_exits_with_failure(void) {
 			_exit(141);
 		}
 
-		char input[] = {CTRL_KEY('f')};
-		if (editor_process_keypress_with_input(input, sizeof(input)) == -1) {
+		if (editor_dispatch_action_with_input(EDITOR_ACTION_FIND, "", 0) == -1) {
 			_exit(142);
 		}
 		_exit(143);
@@ -2524,12 +2315,6 @@ static int test_process_terminates_promptly_on_sigterm(void) {
 }
 
 const struct editorTestCase g_input_actions_tests[] = {
-        {"editor_process_keypress_keymap_remap_changes_dispatch",
-         test_editor_process_keypress_keymap_remap_changes_dispatch},
-        {"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
-         test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
-        {"editor_process_keypress_alt_b_git_blame_details_reports_no_repo",
-         test_editor_process_keypress_alt_b_git_blame_details_reports_no_repo},
         {"editor_process_keypress_alt_b_git_blame_details_popup_behaviors",
          test_editor_process_keypress_alt_b_git_blame_details_popup_behaviors},
         {"editor_task_log_document_stays_authoritative",
@@ -2540,10 +2325,6 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_task_runner_merges_stderr_and_close_requires_confirmation},
         {"editor_task_runner_truncates_large_output",
          test_editor_task_runner_truncates_large_output},
-        {"editor_process_keypress_resize_drawer_shortcuts",
-         test_editor_process_keypress_resize_drawer_shortcuts},
-        {"editor_process_keypress_pane_grow_shrink_via_custom_keymap",
-         test_editor_process_keypress_pane_grow_shrink_via_custom_keymap},
         {"editor_action_move_active_tab_right_pane_moves_and_focuses_right",
          test_editor_action_move_active_tab_right_pane_moves_and_focuses_right},
         {"editor_action_move_active_tab_left_pane_moves_and_focuses_left",
@@ -2562,8 +2343,6 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_tabs_ensure_pane_occupancy_backfills_empty_leaves},
         {"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands",
          test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
-        {"editor_process_keypress_toggle_drawer_preserves_search_modes",
-         test_editor_process_keypress_toggle_drawer_preserves_search_modes},
         {"editor_process_keypress_search_escape_restores_previous_tab",
          test_editor_process_keypress_search_escape_restores_previous_tab},
         {"editor_process_keypress_search_escape_recollapses_drawer",
@@ -2604,8 +2383,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive},
         {"editor_process_keypress_focus_drawer_and_arrow_navigation",
          test_editor_process_keypress_focus_drawer_and_arrow_navigation},
-        {"editor_process_keypress_cua_drawer_modes_arrow_navigation_keeps_text_cursor",
-         test_editor_process_keypress_cua_drawer_modes_arrow_navigation_keeps_text_cursor},
+        {"editor_process_keypress_drawer_modes_arrow_navigation_keeps_text_cursor",
+         test_editor_process_keypress_drawer_modes_arrow_navigation_keeps_text_cursor},
         {"editor_process_keypress_drawer_enter_toggles_directory",
          test_editor_process_keypress_drawer_enter_toggles_directory},
         {"editor_process_keypress_drawer_enter_opens_file_in_new_tab",
@@ -2628,10 +2407,10 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_closing_pair_skips_existing_byte},
         {"editor_process_keypress_opening_pair_before_word_inserts_literal",
          test_editor_process_keypress_opening_pair_before_word_inserts_literal},
-        {"editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket",
-         test_editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket},
-        {"editor_process_keypress_ctrl_bracket_reports_missing_match",
-         test_editor_process_keypress_ctrl_bracket_reports_missing_match},
+        {"editor_process_keypress_vim_percent_jumps_to_matching_bracket",
+         test_editor_process_keypress_vim_percent_jumps_to_matching_bracket},
+        {"editor_process_keypress_vim_percent_reports_missing_match",
+         test_editor_process_keypress_vim_percent_reports_missing_match},
         {"editor_process_keypress_tab_indents_selection",
          test_editor_process_keypress_tab_indents_selection},
         {"editor_process_keypress_tab_indents_selection_drops_terminating_zero_column",
@@ -2692,32 +2471,31 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_cursor_move_resyncs_follow_scroll},
         {"editor_process_keypress_edit_resyncs_follow_scroll",
          test_editor_process_keypress_edit_resyncs_follow_scroll},
-        {"editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero",
-         test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero},
-        {"editor_process_keypress_ctrl_g_clamps_to_last_line",
-         test_editor_process_keypress_ctrl_g_clamps_to_last_line},
-        {"editor_process_keypress_ctrl_g_rejects_invalid_input",
-         test_editor_process_keypress_ctrl_g_rejects_invalid_input},
-        {"editor_process_keypress_ctrl_g_escape_cancels",
-         test_editor_process_keypress_ctrl_g_escape_cancels},
-        {"editor_process_keypress_ctrl_g_empty_buffer_sets_status",
-         test_editor_process_keypress_ctrl_g_empty_buffer_sets_status},
-        {"editor_process_keypress_ctrl_g_breaks_undo_typed_run_group",
-         test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group},
-        {"editor_process_keypress_ctrl_q_exits_promptly",
-         test_editor_process_keypress_ctrl_q_exits_promptly},
-        {"editor_process_keypress_ctrl_q_restores_cursor_shape",
-         test_editor_process_keypress_ctrl_q_restores_cursor_shape},
-        {"editor_process_keypress_ctrl_q_dirty_requires_second_press",
-         test_editor_process_keypress_ctrl_q_dirty_requires_second_press},
+        {"editor_goto_line_action_jumps_to_line_and_sets_col_zero",
+         test_editor_goto_line_action_jumps_to_line_and_sets_col_zero},
+        {"editor_goto_line_action_clamps_to_last_line",
+         test_editor_goto_line_action_clamps_to_last_line},
+        {"editor_goto_line_action_rejects_invalid_input",
+         test_editor_goto_line_action_rejects_invalid_input},
+        {"editor_goto_line_action_escape_cancels", test_editor_goto_line_action_escape_cancels},
+        {"editor_goto_line_action_empty_buffer_sets_status",
+         test_editor_goto_line_action_empty_buffer_sets_status},
+        {"editor_goto_line_action_breaks_undo_typed_run_group",
+         test_editor_goto_line_action_breaks_undo_typed_run_group},
+        {"editor_process_keypress_vim_ex_q_exits_promptly",
+         test_editor_process_keypress_vim_ex_q_exits_promptly},
+        {"editor_process_keypress_vim_ex_q_restores_cursor_shape",
+         test_editor_process_keypress_vim_ex_q_restores_cursor_shape},
+        {"editor_process_keypress_vim_ex_q_dirty_requires_force",
+         test_editor_process_keypress_vim_ex_q_dirty_requires_force},
         {"editor_process_keypress_eof_exits_promptly_with_failure",
          test_editor_process_keypress_eof_exits_promptly_with_failure},
         {"editor_process_keypress_eof_restores_terminal_visual_state",
          test_editor_process_keypress_eof_restores_terminal_visual_state},
-        {"editor_process_keypress_prompt_eof_exits_with_failure",
-         test_editor_process_keypress_prompt_eof_exits_with_failure},
+        {"editor_find_action_prompt_eof_exits_with_failure",
+         test_editor_find_action_prompt_eof_exits_with_failure},
         {"process_terminates_promptly_on_sigterm", test_process_terminates_promptly_on_sigterm},
 };
 
-const int g_input_actions_test_count =
-        (int)(sizeof(g_input_actions_tests) / sizeof(g_input_actions_tests[0]));
+const size_t g_input_actions_test_count =
+        sizeof(g_input_actions_tests) / sizeof(g_input_actions_tests[0]);

@@ -1,5 +1,6 @@
 #include "alloc_test_hooks.h"
 #include "editing/selection.h"
+#include "input/dispatch.h"
 #include "input/prompt.h"
 #include "rotide.h"
 #include "support/terminal.h"
@@ -11,160 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int test_editor_column_select_extends_rectangle_with_shift_alt_arrows(void) {
-	add_row("hello world");
-	add_row("foobar baz!");
-	add_row("0123456789a");
-	E.cy = 0;
-	E.cx = 2;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-
-	const char alt_shift_down[] = "\x1b[1;4B";
-	const char alt_shift_right[] = "\x1b[1;4C";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	for (int i = 0; i < 4; i++) {
-		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-		                                               sizeof(alt_shift_right) - 1) == 0);
-	}
-	ASSERT_EQ_INT(1, E.column_select_active);
-
-	struct editorColumnSelectionRect rect;
-	ASSERT_TRUE(editorColumnSelectionGetRect(&rect));
-	ASSERT_EQ_INT(0, rect.top_cy);
-	ASSERT_EQ_INT(2, rect.bottom_cy);
-	ASSERT_EQ_INT(2, rect.left_rx);
-	ASSERT_EQ_INT(6, rect.right_rx);
-	return 0;
-}
-
-static int test_editor_column_select_copy_joins_per_row_slices_with_newlines(void) {
-	add_row("hello world");
-	add_row("foobar baz!");
-	add_row("0123456789a");
-	E.cy = 0;
-	E.cx = 2;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-
-	const char alt_shift_down[] = "\x1b[1;4B";
-	const char alt_shift_right[] = "\x1b[1;4C";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	for (int i = 0; i < 4; i++) {
-		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-		                                               sizeof(alt_shift_right) - 1) == 0);
-	}
-
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
-	size_t clip_len = 0;
-	const char *clip = editorClipboardGet(&clip_len);
-	ASSERT_TRUE(clip != NULL);
-	ASSERT_EQ_INT(14, (int)clip_len);
-	ASSERT_MEM_EQ("llo \nobar\n2345", clip, clip_len);
-	return 0;
-}
-
-static int test_editor_column_select_delete_removes_rectangle_per_row(void) {
-	add_row("hello world");
-	add_row("foobar baz!");
-	add_row("0123456789a");
-	E.cy = 0;
-	E.cx = 2;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-
-	const char alt_shift_down[] = "\x1b[1;4B";
-	const char alt_shift_right[] = "\x1b[1;4C";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	for (int i = 0; i < 4; i++) {
-		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-		                                               sizeof(alt_shift_right) - 1) == 0);
-	}
-
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
-	ASSERT_EQ_INT(0, E.column_select_active);
-	ASSERT_ROW_TEXT_EQ(0, "heworld");
-	ASSERT_ROW_TEXT_EQ(1, "fo baz!");
-	ASSERT_ROW_TEXT_EQ(2, "016789a");
-	return 0;
-}
-
-static int test_editor_column_select_typing_inserts_char_on_each_row(void) {
-	add_row("aaaa");
-	add_row("bbbb");
-	add_row("cccc");
-	E.cy = 0;
-	E.cx = 1;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-
-	const char alt_shift_down[] = "\x1b[1;4B";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-
-	ASSERT_TRUE(editor_process_single_key('X') == 0);
-	ASSERT_ROW_TEXT_EQ(0, "aXaaa");
-	ASSERT_ROW_TEXT_EQ(1, "bXbbb");
-	ASSERT_ROW_TEXT_EQ(2, "cXccc");
-	ASSERT_EQ_INT(1, E.column_select_active);
-
-	// After typing the rect must remain multi-row (width 0) so subsequent typing
-	// continues to insert on every row in the original column-selection.
-	struct editorColumnSelectionRect rect;
-	ASSERT_TRUE(editorColumnSelectionGetRect(&rect));
-	ASSERT_EQ_INT(0, rect.top_cy);
-	ASSERT_EQ_INT(2, rect.bottom_cy);
-	ASSERT_EQ_INT(rect.right_rx, rect.left_rx);
-
-	ASSERT_TRUE(editor_process_single_key('Y') == 0);
-	ASSERT_ROW_TEXT_EQ(0, "aXYaaa");
-	ASSERT_ROW_TEXT_EQ(1, "bXYbbb");
-	ASSERT_ROW_TEXT_EQ(2, "cXYccc");
-	return 0;
-}
-
-static int test_editor_column_select_toggling_linear_selection_clears_column_mode(void) {
-	add_row("abcdef");
-	add_row("ghijkl");
-	E.cy = 0;
-	E.cx = 1;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-
-	const char alt_shift_down[] = "\x1b[1;4B";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	ASSERT_EQ_INT(1, E.column_select_active);
-
-	/* Starting a linear (Shift+move) selection clears the column selection. */
-	const char shift_right[] = "\x1b[1;2C";
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
-	ASSERT_EQ_INT(0, E.column_select_active);
-	ASSERT_EQ_INT(1, E.selection_mode_active);
-	return 0;
-}
-
-static int test_editor_column_select_plain_arrow_clears_mode(void) {
-	add_row("abcdef");
-	add_row("ghijkl");
-	E.cy = 0;
-	E.cx = 1;
-	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-
-	const char alt_shift_down[] = "\x1b[1;4B";
-	const char arrow_down[] = "\x1b[B";
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-	                                               sizeof(alt_shift_down) - 1) == 0);
-	ASSERT_EQ_INT(1, E.column_select_active);
-
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
-	ASSERT_EQ_INT(0, E.column_select_active);
+static int input_selection_dispatch(enum editorAction action) {
+	int effects = 0;
+	(void)editorDispatchProcessMappedAction(action, &effects);
 	return 0;
 }
 
@@ -177,6 +27,7 @@ static int test_editor_process_keypress_typed_char_replaces_selection(void) {
 	E.cy = 0;
 	E.cx = 5;
 
+	ASSERT_TRUE(editor_process_single_key('i') == 0);
 	ASSERT_TRUE(editor_process_single_key('Z') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "Z world");
 	ASSERT_EQ_INT(0, E.selection_mode_active);
@@ -242,11 +93,11 @@ static int test_editor_process_keypress_ctrl_b_toggles_drawer(void) {
 	E.cx = 2;
 	ASSERT_EQ_INT(0, E.drawer_collapsed);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_TOGGLE_DRAWER) == 0);
 	ASSERT_EQ_INT(1, E.drawer_collapsed);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_TOGGLE_DRAWER) == 0);
 	ASSERT_EQ_INT(0, E.drawer_collapsed);
 	return 0;
 }
@@ -258,7 +109,7 @@ static int test_editor_process_keypress_ctrl_a_selects_whole_buffer(void) {
 	E.cy = 1;
 	E.cx = 2;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_ALL) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	/* Cursor lands at the end of the buffer, anchor at the start. */
 	ASSERT_EQ_INT(2, E.cy);
@@ -277,7 +128,7 @@ static int test_editor_process_keypress_ctrl_a_empty_buffer_is_noop(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_ALL) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	struct editorSelectionRange range;
@@ -290,9 +141,7 @@ static int test_editor_selection_range_tracks_shift_arrow_movement(void) {
 	E.cy = 0;
 	E.cx = 1;
 
-	/* Shift+Right with no active selection anchors at the cursor, then extends. */
-	char shift_right[] = "\x1b[1;2C";
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_RIGHT) == 0);
 
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
@@ -301,12 +150,11 @@ static int test_editor_selection_range_tracks_shift_arrow_movement(void) {
 	ASSERT_EQ_INT(0, range.end_cy);
 	ASSERT_EQ_INT(2, range.end_cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_RIGHT) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(3, range.end_cx);
 
-	char shift_left[] = "\x1b[1;2D";
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_left, sizeof(shift_left) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_LEFT) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(2, range.end_cx);
 	return 0;
@@ -317,13 +165,10 @@ static int test_editor_plain_arrow_collapses_shift_selection(void) {
 	E.cy = 0;
 	E.cx = 1;
 
-	char shift_right[] = "\x1b[1;2C";
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_RIGHT) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
-	/* A plain arrow drops the selection (CUA collapse) and just moves. */
-	char arrow_right[] = "\x1b[C";
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_MOVE_RIGHT) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	struct editorSelectionRange range;
@@ -336,9 +181,7 @@ static int test_editor_ctrl_shift_arrow_selects_by_word(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	char ctrl_shift_right[] = "\x1b[1;6C";
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_shift_right,
-	                                               sizeof(ctrl_shift_right) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_WORD_RIGHT) == 0);
 
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
@@ -352,16 +195,13 @@ static int test_editor_shift_home_end_extend_selection(void) {
 	E.cy = 0;
 	E.cx = 6; /* on 'w' */
 
-	char shift_end[] = "\x1b[1;2F";
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_end, sizeof(shift_end) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_END) == 0);
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(6, range.start_cx);
 	ASSERT_EQ_INT(11, range.end_cx); /* end of line */
 
-	/* Anchor stays at 6; Shift+Home swings the cursor to the line start. */
-	char shift_home[] = "\x1b[1;2H";
-	ASSERT_TRUE(editor_process_keypress_with_input(shift_home, sizeof(shift_home) - 1) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_HOME) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(0, range.start_cx);
 	ASSERT_EQ_INT(6, range.end_cx);
@@ -376,7 +216,7 @@ static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void
 	E.cx = 5;
 	int dirty_before = E.dirty;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_COPY_SELECTION) == 0);
 
 	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
@@ -397,7 +237,7 @@ static int test_editor_process_keypress_ctrl_c_copies_multiline_selection(void) 
 	E.cy = 2;
 	E.cx = 2;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_COPY_SELECTION) == 0);
 
 	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
@@ -417,7 +257,7 @@ static int test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipbo
 	E.cx = 3;
 	int dirty_before = E.dirty;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_CUT_SELECTION) == 0);
 
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "held");
@@ -445,7 +285,7 @@ test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipbo
 	E.cy = 1;
 	E.cx = 3;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_DELETE_SELECTION) == 0);
 
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "held");
@@ -465,7 +305,7 @@ static int test_editor_process_keypress_ctrl_v_pastes_clipboard_text(void) {
 	E.cx = 1;
 	int dirty_before = E.dirty;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_PASTE) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "aXYZb");
 	ASSERT_EQ_INT(4, E.cx);
 	ASSERT_TRUE(E.dirty > dirty_before);
@@ -479,7 +319,7 @@ static int test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text(v
 	E.cy = 0;
 	E.cx = 1;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_PASTE) == 0);
 	ASSERT_EQ_INT(2, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "xA");
 	ASSERT_ROW_TEXT_EQ(1, "By");
@@ -498,7 +338,7 @@ static int test_editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_
 	E.cy = 0;
 	E.cx = 4;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_PASTE) == 0);
 	ASSERT_EQ_INT(4, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "    one");
 	ASSERT_ROW_TEXT_EQ(1, "    two");
@@ -516,7 +356,7 @@ static int test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop(void) {
 	E.cx = 2;
 	int dirty_before = E.dirty;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_PASTE) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(dirty_before, E.dirty);
@@ -714,7 +554,7 @@ static int test_editor_process_keypress_ctrl_v_clears_selection_mode(void) {
 	begin_selection();
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_PASTE) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "aZb");
 	return 0;
@@ -726,13 +566,13 @@ static int test_editor_process_keypress_ctrl_v_undo_roundtrip_single_step(void) 
 	E.cy = 0;
 	E.cx = 1;
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_PASTE) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "aXYb");
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_UNDO) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "ab");
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_REDO) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "aXYb");
 	return 0;
 }
@@ -744,15 +584,15 @@ static int test_editor_process_keypress_selection_ops_noop_without_selection(voi
 	begin_selection();
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_COPY_SELECTION) == 0);
 	ASSERT_EQ_STR("No selection", E.statusmsg);
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_CUT_SELECTION) == 0);
 	ASSERT_EQ_STR("No selection", E.statusmsg);
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_DELETE_SELECTION) == 0);
 	ASSERT_EQ_STR("No selection", E.statusmsg);
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(1, E.selection_mode_active);
@@ -767,9 +607,7 @@ static int test_editor_process_keypress_escape_clears_selection_mode(void) {
 	E.cx = 3;
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
-	const char esc_input[] = "\x1b[x";
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) ==
-	            0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_ESCAPE) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	struct editorSelectionRange range;
@@ -782,6 +620,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	E.cy = 0;
 	E.cx = 1;
 	begin_selection();
+	ASSERT_TRUE(editor_process_single_key('i') == 0);
 	ASSERT_TRUE(editor_process_single_key('Z') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "aZb");
@@ -791,6 +630,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	E.cy = 0;
 	E.cx = 2;
 	begin_selection();
+	ASSERT_TRUE(editor_process_single_key('i') == 0);
 	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "a");
@@ -800,6 +640,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	E.cy = 0;
 	E.cx = 1;
 	begin_selection();
+	ASSERT_TRUE(editor_process_single_key('i') == 0);
 	ASSERT_TRUE(editor_process_single_key('\r') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_EQ_INT(2, E.numrows);
@@ -816,7 +657,7 @@ static int test_editor_process_keypress_ctrl_c_oom_preserves_buffer(void) {
 	E.cx = 5;
 
 	editorTestAllocFailAfter(0);
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_COPY_SELECTION) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "hello");
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
@@ -860,18 +701,6 @@ static int test_editor_refresh_screen_highlights_active_selection_spans(void) {
 }
 
 const struct editorTestCase g_input_selection_tests[] = {
-        {"editor_column_select_extends_rectangle_with_shift_alt_arrows",
-         test_editor_column_select_extends_rectangle_with_shift_alt_arrows},
-        {"editor_column_select_copy_joins_per_row_slices_with_newlines",
-         test_editor_column_select_copy_joins_per_row_slices_with_newlines},
-        {"editor_column_select_delete_removes_rectangle_per_row",
-         test_editor_column_select_delete_removes_rectangle_per_row},
-        {"editor_column_select_typing_inserts_char_on_each_row",
-         test_editor_column_select_typing_inserts_char_on_each_row},
-        {"editor_column_select_toggling_linear_selection_clears_column_mode",
-         test_editor_column_select_toggling_linear_selection_clears_column_mode},
-        {"editor_column_select_plain_arrow_clears_mode",
-         test_editor_column_select_plain_arrow_clears_mode},
         {"editor_process_keypress_typed_char_replaces_selection",
          test_editor_process_keypress_typed_char_replaces_selection},
         {"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},

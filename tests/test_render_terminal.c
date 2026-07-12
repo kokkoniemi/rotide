@@ -1,4 +1,4 @@
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "render/screen.h"
 #include "render/status_bar.h"
 #include "rotide.h"
@@ -469,9 +469,7 @@ static int test_status_bar_terminal_segment_modes(void) {
 	if (t == NULL) {
 		return 1;
 	}
-	if (!editorInputSystemActivate("vim")) {
-		return 1;
-	}
+	editorVimReset();
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	size_t len = 0;

@@ -2,7 +2,6 @@
 
 #include "alloc_test_hooks.h"
 #include "config/dap_config.h"
-#include "config/keymap.h"
 #include "config/lsp_config.h"
 #include "config/theme_config.h"
 #include "debug/dap.h"
@@ -11,8 +10,8 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
-#include "input/input_system.h"
 #include "input/prompt.h"
+#include "input/system_vim.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"
@@ -163,8 +162,7 @@ void reset_editor_state(void) {
 	editorSyntaxTestResetBudgetOverrides();
 	editorSyntaxTestResetParseFailureCountdowns();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
-	editorKeymapInitDefaults(&E.keymap);
-	(void)editorInputSystemActivate("cua");
+	editorVimReset();
 	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	E.focused_leaf = E.layout_root;
 }
@@ -556,6 +554,24 @@ int editor_process_keypress_with_input(const char *input, size_t len) {
 
 int editor_process_keypress_with_input_to_stdout(const char *input, size_t len) {
 	return process_keypress_bytes(input, len, 0);
+}
+
+int editor_dispatch_action_with_input(enum editorAction action, const char *input, size_t len) {
+	int saved_stdin;
+	int saved_stdout;
+	int effects = 0;
+	if (setup_stdin_bytes(input, len, &saved_stdin) == -1) {
+		return -1;
+	}
+	if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+		restore_stdin(saved_stdin);
+		return -1;
+	}
+	(void)editorDispatchProcessMappedAction(action, &effects);
+	if (restore_stdout(saved_stdout) == -1 || restore_stdin(saved_stdin) == -1) {
+		return -1;
+	}
+	return 0;
 }
 
 char *editor_prompt_with_input(const char *input, size_t len, const char *prompt) {

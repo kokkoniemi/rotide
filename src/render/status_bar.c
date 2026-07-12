@@ -2,7 +2,7 @@
 
 #include "config/theme_config.h"
 #include "debug/dap.h"
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/write_buf.h"
@@ -456,15 +456,13 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 	if (terminal == NULL) {
 		return 1;
 	}
-	int is_vim = editorInputSystemActive() == &editorVimInputSystem;
-	int normal = is_vim && terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL;
+	int normal = terminal->input_mode == EDITOR_TERMINAL_INPUT_NORMAL;
 
 	statusBarButtonsReset(col_offset);
 	int col = 0;
 
-	const char *badge = !is_vim ? "TERM" : (normal ? "NORMAL" : "INSERT");
-	int badge_color = !is_vim ? EDITOR_THEME_ANSI_CYAN
-	                          : (normal ? EDITOR_THEME_ANSI_BLUE : EDITOR_THEME_ANSI_GREEN);
+	const char *badge = normal ? "NORMAL" : "INSERT";
+	int badge_color = normal ? EDITOR_THEME_ANSI_BLUE : EDITOR_THEME_ANSI_GREEN;
 	if (!statusBarAppendModeBadge(wb, badge, badge_color, &col, max_col)) {
 		return 0;
 	}
@@ -474,22 +472,17 @@ static int statusBarAppendTerminalSegment(struct writeBuf *wb, int max_col, int 
 	col += (col + 2 <= max_col) ? 2 : 0;
 
 	const char *new_icon = E.nerd_fonts_enabled ? STATUS_TERM_ICON_NEW : NULL;
-	if (is_vim) {
-		if (normal) {
-			if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Insert",
-			                           "i", EDITOR_ACTION_TERMINAL_MODE_INSERT)) {
-				return 0;
-			}
-		} else if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Normal",
-		                                  "^WN", EDITOR_ACTION_TERMINAL_MODE_NORMAL)) {
+	if (normal) {
+		if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Insert", "i",
+		                           EDITOR_ACTION_TERMINAL_MODE_INSERT)) {
 			return 0;
 		}
-		if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", "^Wt",
-		                           EDITOR_ACTION_TERMINAL_NEW_TAB)) {
-			return 0;
-		}
-	} else if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", NULL,
-	                                  EDITOR_ACTION_TERMINAL_NEW_TAB)) {
+	} else if (!statusBarAppendButton(wb, &col, max_col, NULL, NULL, "Switch Normal", "^WN",
+	                                  EDITOR_ACTION_TERMINAL_MODE_NORMAL)) {
+		return 0;
+	}
+	if (!statusBarAppendButton(wb, &col, max_col, new_icon, NULL, "New terminal", "^Wt",
+	                           EDITOR_ACTION_TERMINAL_NEW_TAB)) {
 		return 0;
 	}
 	*col_io = col;
@@ -524,14 +517,9 @@ static int statusBarPrepareInputSegment(char **text_out, int *content_cols_out, 
 		return 1;
 	}
 
-	const struct editorInputSystem *system = editorInputSystemActive();
-	if (system == NULL || system->status_segment == NULL) {
-		return 1;
-	}
-
 	char segment[64];
 	segment[0] = '\0';
-	system->status_segment(segment, sizeof(segment));
+	editorVimStatusSegment(segment, sizeof(segment));
 	segment[sizeof(segment) - 1] = '\0';
 	if (segment[0] == '\0') {
 		return 1;
@@ -632,7 +620,6 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	}
 
 	/* A terminal has its own per-tab mode badge. */
-	const struct editorInputSystem *active_system = editorInputSystemActive();
 	int terminal_focused = statusBarFocusedTerminal() != NULL;
 	char *input_segment = NULL;
 	int input_segment_cols = 0;
@@ -649,9 +636,7 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	if (input_segment_total_cols > 0) {
 		int color_idx = -1;
 		int colored = 0;
-		if (active_system != NULL && active_system->status_segment_color != NULL) {
-			color_idx = active_system->status_segment_color();
-		}
+		color_idx = editorVimStatusColor();
 		colored = color_idx >= 0 && color_idx < EDITOR_THEME_ANSI_COUNT;
 		if (colored) {
 			struct editorThemeColor bg = E.theme.status_segment_bg[color_idx];

@@ -1,4 +1,5 @@
-#include "input/input_system.h"
+#include "input/dispatch.h"
+#include "input/system_vim.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -256,7 +257,7 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
 	editorLspPumpNotifications();
 
-	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	char lsp_drawer[] = {' ', 'l'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
@@ -322,7 +323,7 @@ static int test_editor_lsp_drawer_colors_problem_severity_labels(void) {
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 2);
 	editorLspPumpNotifications();
 
-	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	char lsp_drawer[] = {' ', 'l'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	E.window_rows = 8;
 	E.window_cols = 160;
@@ -368,7 +369,7 @@ static int test_editor_lsp_drawer_selected_problem_spills_into_text_area(void) {
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
 	editorLspPumpNotifications();
 
-	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	char lsp_drawer[] = {' ', 'l'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
@@ -458,10 +459,6 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
-	E.keymap.bindings[E.keymap.len].action = EDITOR_ACTION_ESLINT_FIX;
-	E.keymap.len++;
-
 	char js_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
 	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
@@ -505,7 +502,7 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	struct editorLspLocation target = {.path = js_path, .line = 0, .character = 6};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(6, E.cx);
@@ -518,8 +515,8 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	         .message = ";"},
 	};
 	editorLspTestSetMockCodeActionResult(1, edits, 1);
-	char fix_input[] = {CTRL_KEY('t')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(fix_input, sizeof(fix_input)) == 0);
+	int effects = 0;
+	(void)editorDispatchProcessMappedAction(EDITOR_ACTION_ESLINT_FIX, &effects);
 	ASSERT_TRUE(strstr(E.statusmsg, "ESLint fixes applied") != NULL);
 
 	editorLspTestGetStats(&stats);
@@ -544,10 +541,6 @@ static int test_editor_process_keypress_eslint_fix_action_applies_mock_edits(voi
 	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
-	E.keymap.bindings[E.keymap.len].action = EDITOR_ACTION_ESLINT_FIX;
-	E.keymap.len++;
-
 	char js_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
 	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
@@ -563,8 +556,8 @@ static int test_editor_process_keypress_eslint_fix_action_applies_mock_edits(voi
 	};
 	editorLspTestSetMockCodeActionResult(1, edits, 1);
 
-	char input[] = {CTRL_KEY('t')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	int effects = 0;
+	(void)editorDispatchProcessMappedAction(EDITOR_ACTION_ESLINT_FIX, &effects);
 	ASSERT_TRUE(strstr(E.statusmsg, "ESLint fixes applied") != NULL);
 
 	size_t textlen = 0;
@@ -585,10 +578,6 @@ test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_instal
 	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
-	E.keymap.bindings[E.keymap.len].action = EDITOR_ACTION_ESLINT_FIX;
-	E.keymap.len++;
-
 	strncpy(E.lsp_config.eslint_command,
 	        "exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_install_command",
 	        sizeof(E.lsp_config.eslint_command) - 1);
@@ -604,8 +593,9 @@ test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_instal
 	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 
-	char input[] = {CTRL_KEY('t'), 'y', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	char input[] = {'y', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_ESLINT_FIX, input,
+	                                              sizeof(input)) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
 	ASSERT_EQ_STR("Task: Install vscode-langservers-extracted",
@@ -637,7 +627,7 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	char *before = editorRowsToStr(&before_len);
 	ASSERT_TRUE(before != NULL);
 
-	char insert[] = {'x'};
+	char insert[] = {'i', 'x'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(insert, sizeof(insert)) == 0);
 	ASSERT_EQ_STR("Task log is read-only", E.statusmsg);
 
@@ -649,12 +639,13 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	free(before);
 	free(after);
 
-	char save[] = {CTRL_KEY('s')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(save, sizeof(save)) == 0);
+	int effects = 0;
+	(void)editorDispatchProcessMappedAction(EDITOR_ACTION_SAVE, &effects);
 	ASSERT_EQ_STR("Task logs cannot be saved", E.statusmsg);
 
-	char find_input[] = {CTRL_KEY('f'), 'c', 'o', 'm', 'p', 'l', 'e', 't', 'e', 'd', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(find_input, sizeof(find_input)) == 0);
+	char find_input[] = {'c', 'o', 'm', 'p', 'l', 'e', 't', 'e', 'd', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_FIND, find_input,
+	                                              sizeof(find_input)) == 0);
 	ASSERT_TRUE(E.search_match_len > 0);
 
 	editorActiveTextSourceDupTestResetCount();
@@ -662,8 +653,7 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	E.cx = 4;
 	E.selection_mode_active = 1;
 	ASSERT_TRUE(set_selection_anchor(3, 0));
-	char copy[] = {CTRL_KEY('c')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(copy, sizeof(copy)) == 0);
+	(void)editorDispatchProcessMappedAction(EDITOR_ACTION_COPY_SELECTION, &effects);
 
 	size_t copied_len = 0;
 	const char *copied = editorClipboardGet(&copied_len);
@@ -675,13 +665,8 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 }
 
 static int lsp_diag_vim_key(int key) {
-	const struct editorInputSystem *system = editorInputSystemActive();
 	int effects = 0;
-
-	if (system == NULL || system->handle_key == NULL) {
-		return -1;
-	}
-	return system->handle_key(key, &effects);
+	return editorVimHandleKey(key, &effects);
 }
 
 static int test_editor_lsp_diagnostic_navigation(void) {
@@ -707,7 +692,7 @@ static int test_editor_lsp_diagnostic_navigation(void) {
 	editorOpen(js_path);
 	editorLspSetDiagnosticsForPath(js_path, diagnostics, 2);
 	ASSERT_EQ_INT(2, E.lsp_diagnostic_count);
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 
 	E.cy = 0;
 	E.cx = 0;

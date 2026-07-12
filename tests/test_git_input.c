@@ -1,9 +1,8 @@
-#include "config/keymap.h"
 #include "editing/text_source.h"
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
 #include "input/actions_workspace.h"
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "render/popup.h"
 #include "render/status_bar.h"
 #include "rotide.h"
@@ -168,21 +167,15 @@ static int git_input_select_action_row(const char *name) {
 /* Feeds decoded keys straight to the active input system: raw ESC bytes in a
  * stdin buffer would be decoded as escape-sequence prefixes, not Esc. */
 static int git_input_feed_keys(const char *keys) {
-	const struct editorInputSystem *system = editorInputSystemActive();
-	if (system == NULL || system->handle_key == NULL) {
-		return 0;
-	}
 	for (const char *p = keys; *p != '\0'; p++) {
 		int effects = 0;
-		(void)system->handle_key((unsigned char)*p, &effects);
+		(void)editorVimHandleKey((unsigned char)*p, &effects);
 	}
 	return 1;
 }
 
-static int git_input_setup(const char *system_id, char **repo_out) {
-	if (!editorInputSystemActivate(system_id)) {
-		return 0;
-	}
+static int git_input_setup(char **repo_out) {
+	editorVimReset();
 	if (!editorTabsInit()) {
 		return 0;
 	}
@@ -194,9 +187,9 @@ static int git_input_setup(const char *system_id, char **repo_out) {
 	return 1;
 }
 
-static int git_input_stage_toggle_with_system(const char *system_id) {
+static int git_input_stage_toggle_with_system(void) {
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup(system_id, &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
@@ -220,18 +213,13 @@ static int git_input_stage_toggle_with_system(const char *system_id) {
 
 static int test_git_input_stage_toggle_vim(void) {
 	SKIP_WITHOUT_GIT();
-	return git_input_stage_toggle_with_system("vim");
-}
-
-static int test_git_input_stage_toggle_cua(void) {
-	SKIP_WITHOUT_GIT();
-	return git_input_stage_toggle_with_system("cua");
+	return git_input_stage_toggle_with_system();
 }
 
 static int test_git_input_group_header_stage_and_unstage(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(git_input_write_file(repo, "b.txt", "new\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -270,7 +258,7 @@ static int test_git_input_group_header_stage_and_unstage(void) {
 static int test_git_input_group_header_menu_stages_group(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
@@ -297,7 +285,7 @@ static int test_git_input_group_header_menu_stages_group(void) {
 static int test_git_input_discard_confirm_and_cancel(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "dirty\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
@@ -318,7 +306,7 @@ static int test_git_input_discard_confirm_and_cancel(void) {
 static int test_git_input_keys_inert_in_tree_mode(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	editorGitRefresh();
 
@@ -337,7 +325,7 @@ static int test_git_input_keys_inert_in_tree_mode(void) {
 static int test_git_input_push_without_upstream_can_cancel(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 
 	char bare[600];
 	(void)snprintf(bare, sizeof(bare), "%s-bare", repo);
@@ -361,7 +349,7 @@ static int test_git_input_push_without_upstream_can_cancel(void) {
 static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 
 	char bare[600];
 	(void)snprintf(bare, sizeof(bare), "%s-bare", repo);
@@ -397,7 +385,7 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 static int test_git_input_push_prompt_handles_adversarial_remote_name(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 
 	const char *evil_remote = "ori%sgin%d";
 	ASSERT_TRUE(git_input_run_cmd("git -C '%s' remote add '%s' '%s-bare'", repo, evil_remote,
@@ -439,7 +427,7 @@ static int git_input_view_contains(const char *needle) {
 static int test_git_input_branches_view_checkout_and_new(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorGitOpsBranchCreate("feat"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
@@ -467,7 +455,7 @@ static int test_git_input_branches_view_checkout_and_new(void) {
 static int test_git_input_branches_view_delete_with_confirm(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorGitOpsBranchCreate("feat"));
 	ASSERT_TRUE(editorGitOpsCheckout("main"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -486,7 +474,7 @@ static int test_git_input_branches_view_delete_with_confirm(void) {
 static int test_git_input_log_view_tag_and_show(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
 	ASSERT_TRUE(editor_process_keypress_with_input("L", 1) == 0);
@@ -512,7 +500,7 @@ static int test_git_input_log_view_tag_and_show(void) {
 static int test_git_input_stash_view_apply_and_drop(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "stash me\n"));
 	ASSERT_TRUE(git_input_run_cmd("git -C '%s' stash push -q -m wip", repo));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -539,7 +527,7 @@ static int test_git_input_stash_view_apply_and_drop(void) {
 static int test_git_input_view_readonly_and_header_noop(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
 	/* The stash view's placeholder row has no actionable entity. */
@@ -560,7 +548,7 @@ static int test_git_input_view_readonly_and_header_noop(void) {
 static int test_git_input_diff_tabs_reuse_preview_slot(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(git_input_write_file(repo, "b.txt", "new\n"));
 	editorGitRefresh();
@@ -582,7 +570,7 @@ static int test_git_input_diff_tabs_reuse_preview_slot(void) {
 static int test_git_input_diff_toggle_whole_file(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt",
 	                                 "line1\nline2\nline3\nline4\nline5\nline6\nline7\n"
 	                                 "line8\nline9\nline10\nline11\nline12\n"));
@@ -612,7 +600,7 @@ static int test_git_input_diff_toggle_whole_file(void) {
 static int test_git_input_enter_on_file_row_opens_diff(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	E.window_rows = 20;
 	E.window_cols = 120;
@@ -681,7 +669,7 @@ static int git_input_file_row_index(const char *rel_path) {
 static int test_git_input_open_diff_highlights_file_row(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	/* a.txt: tracked + worktree-modified (Changes); c.txt: untracked. */
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "changed\n"));
 	ASSERT_TRUE(git_input_write_file(repo, "c.txt", "brand new\n"));
@@ -761,7 +749,7 @@ static int git_input_row_active_in_group(const char *rel_path, int staged_group)
 static int test_git_input_partially_staged_diffs_are_distinct(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	/* Stage a first change, then add a further worktree change so a.txt lists
 	 * under both Staged (index M) and Changes (worktree M). */
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "STAGED\n"));
@@ -804,7 +792,7 @@ static int test_git_input_partially_staged_diffs_are_distinct(void) {
 static int test_git_input_arrow_nav_previews_diff(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	/* Two tracked files, both worktree-modified, so they sit as adjacent rows
 	 * under Changes (porcelain lists paths sorted: a.txt then d.txt). */
 	ASSERT_TRUE(git_input_write_file(repo, "d.txt", "orig\n"));
@@ -847,7 +835,7 @@ static int test_git_input_arrow_nav_previews_diff(void) {
 static int test_git_input_context_menu_stage_and_unstage(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
@@ -875,7 +863,7 @@ static int test_git_input_context_menu_stage_and_unstage(void) {
 static int test_git_input_actions_row_opens_commit_tab(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -902,7 +890,7 @@ static int test_git_input_actions_row_opens_commit_tab(void) {
 static int test_git_input_status_bar_button_click_stages_file(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
@@ -948,7 +936,7 @@ static int test_git_input_status_bar_button_click_stages_file(void) {
 static int test_git_input_commit_via_vim_write(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -976,33 +964,10 @@ static int test_git_input_commit_via_vim_write(void) {
 	return 0;
 }
 
-static int test_git_input_commit_via_cua_ctrl_s(void) {
-	SKIP_WITHOUT_GIT();
-	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("cua", &repo));
-	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
-	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
-	ASSERT_TRUE(editorDrawerGitToggle());
-
-	ASSERT_TRUE(editor_process_keypress_with_input("c", 1) == 0);
-	ASSERT_EQ_INT(EDITOR_TAB_GIT_COMMIT, E.tab_kind);
-
-	const char keys[] = {'s', 't', 'a', 'g', 'e', 'd', ' ', 'c', 'u', 'a', CTRL_KEY('s')};
-	ASSERT_TRUE(editor_process_keypress_with_input(keys, sizeof(keys)) == 0);
-	ASSERT_TRUE(E.tab_kind != EDITOR_TAB_GIT_COMMIT);
-	char *last = editorGitOpsLastCommitMessageDup();
-	ASSERT_TRUE(last != NULL);
-	ASSERT_TRUE(strstr(last, "staged cua") != NULL);
-	free(last);
-
-	git_input_repo_destroy(repo);
-	return 0;
-}
-
 static int test_git_input_commit_amend_prefills_last_message(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
 	ASSERT_TRUE(editor_process_keypress_with_input("A", 1) == 0);
@@ -1037,7 +1002,7 @@ static int test_git_input_commit_amend_prefills_last_message(void) {
 static int test_git_input_commit_mode_tracks_last_invocation(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -1071,7 +1036,7 @@ static int test_git_input_commit_mode_tracks_last_invocation(void) {
 static int test_git_input_commit_empty_message_keeps_tab(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -1093,7 +1058,7 @@ static int test_git_input_commit_empty_message_keeps_tab(void) {
 static int test_git_input_commit_close_without_save_aborts(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorGitOpsStageFile("a.txt"));
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -1120,7 +1085,7 @@ static int test_git_input_commit_close_without_save_aborts(void) {
 static int test_git_input_commit_refused_with_clean_tree(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorDrawerGitToggle());
 
 	ASSERT_TRUE(editor_process_keypress_with_input("c", 1) == 0);
@@ -1134,7 +1099,7 @@ static int test_git_input_commit_refused_with_clean_tree(void) {
 static int test_git_input_leader_and_ex_open_views(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(editor_process_keypress_with_input("B", 1) == 0);
@@ -1155,7 +1120,7 @@ static int test_git_input_leader_and_ex_open_views(void) {
 static int test_git_input_pending_vim_sequence_precedes_drawer_hotkey(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(git_input_write_file(repo, "a.txt", "two\n"));
 	ASSERT_TRUE(editorDrawerGitToggle());
 	ASSERT_TRUE(git_input_select_file_row("a.txt"));
@@ -1187,33 +1152,10 @@ static int test_git_input_pending_vim_sequence_precedes_drawer_hotkey(void) {
 	return 0;
 }
 
-static int test_git_input_keymap_cua_accepts_git_names(void) {
-	char dir_template[] = "/tmp/rotide-test-git-keymap-XXXXXX";
-	char *dir = mkdtemp(dir_template);
-	ASSERT_TRUE(dir != NULL);
-	char config_path[512];
-	ASSERT_TRUE(path_join(config_path, sizeof(config_path), dir, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(config_path, "[keymap.cua]\n"
-	                                         "git_branches = \"alt+j\"\n"
-	                                         "git_stage = \"alt+u\"\n"));
-
-	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK,
-	              editorKeymapLoadFromPaths(&E.keymap, NULL, config_path));
-	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&E.keymap, EDITOR_ALT_LETTER_KEY('j'), &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_GIT_BRANCHES, action);
-	ASSERT_TRUE(editorKeymapLookupAction(&E.keymap, EDITOR_ALT_LETTER_KEY('u'), &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_GIT_STAGE, action);
-
-	ASSERT_TRUE(unlink(config_path) == 0);
-	ASSERT_TRUE(rmdir(dir) == 0);
-	return 0;
-}
-
 static int test_git_input_mouse_double_click_checks_out_branch(void) {
 	SKIP_WITHOUT_GIT();
 	char *repo = NULL;
-	ASSERT_TRUE(git_input_setup("vim", &repo));
+	ASSERT_TRUE(git_input_setup(&repo));
 	ASSERT_TRUE(editorGitOpsBranchCreate("feat"));
 
 	ASSERT_TRUE(editorDrawerGitToggle());
@@ -1242,7 +1184,6 @@ static int test_git_input_mouse_double_click_checks_out_branch(void) {
 
 const struct editorTestCase g_git_input_tests[] = {
         {"git_input_stage_toggle_vim", test_git_input_stage_toggle_vim},
-        {"git_input_stage_toggle_cua", test_git_input_stage_toggle_cua},
         {"git_input_group_header_stage_and_unstage", test_git_input_group_header_stage_and_unstage},
         {"git_input_group_header_menu_stages_group", test_git_input_group_header_menu_stages_group},
         {"git_input_discard_confirm_and_cancel", test_git_input_discard_confirm_and_cancel},
@@ -1254,7 +1195,6 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_push_prompt_handles_adversarial_remote_name",
          test_git_input_push_prompt_handles_adversarial_remote_name},
         {"git_input_commit_via_vim_write", test_git_input_commit_via_vim_write},
-        {"git_input_commit_via_cua_ctrl_s", test_git_input_commit_via_cua_ctrl_s},
         {"git_input_commit_amend_prefills_last_message",
          test_git_input_commit_amend_prefills_last_message},
         {"git_input_commit_mode_tracks_last_invocation",
@@ -1283,7 +1223,6 @@ const struct editorTestCase g_git_input_tests[] = {
         {"git_input_leader_and_ex_open_views", test_git_input_leader_and_ex_open_views},
         {"git_input_pending_vim_sequence_precedes_drawer_hotkey",
          test_git_input_pending_vim_sequence_precedes_drawer_hotkey},
-        {"git_input_keymap_cua_accepts_git_names", test_git_input_keymap_cua_accepts_git_names},
         {"git_input_mouse_double_click_checks_out_branch",
          test_git_input_mouse_double_click_checks_out_branch},
 };
