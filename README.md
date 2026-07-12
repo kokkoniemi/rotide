@@ -16,7 +16,7 @@ For anyone else, I don't yet recommend to use it for any serious work.
 - UTF-8/grapheme-safe editing with multi-tab and split-pane workflow.
 - Project drawer: file tree, file search, project-wide text search, Git changes,
   debugger, and LSP Problems/Symbols.
-- Modal **Vim** input system (the default) or **CUA**, both configurable.
+- Modal **Vim** editing with configurable per-mode and leader bindings.
 - Tree-sitter highlighting for 48 languages; LSP definitions, symbols,
   problems, and autocomplete where enabled.
 - Atomic saves with crash-recovery snapshots; built-in and custom TOML themes.
@@ -50,4 +50,3 @@ make
 ## License
 
 See [`LICENSE`](LICENSE).
-

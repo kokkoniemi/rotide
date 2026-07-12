@@ -3,7 +3,7 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
-#include "input/input_system.h"
+#include "input/dispatch.h"
 #include "input/mouse.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
@@ -249,7 +249,6 @@ static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_lin
 }
 
 static int test_editor_process_keypress_mouse_hover_git_blame_indicator_opens_popup(void) {
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	ASSERT_TRUE(editorTabsInit());
 	add_row("alpha");
 	E.window_rows = 6;
@@ -2309,7 +2308,8 @@ static int test_editor_process_keypress_mouse_editor_right_click_opens_context_m
 	E.window_cols = 40;
 	E.cy = 0;
 	E.cx = 3;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
+	int effects = 0;
+	(void)editorDispatchProcessMappedAction(EDITOR_ACTION_SELECT_ALL, &effects);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	int saved_cy = E.cy;
 	int saved_cx = E.cx;

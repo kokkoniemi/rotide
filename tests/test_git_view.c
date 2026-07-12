@@ -538,7 +538,7 @@ static int test_git_view_branches_render_golden(void) {
 	        "   2  * main  ↑1  origin/main  3d\n"
 	        "   3    feature/x  2w\n"
 	        "   4  # remotes\n"
-	        " Checkout enter   New n   Delete d 1,1    100%\n"
+	        " NORMAL  Checkout enter   New n    1,1    100%\n"
 	        /* golden-end */
 	);
 	return 0;

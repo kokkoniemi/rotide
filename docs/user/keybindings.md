@@ -1,46 +1,10 @@
 # Default keybindings
 
-These are the CUA system's bindings (`[input] system = "cua"`). The default
-system is Vim, whose modal keys (motions, operators, `:` ex commands, etc.) are
-summarized in [`docs/developer/input-systems.md`](../developer/input-systems.md).
-In Vim the system owns the Ctrl range, so the Ctrl chords below do not fire
-while editing (use `:w`, `:q`, the leader, etc. instead); the Alt chords and
-navigation keys still apply.
-
-- `Ctrl-S`: save
-- `Ctrl-Q`: quit, confirming when dirty or a task is running
-- `Ctrl-N`: new tab
-- `Ctrl-W`: close tab
-- `Alt-Right` / `Alt-Left`: next/previous tab
-- `Ctrl-Shift-Alt-Left` / `-Right` / `-Up` / `-Down`: move the active tab to the neighbouring pane
-- `Ctrl-E`: toggle focus between editor and drawer
-- `Ctrl-B`: toggle the drawer (collapse/expand the sidebar)
-- `Alt-M`: open the main menu in the drawer; `Ctrl-Alt-M`: context menu
-- `Ctrl-P`: search files in the drawer
-- `Ctrl-Alt-F`: search text across the project
-- `Ctrl-Alt-G` / `Ctrl-Alt-L` / `Ctrl-Alt-B`: open the Git / LSP
-  Problems-Symbols / Debugger drawer
-- `Ctrl-Alt-N` / `Ctrl-Alt-D` / `Ctrl-Alt-R` / `Ctrl-Alt-K`: create file /
-  create folder / rename / delete in the drawer
-- `Ctrl-F`: search; `Ctrl-R`: find and replace
-- `Ctrl-G`: go to line
-- `Ctrl-]`: jump to matching bracket
-- `Ctrl-O` / `Ctrl + left click`: go to definition for supported source buffers
-- `Alt-I` / `Alt-S`: go to implementation / go to symbol
-- `Alt-B`: show Git blame details for the current line
-- `Alt-C`: toggle line comment
-- `Alt-Up` / `Alt-Down`: move the current line up/down
-- `Alt-Z`: toggle soft line wrapping
-- `Alt-N`: toggle absolute line numbers
-- `Alt-H`: toggle current-line highlight
-- `Ctrl-A`: select all
-- `Shift-Arrow`: extend selection (a plain arrow collapses it); `Ctrl-Shift-Left`/`-Right` extend by word; `Shift-Home`/`Shift-End` extend to line start/end
-- `Alt-Shift-Arrow`: column (box) selection
-- `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
-- `Ctrl-Z` / `Ctrl-Y`: undo/redo
-- `Ctrl-Left` / `Ctrl-Right`: move by word
-- `Ctrl-Up` / `Ctrl-Down`: scroll the viewport up/down without moving the cursor
-- arrows, home/end, page up/page down: movement and viewport navigation
+RotIDE uses Vim input exclusively. Normal, Insert, Visual, and Visual-Block
+editing follow the modal bindings below. Workspace commands route through the
+leader, `g` prefixes, `Ctrl-W`, ex commands, or focus-specific Git and drawer
+keys. `Alt-Left`/`Alt-Right`, `Alt-Up`/`Alt-Down`, `Alt-C`, and
+`Alt-Z`/`Alt-N`/`Alt-H` remain explicit Vim-owned shortcuts.
 
 ## Vim leader bindings
 
@@ -72,8 +36,8 @@ In Vim Normal mode, `Ctrl-W` starts a built-in window-command prefix:
 - `Ctrl-W h` / `j` / `k` / `l`: focus left/down/up/right; arrow keys work too
 - `Ctrl-W H` / `J` / `K` / `L`: move the active tab to the neighbour pane
 
-`Ctrl-W q` closes a pane in RotIDE; it does not quit the app. Use `:q` or
-`Ctrl-Q` for app quit semantics.
+`Ctrl-W q` closes a pane in RotIDE; it does not quit the app. Use `:q` for
+app quit semantics.
 
 ## Vim ex-command aliases
 
@@ -160,7 +124,7 @@ provides it:
 selection, superseded by Shift+move), `diagnostic_next`/`diagnostic_prev` (bound
 to `]g`/`[g` in Vim), `goto_references` (bound to `gr` in Vim), `hover` (bound
 to `K` in Vim), and `resize_drawer_narrow`/`resize_drawer_widen` are
-configurable actions without default bindings in the built-in CUA keymap.
+available editor actions without default Vim bindings.
 
 ## Vim Git
 
@@ -168,7 +132,7 @@ configurable actions without default bindings in the built-in CUA keymap.
 
 ## Git drawer and views
 
-The Git drawer (`Ctrl-Alt-G`, `<leader>g`, or `:git`) lists an Actions section
+The Git drawer (`<leader>g` or `:git`) lists an Actions section
 followed by Staged / Changes / Untracked / Conflicts. The Actions rows (Commit
 staged…, Amend last commit…, Branches, Commit log, Stashes, Push, Pull, Fetch,
 Refresh) run on Enter or a mouse click; push/pull/fetch run as background tasks
@@ -187,8 +151,7 @@ selected (stage or unstage matching the selected group), "Stage all" /
 is staged —
 with nerd-font icons when enabled, like the debug controls — and each label
 starts with the key that runs it, so the shortcuts teach themselves.
-Single-letter shortcuts work the same in Vim and CUA while the drawer has
-focus:
+Single-letter shortcuts take precedence while the drawer has focus:
 
 - `s`: stage the selected file (unstages it when selected under Staged); on a
   group header (Staged / Changes / Untracked / Conflicts) it applies to every
@@ -199,7 +162,7 @@ focus:
 - `B` / `L` / `S`: open the branches / commits / stash view
 
 Committing opens an editable `git commit` message tab: type the message and
-save (`Ctrl-S` / `:w`) to commit; lines starting with `#` are ignored; closing
+save with `:w` to commit; lines starting with `#` are ignored; closing
 the tab without saving aborts the commit.
 
 Diff tabs open as preview tabs (one shared slot, like drawer file previews), so

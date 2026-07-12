@@ -1314,8 +1314,8 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
 			_exit(151);
 		}
-		char ctrl_q[] = {CTRL_KEY('q')};
-		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+		char quit[] = {':', 'q', '\r'};
+		if (editor_process_keypress_with_input(quit, sizeof(quit)) == -1) {
 			_exit(152);
 		}
 		_exit(153);

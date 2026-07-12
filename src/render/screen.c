@@ -6,7 +6,7 @@
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
 #include "render/ansi_style.h"
@@ -1707,12 +1707,9 @@ static int screenAppendFramePreamble(struct writeBuf *wb) {
 			frame_cursor_blink = focused_terminal->cursor_blink != 0;
 		}
 	} else {
-		const struct editorInputSystem *system = editorInputSystemActive();
-		if (system != NULL && system->cursor_style != NULL) {
-			int style_override = system->cursor_style();
-			if (style_override >= 0) {
-				frame_cursor_style = (enum editorCursorStyle)style_override;
-			}
+		int style_override = editorVimCursorStyle();
+		if (style_override >= 0) {
+			frame_cursor_style = (enum editorCursorStyle)style_override;
 		}
 	}
 	size_t cursor_style_len = 0;

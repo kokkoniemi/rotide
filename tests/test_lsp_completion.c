@@ -173,7 +173,6 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_without_response(vo
 	add_row("f");
 	E.cy = 0;
 	E.cx = 1;
-
 	struct editorLspCompletionItem mock_items[3] = {
 	        {.label = (char *)"foo"},
 	        {.label = (char *)"fbar"},
@@ -247,6 +246,8 @@ static int test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open(void) {
 	add_row("f");
 	E.cy = 0;
 	E.cx = 1;
+	char insert_mode[] = {'i'};
+	ASSERT_TRUE(editor_process_keypress_with_input(insert_mode, sizeof(insert_mode)) == 0);
 
 	struct editorLspCompletionItem mock_items[3] = {
 	        {.label = (char *)"foo"},
@@ -292,7 +293,8 @@ static int test_editor_lsp_autocomplete_filters_clangd_decorated_labels(void) {
 	add_row("client.");
 	E.cy = 0;
 	E.cx = 7;
-
+	char insert_mode[] = {'i'};
+	ASSERT_TRUE(editor_process_keypress_with_input(insert_mode, sizeof(insert_mode)) == 0);
 	/* Mirror clangd: labels carry leading whitespace/markers; filterText holds the
 	 * bare symbol that should drive prefix matching. */
 	struct editorLspCompletionItem mock_items[3] = {
@@ -368,6 +370,8 @@ static int test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps
 	add_row("client.");
 	E.cy = 0;
 	E.cx = 7;
+	char insert_mode[] = {'i'};
+	ASSERT_TRUE(editor_process_keypress_with_input(insert_mode, sizeof(insert_mode)) == 0);
 
 	struct editorLspCompletionItem mock_items[3] = {
 	        {.label = (char *)"count"},

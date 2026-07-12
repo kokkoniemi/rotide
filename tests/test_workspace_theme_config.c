@@ -1,7 +1,6 @@
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
-#include "config/keymap.h"
 #include "config/theme_config.h"
 #include "editing/edit.h"
 #include "input/actions_file_tab.h"
@@ -79,8 +78,8 @@ static int test_editor_theme_load_ignores_non_theme_sections(void) {
 	                                         "[lsp]\n"
 	                                         "gopls_command = \"gopls\"\n"
 	                                         "\n"
-	                                         "[keymap.cua]\n"
-	                                         "save = \"ctrl+s\"\n"));
+	                                         "[keymap.vim]\n"
+	                                         "normal.move_left = \"h\"\n"));
 
 	struct editorTheme theme;
 	enum editorThemeLoadStatus status =
@@ -309,8 +308,8 @@ static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	                                          "name = \"a11y-light\"\n"
 	                                          "[theme.syntax]\n"
 	                                          "keyword = \"red\"\n"
-	                                          "[keymap.cua]\n"
-	                                          "save = \"ctrl+u\"\n"));
+	                                          "[keymap.vim]\n"
+	                                          "normal.move_left = \"h\"\n"));
 
 	struct editorTheme theme;
 	enum editorThemeLoadStatus theme_status =
@@ -318,14 +317,6 @@ static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	ASSERT_EQ_INT(EDITOR_THEME_LOAD_INVALID_PROJECT, theme_status);
 	ASSERT_EQ_STR("a11y-light", theme.name);
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x32, 0x6B, 0xAD));
-
-	struct editorKeymap keymap;
-	enum editorKeymapLoadStatus keymap_status =
-	        editorKeymapLoadFromPaths(&keymap, NULL, project_path);
-	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
-	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -980,11 +971,6 @@ static int test_editor_config_default_global_loads_cleanly(void) {
 	}
 
 	if (editorConfigEnsureGlobalConfig() != EDITOR_CONFIG_BOOTSTRAP_CREATED) {
-		goto cleanup;
-	}
-
-	struct editorKeymap keymap;
-	if (editorKeymapLoadFromPaths(&keymap, config_path, NULL) != EDITOR_KEYMAP_LOAD_OK) {
 		goto cleanup;
 	}
 

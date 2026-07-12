@@ -1,7 +1,6 @@
 #include "rotide.h"
 
 #include "config/common.h"
-#include "config/keymap.h"
 #include "config/lsp_config.h"
 #include "config/runtime_config.h"
 #include "config/theme_config.h"
@@ -9,7 +8,7 @@
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/dispatch.h"
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "render/screen.h"
@@ -143,11 +142,7 @@ void editorInit(void) {
 		editorPanic("editorPaneNodeNewLeaf");
 	}
 	E.focused_leaf = E.layout_root;
-	editorKeymapInitDefaults(&E.keymap);
-	if (!editorInputSystemActivate("cua")) {
-		errno = EINVAL;
-		editorPanic("editorInputSystemActivate");
-	}
+	editorVimInitialize();
 	editorClipboardSetExternalSink(editorClipboardSyncAll);
 	if (!editorTabsInit()) {
 		errno = ENOMEM;
@@ -230,9 +225,7 @@ int main(int argc, char *argv[]) {
 	(void)editorGitInit();
 
 	if (E.statusmsg[0] == '\0') {
-		char help_msg[160];
-		editorKeymapBuildHelpStatus(&E.keymap, help_msg, sizeof(help_msg));
-		editorSetStatusMsg("%s", help_msg);
+		editorSetStatusMsg("Vim: i insert; :w save; :q quit; Space-p file; Space-f text");
 	}
 
 	if (g_render_once) {

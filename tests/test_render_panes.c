@@ -243,7 +243,7 @@ static int test_editor_popup_renders_overlay_in_text_area(void) {
 	        "                   │  ~\n"
 	        "                   │  ~ completion_alpha\n"
 	        "                   │  ~ completion_beta\n"
-	        " No Name] [+]                1,1    100%\n"
+	        " NORMAL [No Name] [+]        1,1    100%\n"
 	        /* golden-end */
 	);
 
@@ -362,7 +362,7 @@ static int test_editor_refresh_screen_vertical_split_renders_border(void) {
 	        "                        │  ~              │  ~\n"
 	        "                        │  ~              │  ~\n"
 	        "                        │  ~              │  ~\n"
-	        "[No Name] [+]                                    1,1    100%\n"
+	        " NORMAL [No Name] [+]                            1,1    100%\n"
 	        /* golden-end */
 	);
 	return 0;

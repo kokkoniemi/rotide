@@ -1,4 +1,4 @@
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "render/popup.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -43,7 +43,7 @@ static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(voi
 	};
 	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 2);
 
-	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	char lsp_drawer[] = {' ', 'l'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 
@@ -112,7 +112,7 @@ static int test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawe
 	};
 	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 1);
 
-	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	char lsp_drawer[] = {' ', 'l'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
@@ -168,7 +168,7 @@ static int test_editor_lsp_drawer_renders_nested_symbols_hierarchically(void) {
 	};
 	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 3);
 
-	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	char lsp_drawer[] = {' ', 'l'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(3, E.lsp_symbol_count);
@@ -213,7 +213,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(v
 	struct editorLspLocation target = {.path = go_path, .line = 2, .character = 5};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(2, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -226,7 +226,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(v
 	return 0;
 }
 
-static int test_editor_process_keypress_alt_i_goto_implementation_jumps_to_target(void) {
+static int test_editor_process_keypress_vim_gi_goto_implementation_jumps_to_target(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_config.gopls_enabled = 1;
 	E.lsp_config.clangd_enabled = 0;
@@ -244,7 +244,7 @@ static int test_editor_process_keypress_alt_i_goto_implementation_jumps_to_targe
 	struct editorLspLocation target = {.path = go_path, .line = 2, .character = 5};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_impl[] = {'\x1b', 'i'};
+	char goto_impl[] = {'g', 'i'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_impl, sizeof(goto_impl)) == 0);
 	ASSERT_EQ_INT(2, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -258,7 +258,7 @@ static int test_editor_process_keypress_alt_i_goto_implementation_jumps_to_targe
 	return 0;
 }
 
-static int test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol(void) {
+static int test_editor_process_keypress_vim_gs_goto_symbol_jumps_to_first_symbol(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_config.gopls_enabled = 1;
 	E.lsp_config.clangd_enabled = 0;
@@ -278,7 +278,7 @@ static int test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol(
 	};
 	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 1);
 
-	char goto_sym[] = {'\x1b', 's'};
+	char goto_sym[] = {'g', 's'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_sym, sizeof(goto_sym)) == 0);
 	ASSERT_EQ_INT(4, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
@@ -309,7 +309,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 	struct editorLspLocation target = {.path = c_path, .line = 0, .character = 4};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(4, E.cx);
@@ -340,7 +340,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 	struct editorLspLocation target = {.path = cpp_path, .line = 0, .character = 4};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(4, E.cx);
@@ -372,7 +372,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_h
 	struct editorLspLocation target = {.path = html_path, .line = 0, .character = 9};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(9, E.cx);
@@ -409,7 +409,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 	struct editorLspLocation target = {.path = css_path, .line = 0, .character = 8};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(8, E.cx);
@@ -438,7 +438,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_j
 	struct editorLspLocation target = {.path = json_path, .line = 1, .character = 3};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
@@ -468,7 +468,7 @@ test_editor_process_keypress_ctrl_o_goto_definition_single_location_javascript_b
 	struct editorLspLocation target = {.path = js_path, .line = 0, .character = 6};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(6, E.cx);
@@ -497,7 +497,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_j
 	struct editorLspLocation target = {.path = jsx_path, .line = 0, .character = 9};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(9, E.cx);
@@ -526,7 +526,7 @@ static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(vo
 	struct editorLspLocation target = {.path = dst_path, .line = 2, .character = 5};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
@@ -575,7 +575,7 @@ test_editor_process_keypress_goto_definition_cross_file_javascript_fixture_reuse
 	struct editorLspLocation target = {.path = helper_path, .line = 0, .character = 16};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
@@ -625,7 +625,7 @@ static int test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_r
 	struct editorLspLocation target = {.path = helper_path, .line = 2, .character = 4};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
@@ -665,7 +665,7 @@ static int test_editor_process_keypress_goto_definition_multi_picker_selects_cho
 	};
 	editorLspTestSetMockDefinitionResponse(1, targets, 2);
 
-	char input[] = {CTRL_KEY('o'), '2', '\r'};
+	char input[] = {'g', 'd', '2', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_EQ_INT(3, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -705,7 +705,7 @@ static int test_editor_process_keypress_goto_definition_c_header_and_implementat
 	editorLspTestSetMockDefinitionResponse(1, &definition, 1);
 	editorLspTestSetMockImplementationResponse(1, &implementation, 1);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_LSP_LOCATION_MENU, E.popup.kind);
@@ -761,7 +761,7 @@ static int test_editor_process_keypress_goto_definition_header_only_reports_decl
 	editorLspTestSetMockDefinitionResponse(1, &definition, 1);
 	editorLspTestSetMockImplementationResponse(1, NULL, 0);
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_TRUE(!editorPopupIsVisible());
 	ASSERT_EQ_STR(header_path, E.filename);
@@ -865,7 +865,7 @@ static int test_editor_process_keypress_goto_definition_timeout_error_and_no_res
 	E.cy = 2;
 	E.cx = 16;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 
 	editorLspTestSetMockDefinitionResponse(-2, NULL, 0);
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
@@ -894,7 +894,7 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(voi
 	E.cy = 2;
 	E.cx = 16;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("gopls is disabled in config", E.statusmsg);
 
@@ -913,7 +913,7 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for
 	E.cy = 0;
 	E.cx = 24;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("clangd is disabled in config", E.statusmsg);
 
@@ -933,7 +933,7 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for
 	E.cy = 1;
 	E.cx = 11;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("vscode-html-language-server is disabled in config", E.statusmsg);
 
@@ -979,7 +979,7 @@ static int test_editor_process_keypress_goto_definition_startup_failure_reports_
 	E.cy = 2;
 	E.cx = 16;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_TRUE(strstr(E.statusmsg, "LSP startup failed") != NULL);
 	ASSERT_TRUE(strstr(E.statusmsg, "unavailable for this file") == NULL);
@@ -1019,7 +1019,7 @@ static int test_editor_process_keypress_goto_definition_requires_saved_c_buffer(
 	free(E.filename);
 	E.filename = NULL;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("Save this C/C++ buffer before using go to definition", E.statusmsg);
 	return 0;
@@ -1037,7 +1037,7 @@ static int test_editor_process_keypress_goto_definition_reports_empty_clangd_com
 	E.cy = 0;
 	E.cx = 24;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("LSP disabled: [lsp].clangd_command is empty", E.statusmsg);
 
@@ -1058,7 +1058,7 @@ static int test_editor_process_keypress_goto_definition_reports_empty_html_comma
 	E.cy = 1;
 	E.cx = 11;
 
-	char goto_def[] = {CTRL_KEY('o')};
+	char goto_def[] = {'g', 'd'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("LSP disabled: [lsp].html_command is empty", E.statusmsg);
 
@@ -1086,7 +1086,7 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_decline_in
 	E.cy = 2;
 	E.cx = 16;
 
-	char input[] = {CTRL_KEY('o'), '\r'};
+	char input[] = {'g', 'd', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_EQ_STR("gopls not installed", E.statusmsg);
 	ASSERT_TRUE(!editorTaskIsRunning());
@@ -1117,7 +1117,7 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_starts_ins
 	E.cy = 2;
 	E.cx = 16;
 
-	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	char input[] = {'g', 'd', 'y', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
@@ -1154,7 +1154,7 @@ static int test_editor_process_keypress_goto_definition_missing_clangd_declines_
 	E.cy = 1;
 	E.cx = 27;
 
-	char input[] = {CTRL_KEY('o'), '\r'};
+	char input[] = {'g', 'd', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(!editorTaskIsRunning());
 	ASSERT_TRUE(!editorActiveTabIsTaskLog());
@@ -1184,7 +1184,7 @@ test_editor_process_keypress_goto_definition_missing_clangd_shows_install_instru
 	E.cy = 1;
 	E.cx = 27;
 
-	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	char input[] = {'g', 'd', 'y', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(!editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
@@ -1230,7 +1230,7 @@ test_editor_process_keypress_goto_definition_missing_vscode_langservers_decline_
 	E.cy = 1;
 	E.cx = 11;
 
-	char input[] = {CTRL_KEY('o'), '\r'};
+	char input[] = {'g', 'd', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_EQ_STR("vscode-langservers-extracted not installed", E.statusmsg);
 	ASSERT_TRUE(!editorTaskIsRunning());
@@ -1264,7 +1264,7 @@ test_editor_process_keypress_goto_definition_missing_vscode_langservers_starts_i
 	E.cy = 1;
 	E.cx = 11;
 
-	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	char input[] = {'g', 'd', 'y', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
@@ -1311,7 +1311,7 @@ test_editor_process_keypress_goto_definition_missing_javascript_server_starts_in
 	E.cy = 2;
 	E.cx = 2;
 
-	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	char input[] = {'g', 'd', 'y', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
@@ -1331,13 +1331,8 @@ test_editor_process_keypress_goto_definition_missing_javascript_server_starts_in
 }
 
 static int lsp_nav_vim_key(int key) {
-	const struct editorInputSystem *system = editorInputSystemActive();
 	int effects = 0;
-
-	if (system == NULL || system->handle_key == NULL) {
-		return -1;
-	}
-	return system->handle_key(key, &effects);
+	return editorVimHandleKey(key, &effects);
 }
 
 static int test_editor_vim_gr_goto_references_single_jumps(void) {
@@ -1357,7 +1352,7 @@ static int test_editor_vim_gr_goto_references_single_jumps(void) {
 	struct editorLspLocation target = {.path = go_path, .line = 2, .character = 5};
 	editorLspTestSetMockReferencesResponse(1, &target, 1);
 
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 	(void)lsp_nav_vim_key('g');
 	(void)lsp_nav_vim_key('r');
 	ASSERT_EQ_INT(2, E.cy);
@@ -1391,7 +1386,7 @@ static int test_editor_vim_gr_goto_references_multiple_opens_menu(void) {
 	};
 	editorLspTestSetMockReferencesResponse(1, targets, 2);
 
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 	(void)lsp_nav_vim_key('g');
 	(void)lsp_nav_vim_key('r');
 	ASSERT_TRUE(editorPopupIsVisible());
@@ -1418,7 +1413,7 @@ static int test_editor_vim_k_hover_opens_popup(void) {
 
 	editorLspTestSetMockHoverResponse(1, "func helper()\n\nHelper docs");
 
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 	(void)lsp_nav_vim_key('K');
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_LSP_HOVER, E.popup.kind);
@@ -1451,7 +1446,7 @@ static int test_editor_vim_k_hover_empty_reports_not_found(void) {
 
 	editorLspTestSetMockHoverResponse(1, NULL);
 
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 	(void)lsp_nav_vim_key('K');
 	ASSERT_TRUE(!editorPopupIsVisible());
 	ASSERT_EQ_STR("Hover not found", E.statusmsg);
@@ -1480,10 +1475,10 @@ const struct editorTestCase g_lsp_navigation_tests[] = {
          test_editor_lsp_drawer_renders_nested_symbols_hierarchically},
         {"editor_process_keypress_ctrl_o_goto_definition_single_location",
          test_editor_process_keypress_ctrl_o_goto_definition_single_location},
-        {"editor_process_keypress_alt_i_goto_implementation_jumps_to_target",
-         test_editor_process_keypress_alt_i_goto_implementation_jumps_to_target},
-        {"editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol",
-         test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol},
+        {"editor_process_keypress_vim_gi_goto_implementation_jumps_to_target",
+         test_editor_process_keypress_vim_gi_goto_implementation_jumps_to_target},
+        {"editor_process_keypress_vim_gs_goto_symbol_jumps_to_first_symbol",
+         test_editor_process_keypress_vim_gs_goto_symbol_jumps_to_first_symbol},
         {"editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer",
          test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer},
         {"editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer",

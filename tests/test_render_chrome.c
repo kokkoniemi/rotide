@@ -1,4 +1,4 @@
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "render/display_text.h"
 #include "render/status_bar.h"
 #include "render/tab_bar.h"
@@ -1330,7 +1330,7 @@ static int test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename
 
 static int test_editor_refresh_screen_status_bar_input_segment(void) {
 	add_row("line");
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 	E.window_rows = 3;
 	E.window_cols = 40;
 	E.cy = 0;
@@ -1351,13 +1351,12 @@ static int test_editor_refresh_screen_status_bar_input_segment(void) {
 	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
 	ASSERT_TRUE(strstr(output, "--") == NULL);
 	free(output);
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	return 0;
 }
 
 static int test_editor_refresh_screen_status_bar_input_segment_truncates(void) {
 	add_row("line");
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 	E.window_rows = 3;
 	E.window_cols = 14;
 	E.cy = 0;
@@ -1372,7 +1371,6 @@ static int test_editor_refresh_screen_status_bar_input_segment_truncates(void) {
 	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
 	ASSERT_TRUE(strstr(output, "NORMAL") == NULL);
 	free(output);
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	return 0;
 }
 

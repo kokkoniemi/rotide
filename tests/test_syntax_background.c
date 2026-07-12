@@ -2,6 +2,9 @@
 #include "test_helpers.h"
 #include "test_support.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 static int test_editor_syntax_visible_cache_recomputes_only_changed_rows(void) {
 	char path[] = "/tmp/rotide-test-syntax-visible-cache-XXXXXX.c";
 	ASSERT_TRUE(

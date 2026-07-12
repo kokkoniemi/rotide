@@ -9,8 +9,8 @@ For maintainers changing behavior.
 - [Concurrency](concurrency.md): the syntax worker protocol.
 - [Debugging (DAP)](debugging.md): adapter boundary, launch lifecycle,
   breakpoints, console, and configuration.
-- [Input systems](input-systems.md): CUA/Vim input-system interface,
-  command resolution, and keymap configuration schema.
+- [Vim input](input-systems.md): dispatch boundaries, modal state, terminal
+  input, and keymap configuration.
 - [Error handling](error_handling.md): OOM and validation policy.
 - [Build and tests](build-and-tests.md): make targets, runner flags,
   fuzz/bench/golden commands, metrics, sanitizers, diagrams.
@@ -30,4 +30,3 @@ make docs-diagrams
 ```
 
 Requires a local `plantuml`. Diagrams use the PlantUML C4 stdlib.
-

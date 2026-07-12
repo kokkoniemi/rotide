@@ -6,15 +6,12 @@ title Input dispatch (editorProcessKeypress)
 start
 :editorReadKey returns event or byte;
 if (synthetic event?) then (yes)
-  :event-specific handler
-  (EOF / RESIZE / TASK / SYNTAX /
-   WATCH / TERMINAL / PASTE);
+  :event-specific handler;
   stop
 else (no)
 endif
 if (popup visible?) then (yes)
-  :route key to popup handler
-  (autocomplete refilter or accept);
+  :route to popup handler;
   if (consumed?) then (yes)
     stop
   else (no)
@@ -22,54 +19,36 @@ if (popup visible?) then (yes)
 else (no)
 endif
 if (mouse event?) then (yes)
-  :hit-test layout;
-  :route to terminal pane / drawer /
-   tab strip / text area;
+  :hit-test layout and dispatch;
   stop
 else (no)
 endif
-if (focused leaf is terminal pane
-    and not in drawer focus?) then (yes)
-  if (active system == vim?) then (yes)
-    if (Terminal Normal mode?) then (yes)
-      :resolve leader / Ctrl-W against rotide;
-      :i/a/I/A return to Job/Insert;
+if (focused terminal?) then (yes)
+  if (Terminal Normal mode?) then (yes)
+    :resolve leader / Ctrl-W;
+    :i/a/I/A return to Job/Insert;
+    stop
+  else (Job/Insert)
+    if (Ctrl-W chord?) then (yes)
+      :mode or window command;
       stop
-    else (Job/Insert)
-      if (Ctrl-W chord?) then (yes)
-        :Ctrl-W N enter Normal, Ctrl-W . send
-         literal Ctrl-W, else window command;
-        stop
-      else (no)
-        :forward key to PTY (Esc raw);
-        stop
-      endif
-    endif
-  else (cua)
-    if (terminal_prefix armed?) then (yes)
-      :clear prefix, fall through to keymap;
     else (no)
-      if (key matches terminal_prefix?) then (yes)
-        :arm prefix until command completes;
-        stop
-      else (no)
-        :forward key to PTY (Esc raw);
-        stop
-      endif
+      :forward key to PTY;
+      stop
     endif
   endif
 else (no)
 endif
-:delegate to active input system
- (editorInputSystemActive()->handle_key);
-if (system == vim?) then (yes)
-  :modal state machine resolves key
-   (mode, counts, operators, registers,
-    motions, text objects, search, ex line);
-else (cua)
-  :keymap lookup -> editorAction;
+if (Git or search-field context?) then (yes)
+  :run focus-specific handler;
+  if (consumed?) then (yes)
+    stop
+  else (no)
+  endif
+else (no)
 endif
-:resolved editorAction / command;
+:editorVimHandleKey;
+:resolve modal command / editorAction;
 if (action mutates text?) then (yes)
   :apply edit through edit pipeline;
 else (no)

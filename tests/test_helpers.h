@@ -79,6 +79,7 @@ int editor_process_keypress_with_input(const char *input, size_t len);
 /* Like the above but leaves stdout untouched, so callers can capture the
  * terminal bytes (e.g. cursor-shape/visual-state restore on quit or EOF). */
 int editor_process_keypress_with_input_to_stdout(const char *input, size_t len);
+int editor_dispatch_action_with_input(enum editorAction action, const char *input, size_t len);
 char *editor_prompt_with_input(const char *input, size_t len, const char *prompt);
 char *refresh_screen_and_capture(size_t *len_out);
 

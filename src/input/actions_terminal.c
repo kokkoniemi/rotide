@@ -45,10 +45,6 @@ int editorHandleTerminalMappedAction(enum editorAction action) {
 			return actionsTerminalOpenSplit(EDITOR_SPLIT_VERTICAL);
 		case EDITOR_ACTION_TERMINAL_NEW_TAB:
 			return actionsTerminalNewTab();
-		case EDITOR_ACTION_TERMINAL_PREFIX:
-			E.terminal_prefix_armed = 1;
-			editorSetStatusMsg("Terminal prefix armed: next key is rotide");
-			return 1;
 		case EDITOR_ACTION_TERMINAL_MODE_NORMAL: {
 			struct editorTerminalPane *normal_term =
 			        editorTerminalPaneForPane(E.focused_leaf);

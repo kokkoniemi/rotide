@@ -1,7 +1,7 @@
 # Rotide global config.
 # Lives at ~/.rotide/config.toml. Auto-created on first launch.
-# A project-local <project>/.rotide.toml is read only for [input], [keymap.cua],
-# [keymap.vim], and [dap.launch.*]; every other section here is global-only.
+# A project-local <project>/.rotide.toml is read only for [keymap.vim] and
+# [dap.launch.*]; every other section here is global-only.
 # This file is the canonical reference; every value below mirrors the
 # built-in default. Edit values to customize.
 
@@ -248,204 +248,8 @@ console = "terminal"
 # args = []
 # stopOnEntry = false
 
-# --- [input] ------------------------------------------------------------------
-# Selects the active editing-input system. "vim" (the default) enables modal
-# editing (Normal/Insert/Visual/Visual-Line) with motions, operators, counts,
-# registers, in-buffer search (/ ? n N), text objects, and an ex command line
-# (:w :q :%s ...); the active Vim mode is shown in the status bar. "cua" keeps
-# the standard desktop-editor key behavior documented under [keymap.cua] below.
-# Missing or invalid values fall back to "vim". Project config overrides global.
-[input]
-system = "vim"
-
-# --- [keymap.cua] -------------------------------------------------------------
-# Key spec format:
-#   "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
-#   "ctrl+left/right/up/down", "alt+left/right/up/down",
-#     "ctrl+alt+left/right/up/down", "alt+shift+left/right/up/down"
-#   or a named key: left|right|up|down|home|end|page_up|page_down|
-#     enter|esc|backspace|del
-# Modifiers are case-insensitive and may appear in any order.
-# Each action takes exactly one key; assigning a key that is already in use by
-# another action will fail to load. Drop or comment out one side of any pair
-# you want to reassign (for example, to use `resize_drawer_narrow = "alt+shift+left"`
-# remove or comment out `column_select_left`).
-# Rotide binds terminal key codes, so some physical keys alias the same input:
-#   "ctrl+i" aliases Tab (avoid; use named keys instead).
-#   "ctrl+m" aliases Enter; "ctrl+[" aliases Esc — use only for newline/escape.
-#   "ctrl+h" aliases backspace.
-# Tab stays reserved for literal text insertion.
-# In drawer focus, enter toggles directories and opens files in tabs (reusing
-# an already-open tab when possible).
-#
-# This [keymap.cua] table configures the CUA system (used when [input] system =
-# "cua"). It and the Vim system's [keymap.vim] table (at the end of this file)
-# are the two first-class keymap tables — there is no bare [keymap] alias.
-# Project scope overrides global scope.
-[keymap.cua]
-quit = "ctrl+q"
-save = "ctrl+s"
-new_tab = "ctrl+n"
-close_tab = "ctrl+w"
-next_tab = "alt+right"
-prev_tab = "alt+left"
-focus_drawer = "ctrl+e"
-toggle_drawer = "ctrl+b"
-main_menu = "alt+m"
-# resize_drawer_narrow and resize_drawer_widen have no default binding.
-# To enable them, comment out the conflicting column_select_left/right below.
-# resize_drawer_narrow = "alt+shift+left"
-# resize_drawer_widen = "alt+shift+right"
-toggle_line_wrap = "alt+z"
-toggle_line_numbers = "alt+n"
-toggle_current_line_highlight = "alt+h"
-find_file = "ctrl+p"
-project_search = "ctrl+alt+f"
-find = "ctrl+f"
-find_replace = "ctrl+r"
-goto_line = "ctrl+g"
-goto_matching_bracket = "ctrl+]"
-goto_definition = "ctrl+o"
-# Shows blame details for committed lines in saved files inside a Git worktree.
-git_blame_details = "alt+b"
-# hover has no CUA default binding; Vim Normal mode binds it to "K".
-# hover = "alt+k"
-# eslint_fix has no default binding; uncomment to enable.
-# eslint_fix = "ctrl+alt+e"
-# toggle_selection (modal keyboard selection) has no default binding; the
-# CUA Shift+move selection below supersedes it. Uncomment to use it.
-# toggle_selection = "ctrl+b"
-select_all = "ctrl+a"
-# Extend the selection with the cursor (CUA-style). A plain (unmodified) move
-# collapses the selection instead.
-select_left = "shift+left"
-select_right = "shift+right"
-select_up = "shift+up"
-select_down = "shift+down"
-select_word_left = "ctrl+shift+left"
-select_word_right = "ctrl+shift+right"
-select_home = "shift+home"
-select_end = "shift+end"
-copy_selection = "ctrl+c"
-cut_selection = "ctrl+x"
-delete_selection = "ctrl+d"
-paste = "ctrl+v"
-undo = "ctrl+z"
-redo = "ctrl+y"
-move_home = "home"
-move_end = "end"
-move_word_left = "ctrl+left"
-move_word_right = "ctrl+right"
-page_up = "page_up"
-page_down = "page_down"
-scroll_up = "ctrl+up"
-scroll_down = "ctrl+down"
-# Horizontal viewport scroll has no default binding; uncomment/remap if desired.
-# scroll_left = "ctrl+alt+left"
-# scroll_right = "ctrl+alt+right"
-move_up = "up"
-move_down = "down"
-move_left = "left"
-move_right = "right"
-newline = "enter"
-escape = "esc"
-redraw = "ctrl+l"
-delete_char = "del"
-# backspace has two default bindings: "backspace" and "ctrl+h".
-# Assigning it explicitly here removes the alternative — leave commented to keep both.
-# backspace = "backspace"
-move_line_up = "alt+up"
-move_line_down = "alt+down"
-toggle_comment = "alt+c"
-column_select_up = "alt+shift+up"
-column_select_down = "alt+shift+down"
-column_select_left = "alt+shift+left"
-column_select_right = "alt+shift+right"
-drawer_create_file = "ctrl+alt+n"
-drawer_create_folder = "ctrl+alt+d"
-drawer_rename = "ctrl+alt+r"
-drawer_delete = "ctrl+alt+k"
-git_drawer = "ctrl+alt+g"
-# Git actions have no default CUA chords; the Git drawer and the git views
-# expose them as single letters (s/u/a/d/c/A/R/P/p/f, B/L/S). Bind chords here
-# to also reach them from anywhere, e.g.:
-# git_branches = "alt+g"
-# git_log = "alt+l"
-# git_stashes = "alt+s"
-# git_commit = "ctrl+alt+m"
-# Other bindable names: git_stage, git_unstage, git_stage_all, git_discard,
-# git_commit_amend, git_refresh, git_push, git_pull, git_fetch,
-# git_view_activate, git_branch_new, git_branch_delete, git_cherry_pick,
-# git_revert, git_tag, git_stash_apply, git_stash_pop, git_stash_drop,
-# git_diff_toggle_context.
-dap_drawer = "ctrl+alt+b"
-# DAP control actions have no default binding; uncomment/remap as needed.
-# dap_start = "ctrl+alt+s"
-# dap_stop = "ctrl+alt+x"
-# dap_continue = "ctrl+alt+c"
-# dap_pause = "ctrl+alt+p"
-# dap_step_over = "ctrl+alt+o"
-# dap_step_into = "ctrl+alt+i"
-# dap_step_out = "ctrl+alt+u"
-# dap_toggle_breakpoint = "ctrl+alt+t"
-# Pane splits have no default binding; uncomment to enable.
-# split_horizontal splits the focused pane top/bottom; split_vertical
-# splits it left/right. close_pane removes the focused pane and promotes
-# its sibling. focus_left/right/up/down move focus to the nearest pane
-# in that direction. pane_grow / pane_shrink nudge the focused pane's
-# size by 5%, clamped so neither pane drops below 10% of its parent.
-# Mouse left-click in a non-focused pane also moves focus there. The
-# focused pane shows its buffer content; unfocused panes render as blank
-# rectangles separated by box-drawing borders. Same-buffer-different-
-# tabs (true editor splits) is on the roadmap.
-# A split's border can also be grabbed with the left mouse button and
-# dragged to resize the two adjoining panes; release ends the drag. The
-# drag clamps to the same 10%/90% bounds as pane_grow / pane_shrink.
-# split_horizontal = "ctrl+alt+h"
-# split_vertical = "ctrl+alt+v"
-# close_pane = "ctrl+alt+q"
-# focus_left_pane = "ctrl+alt+left"  # NOTE: conflicts with scroll_left
-# focus_right_pane = "ctrl+alt+right"  # NOTE: conflicts with scroll_right
-# focus_up_pane = "ctrl+alt+up"
-# focus_down_pane = "ctrl+alt+down"
-# move_tab_<dir>_pane moves the focused pane's active tab into the
-# neighbouring pane in that direction; if the source pane has no more
-# tabs after the move, an empty buffer is opened in it. Defaults below.
-move_tab_left_pane = "ctrl+shift+alt+left"
-move_tab_right_pane = "ctrl+shift+alt+right"
-move_tab_up_pane = "ctrl+shift+alt+up"
-move_tab_down_pane = "ctrl+shift+alt+down"
-# pane_grow / pane_shrink: key tokens must be a letter today, so the
-# example uses ctrl+alt+y / ctrl+alt+u (any unused letter works).
-# pane_grow = "ctrl+alt+y"
-# pane_shrink = "ctrl+alt+u"
-# terminal_new_tab opens $SHELL (falling back to /bin/sh) as a new terminal tab
-# beside the current tab in the focused pane — no new pane is created. It is also
-# reachable from the tab-row context menu ("New Terminal") and the focused
-# terminal's status-bar "New term" button.
-terminal_new_tab = "ctrl+alt+t"
-# terminal_open and terminal_open_vertical instead split the focused pane and run
-# the shell in a new sibling pane (top/bottom and left/right respectively). They
-# have no default binding; uncomment with an unused chord to enable.
-# terminal_open = "ctrl+alt+j"
-# terminal_open_vertical = "ctrl+alt+k"
-#
-# CUA terminal focus: every keystroke is routed to the child PTY, including Esc
-# and Esc-prefixed input (arrows, function keys, Alt chords, mouse, paste), so a
-# shell or fullscreen TUI receives ordinary input byte-for-byte. There is no
-# terminal mode in CUA. To invoke one rotide action from a focused terminal,
-# press terminal_prefix and then the action key (e.g. a pane switch or
-# terminal_new_tab). The prefix stays armed only until the escaped command
-# completes, and the armed state is shown in the message bar. The status-bar
-# terminal buttons dispatch the same actions with the mouse, so a fullscreen
-# child that grabs the keyboard can still be escaped. (In Vim mode the terminal
-# is modal and uses Ctrl-W instead — see [keymap.vim] below.)
-terminal_prefix = "ctrl+alt+a"
-# open_settings has no default binding; the File > Settings menu item opens it.
-# open_settings = "ctrl+alt+s"
-
 # --- [keymap.vim] -------------------------------------------------------------
-# Per-mode Vim key bindings (used when [input] system = "vim", the default).
+# Per-mode Vim key bindings.
 # Entry keys are "<mode>.<command>" where <mode> is normal, insert, or visual
 # (visual also covers visual-line). Values are usually a single, case-sensitive
 # printable character (e.g. "h", "G", "$", ";"); named keys like "esc" and
@@ -480,7 +284,7 @@ terminal_prefix = "ctrl+alt+a"
 # Ctrl-W W cycle pane focus, Ctrl-W h/j/k/l (or arrows) move focus,
 # Ctrl-W H/J/K/L move the active tab to a neighbour pane, and Ctrl-W t opens a
 # new terminal tab beside the current one. Ctrl-W q is pane-close; use :q or
-# Ctrl-Q to quit the app.
+# :q to quit the app.
 #
 # Vim terminal focus is modal, like Vim's :terminal, and the mode is shown in the
 # status bar. New terminals start in Job/Insert mode, which forwards every key to

@@ -1,4 +1,5 @@
-#include "config/keymap.h"
+#include "input/system_vim.h"
+
 #include "config/theme_config.h"
 #include "editing/buffer_core.h"
 #include "editing/buffer_search.h"
@@ -9,7 +10,6 @@
 #include "input/actions_file_tab.h"
 #include "input/actions_language.h"
 #include "input/dispatch.h"
-#include "input/input_system.h"
 #include "input/prompt.h"
 #include "input/text_pairs.h"
 #include "render/viewport.h"
@@ -2699,13 +2699,97 @@ static int vimSystemJoinLines(int count, int *effects_out) {
 	return any;
 }
 
-static int vimSystemTryMappedActionKey(int c, int *effects_out, int *return_now_out) {
+static int vimSystemActionForKey(enum vimSystemMode mode, int c, enum editorAction *action_out) {
+	enum editorAction action;
+
+	switch (c) {
+		case ALT_ARROW_LEFT:
+			action = EDITOR_ACTION_PREV_TAB;
+			break;
+		case ALT_ARROW_RIGHT:
+			action = EDITOR_ACTION_NEXT_TAB;
+			break;
+		case ALT_ARROW_UP:
+			action = EDITOR_ACTION_MOVE_LINE_UP;
+			break;
+		case ALT_ARROW_DOWN:
+			action = EDITOR_ACTION_MOVE_LINE_DOWN;
+			break;
+		case EDITOR_ALT_LETTER_KEY('c'):
+			action = EDITOR_ACTION_TOGGLE_COMMENT;
+			break;
+		case EDITOR_ALT_LETTER_KEY('z'):
+			action = EDITOR_ACTION_TOGGLE_LINE_WRAP;
+			break;
+		case EDITOR_ALT_LETTER_KEY('n'):
+			action = EDITOR_ACTION_TOGGLE_LINE_NUMBERS;
+			break;
+		case EDITOR_ALT_LETTER_KEY('h'):
+			action = EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT;
+			break;
+		default:
+			if (mode != VIM_SYSTEM_MODE_INSERT) {
+				return 0;
+			}
+			switch (c) {
+				case ARROW_LEFT:
+					action = EDITOR_ACTION_MOVE_LEFT;
+					break;
+				case ARROW_RIGHT:
+					action = EDITOR_ACTION_MOVE_RIGHT;
+					break;
+				case ARROW_UP:
+					action = EDITOR_ACTION_MOVE_UP;
+					break;
+				case ARROW_DOWN:
+					action = EDITOR_ACTION_MOVE_DOWN;
+					break;
+				case HOME_KEY:
+					action = EDITOR_ACTION_MOVE_HOME;
+					break;
+				case END_KEY:
+					action = EDITOR_ACTION_MOVE_END;
+					break;
+				case PAGE_UP:
+					action = EDITOR_ACTION_PAGE_UP;
+					break;
+				case PAGE_DOWN:
+					action = EDITOR_ACTION_PAGE_DOWN;
+					break;
+				case CTRL_ARROW_LEFT:
+					action = EDITOR_ACTION_MOVE_WORD_LEFT;
+					break;
+				case CTRL_ARROW_RIGHT:
+					action = EDITOR_ACTION_MOVE_WORD_RIGHT;
+					break;
+				case DEL_KEY:
+					action = EDITOR_ACTION_DELETE_CHAR;
+					break;
+				case BACKSPACE:
+					action = EDITOR_ACTION_BACKSPACE;
+					break;
+				case '\r':
+				case '\n':
+					action = EDITOR_ACTION_NEWLINE;
+					break;
+				default:
+					return 0;
+			}
+			break;
+	}
+	if (action_out != NULL) {
+		*action_out = action;
+	}
+	return 1;
+}
+
+static int vimSystemTryActionKey(int c, int *effects_out, int *return_now_out) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 
 	if (return_now_out != NULL) {
 		*return_now_out = 0;
 	}
-	if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+	if (vimSystemActionForKey(vimSystemMode(), c, &action)) {
 		int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
 		if (editorDispatchProcessMappedAction(action, &mapped_effects)) {
 			if (return_now_out != NULL) {
@@ -2780,9 +2864,8 @@ static int vimSystemEnterInsertWithAction(enum editorAction action, int *effects
 	return 0;
 }
 
-/* Vim owns the C0 control range: it runs its own ctrl bindings and swallows the
- * rest so CUA keymap shortcuts (Ctrl-P, Ctrl-Y, ...) never fire in Vim mode.
- * Tab, Enter, and Esc are left to the text/mode paths. */
+/* Vim owns the C0 control range. Unmapped controls are inert; Tab, Enter, and
+ * Esc are left to the text and mode paths. */
 static int vimSystemIsControlKey(int c) {
 	return c > 0 && c < 32 && c != '\t' && c != '\r' && c != '\n' && c != '\x1b';
 }
@@ -2870,12 +2953,12 @@ static int vimSystemHandleInsertKey(int c, int *effects_out) {
 				return 0;
 			}
 			default:
-				/* Swallow other control keys so CUA bindings stay inert. */
+				/* Unmapped control keys are inert in Insert mode. */
 				return 0;
 		}
 	}
 	int return_now = 0;
-	if (vimSystemTryMappedActionKey(c, effects_out, &return_now)) {
+	if (vimSystemTryActionKey(c, effects_out, &return_now)) {
 		return return_now;
 	}
 	if (editorByteShouldInsertAsText(c)) {
@@ -3847,7 +3930,7 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			return 0;
 		default:
 			int return_now = 0;
-			if (vimSystemTryMappedActionKey(c, effects_out, &return_now)) {
+			if (vimSystemTryActionKey(c, effects_out, &return_now)) {
 				vimSystemResetPending();
 				return return_now;
 			}
@@ -4096,7 +4179,7 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 		return 0;
 	}
 	int return_now = 0;
-	if (vimSystemTryMappedActionKey(c, effects_out, &return_now)) {
+	if (vimSystemTryActionKey(c, effects_out, &return_now)) {
 		E.input_vim_count = 0;
 		return return_now;
 	}
@@ -4469,28 +4552,41 @@ static void vimSystemStatusSegment(char *buf, size_t bufsize) {
 	}
 }
 
-static int vimSystemOnActivate(void) {
+void editorVimInitialize(void) {
 	editorVimKeymapResetDefaults();
 	vimSystemDotRepeatReset();
 	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
-	return 1;
 }
 
-static void vimSystemReset(void) {
+void editorVimReset(void) {
 	vimSystemDotRepeatReset();
 	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 }
 
-const struct editorInputSystem editorVimInputSystem = {
-        .id = "vim",
-        .on_activate = vimSystemOnActivate,
-        .on_deactivate = NULL,
-        .handle_key = vimSystemHandleKey,
-        .key_sequence_pending = vimSystemKeySequencePending,
-        .resolve_command = vimSystemResolveCommand,
-        .bind_key = vimSystemBindKey,
-        .status_segment = vimSystemStatusSegment,
-        .status_segment_color = vimSystemStatusColor,
-        .cursor_style = vimSystemCursorStyle,
-        .reset = vimSystemReset,
-};
+int editorVimHandleKey(int c, int *effects_out) {
+	return vimSystemHandleKey(c, effects_out);
+}
+
+int editorVimKeySequencePending(void) {
+	return vimSystemKeySequencePending();
+}
+
+int editorVimResolveCommand(const char *name, int *command_id_out) {
+	return vimSystemResolveCommand(name, command_id_out);
+}
+
+int editorVimBindKey(const char *mode, const char *name, int key) {
+	return vimSystemBindKey(mode, name, key);
+}
+
+void editorVimStatusSegment(char *buf, size_t bufsize) {
+	vimSystemStatusSegment(buf, bufsize);
+}
+
+int editorVimStatusColor(void) {
+	return vimSystemStatusColor();
+}
+
+int editorVimCursorStyle(void) {
+	return vimSystemCursorStyle();
+}

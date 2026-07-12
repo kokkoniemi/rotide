@@ -1,8 +1,7 @@
-#include "config/keymap.h"
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
-#include "input/input_system.h"
+#include "input/system_vim.h"
 #include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
@@ -18,16 +17,13 @@
 #include <unistd.h>
 
 static int vim_test_activate(void) {
-	return editorInputSystemActivate("vim");
+	editorVimReset();
+	return 1;
 }
 
 static int vim_test_key(int key) {
-	const struct editorInputSystem *system = editorInputSystemActive();
 	int effects = 0;
-
-	ASSERT_TRUE(system != NULL);
-	ASSERT_TRUE(system->handle_key != NULL);
-	return system->handle_key(key, &effects);
+	return editorVimHandleKey(key, &effects);
 }
 
 static int vim_test_visual_motion(int start_cy, int start_cx, int first_key, int second_key,
@@ -86,44 +82,34 @@ static int test_input_vim_activation_starts_normal(void) {
 }
 
 static int test_input_vim_reset_returns_to_normal(void) {
-	const struct editorInputSystem *system = NULL;
-
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('i') == 0);
 	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 
-	system = editorInputSystemActive();
-	ASSERT_TRUE(system != NULL);
-	ASSERT_TRUE(system->reset != NULL);
-	system->reset();
+	editorVimReset();
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	return 0;
 }
 
 static int test_input_vim_cursor_style_is_block_outside_insert(void) {
-	const struct editorInputSystem *system = NULL;
-
 	add_row("alpha");
 	ASSERT_TRUE(vim_test_activate());
-	system = editorInputSystemActive();
-	ASSERT_TRUE(system != NULL);
-	ASSERT_TRUE(system->cursor_style != NULL);
 
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
-	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, system->cursor_style());
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, editorVimCursorStyle());
 
 	ASSERT_TRUE(vim_test_key('v') == 0);
 	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
-	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, system->cursor_style());
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, editorVimCursorStyle());
 
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_TRUE(vim_test_key('i') == 0);
 	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
-	ASSERT_TRUE(system->cursor_style() < 0);
+	ASSERT_TRUE(editorVimCursorStyle() < 0);
 
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
-	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, system->cursor_style());
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, editorVimCursorStyle());
 	return 0;
 }
 
@@ -148,17 +134,6 @@ static int test_input_vim_insert_mode_inserts_until_escape(void) {
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	ASSERT_TRUE(vim_test_key('y') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "x");
-	return 0;
-}
-
-static int test_input_vim_insert_mode_mapped_printable_does_not_insert(void) {
-	ASSERT_TRUE(editorKeymapBindAction(&E.keymap, EDITOR_ACTION_REDRAW, 'x'));
-	ASSERT_TRUE(vim_test_activate());
-	ASSERT_TRUE(vim_test_key('i') == 0);
-	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
-
-	ASSERT_TRUE(vim_test_key('x') == 0);
-	ASSERT_EQ_INT(0, E.numrows);
 	return 0;
 }
 
@@ -2400,7 +2375,7 @@ static int test_input_vim_undo_is_not_dot_repeatable(void) {
 	return 0;
 }
 
-static int test_input_vim_ctrl_keys_do_not_trigger_cua(void) {
+static int test_input_vim_unmapped_ctrl_keys_are_inert(void) {
 	add_row("abc");
 
 	ASSERT_TRUE(vim_test_activate());
@@ -2497,7 +2472,7 @@ static int test_input_vim_insert_ctrl_c_returns_to_normal(void) {
 	return 0;
 }
 
-static int test_input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua(void) {
+static int test_input_vim_insert_unmapped_ctrl_key_is_inert(void) {
 	add_row("");
 
 	ASSERT_TRUE(vim_test_activate());
@@ -2625,7 +2600,7 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_normal_u_undoes_and_ctrl_r_redoes",
          test_input_vim_normal_u_undoes_and_ctrl_r_redoes},
         {"input_vim_undo_is_not_dot_repeatable", test_input_vim_undo_is_not_dot_repeatable},
-        {"input_vim_ctrl_keys_do_not_trigger_cua", test_input_vim_ctrl_keys_do_not_trigger_cua},
+        {"input_vim_unmapped_ctrl_keys_are_inert", test_input_vim_unmapped_ctrl_keys_are_inert},
         {"input_vim_visual_linewise_selection_spans_full_lines",
          test_input_vim_visual_linewise_selection_spans_full_lines},
         {"input_vim_visual_charwise_single_cell_is_selected",
@@ -2635,8 +2610,8 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_insert_ctrl_u_deletes_to_line_start},
         {"input_vim_insert_ctrl_c_returns_to_normal",
          test_input_vim_insert_ctrl_c_returns_to_normal},
-        {"input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua",
-         test_input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua},
+        {"input_vim_insert_unmapped_ctrl_key_is_inert",
+         test_input_vim_insert_unmapped_ctrl_key_is_inert},
         {"input_vim_ctrl_d_moves_cursor_down", test_input_vim_ctrl_d_moves_cursor_down},
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
@@ -2711,8 +2686,6 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_normal_text_does_not_insert", test_input_vim_normal_text_does_not_insert},
         {"input_vim_insert_mode_inserts_until_escape",
          test_input_vim_insert_mode_inserts_until_escape},
-        {"input_vim_insert_mode_mapped_printable_does_not_insert",
-         test_input_vim_insert_mode_mapped_printable_does_not_insert},
         {"input_vim_append_entry_moves_then_inserts",
          test_input_vim_append_entry_moves_then_inserts},
         {"input_vim_line_insert_entries_switch_to_insert",

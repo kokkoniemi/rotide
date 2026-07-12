@@ -3,12 +3,10 @@
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
-#include "config/input_config.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
 #include "config/theme_config.h"
 #include "editing/edit.h"
-#include "input/input_system.h"
 #include "language/lsp.h"
 #include "rotide.h"
 
@@ -16,8 +14,6 @@
 
 struct runtimeConfigStatus {
 	enum editorConfigBootstrapStatus bootstrap_status;
-	enum editorInputConfigLoadStatus input_config_status;
-	enum editorKeymapLoadStatus keymap_status;
 	enum editorKeymapLoadStatus keymap_vim_status;
 	enum editorCursorStyleLoadStatus cursor_style_status;
 	enum editorCursorBlinkLoadStatus cursor_blink_status;
@@ -32,19 +28,7 @@ struct runtimeConfigStatus {
 	enum editorDapConfigLoadStatus dap_config_status;
 };
 
-enum { RUNTIME_CONFIG_INPUT_SYSTEM_MAX = 32 };
-
 static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
-	char input_system[RUNTIME_CONFIG_INPUT_SYSTEM_MAX];
-
-	status->input_config_status =
-	        editorInputConfigLoadConfigured(input_system, sizeof(input_system));
-	if (!editorInputSystemActivate(input_system)) {
-		(void)editorInputSystemActivate("cua");
-		status->input_config_status = (enum editorInputConfigLoadStatus)(
-		        status->input_config_status | EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT);
-	}
-	status->keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	status->keymap_vim_status = editorKeymapLoadVimBindingsConfigured();
 	status->cursor_style_status = editorCursorStyleLoadConfigured(&E.cursor_style);
 	status->cursor_blink_status = editorCursorBlinkLoadConfigured(&E.cursor_blink_enabled);
@@ -65,22 +49,6 @@ static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
 
 static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
                                   const char *success_status) {
-	if ((status->input_config_status & EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [input] in ./.rotide.toml, using Vim");
-		return 1;
-	}
-	if ((status->input_config_status & EDITOR_INPUT_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid [input] in ~/.rotide/config.toml, using Vim");
-		return 1;
-	}
-	if (status->keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
-		editorSetStatusMsg("Invalid keymap config, using defaults");
-		return 1;
-	}
-	if (status->keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
-		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
-		return 1;
-	}
 	if (status->keymap_vim_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
 		editorSetStatusMsg("Invalid [keymap.vim] in ./.rotide.toml, using defaults");
 		return 1;
@@ -89,9 +57,7 @@ static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
 		editorSetStatusMsg("Invalid [keymap.vim] in ~/.rotide/config.toml, using defaults");
 		return 1;
 	}
-	if ((status->input_config_status & EDITOR_INPUT_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||
-	    status->keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
-	    (status->cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
+	if ((status->cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
 	    (status->cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY) != 0 ||
 	    (status->line_wrap_status & EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY) != 0 ||
 	    (status->line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||

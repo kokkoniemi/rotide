@@ -1,4 +1,5 @@
-#include "input/input_system.h"
+#include "input/actions_workspace.h"
+#include "input/system_vim.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -29,7 +30,7 @@ static int test_editor_process_keypress_find_file_filters_previews_and_opens(voi
 	add_row("base");
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	char ctrl_p[] = {CTRL_KEY('p')};
+	char ctrl_p[] = {' ', 'p'};
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_p, sizeof(ctrl_p)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
@@ -79,7 +80,7 @@ static int test_editor_process_keypress_find_file_recovers_collapsed_drawer_on_o
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerSetCollapsed(1));
 
-	char ctrl_p[] = {CTRL_KEY('p')};
+	char ctrl_p[] = {' ', 'p'};
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_p, sizeof(ctrl_p)) == 0);
 	ASSERT_EQ_INT(0, E.drawer_collapsed);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
@@ -112,8 +113,7 @@ static int test_editor_process_keypress_project_search_filters_previews_and_open
 	add_row("base");
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	char ctrl_alt_f[] = {'\x1b', CTRL_KEY('f')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_f, sizeof(ctrl_alt_f)) == 0);
+	editorOpenProjectSearchDrawer();
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
@@ -156,7 +156,7 @@ static int test_editor_process_keypress_project_search_recovers_collapsed_drawer
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerSetCollapsed(1));
 
-	char ctrl_alt_f[] = {'\x1b', CTRL_KEY('f')};
+	char ctrl_alt_f[] = {' ', 'f'};
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_f, sizeof(ctrl_alt_f)) == 0);
 	ASSERT_EQ_INT(0, E.drawer_collapsed);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
@@ -179,14 +179,15 @@ static int test_editor_process_keypress_project_search_recovers_collapsed_drawer
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_f_incremental_find_first_match(void) {
+static int test_editor_find_action_incremental_find_first_match(void) {
 	add_row("zz alpha");
 	add_row("alpha later");
 	E.cy = 1;
 	E.cx = 2;
 
-	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'a', 'l', 'p', 'h', 'a', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_FIND, input, sizeof(input)) ==
+	            0);
 
 	ASSERT_TRUE(E.search_query != NULL);
 	ASSERT_EQ_STR("alpha", E.search_query);
@@ -196,17 +197,17 @@ static int test_editor_process_keypress_ctrl_f_incremental_find_first_match(void
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_f_arrow_navigation_wraps(void) {
+static int test_editor_find_action_arrow_navigation_wraps(void) {
 	add_row("alpha one");
 	add_row("middle alpha");
 	add_row("tail alpha");
 	E.cy = 0;
 	E.cx = 0;
 
-	const char input[] = {CTRL_KEY('f'), 'a',    'l',    'p', 'h', 'a',    '\x1b',
-	                      '[',           'B',    '\x1b', '[', 'B', '\x1b', '[',
-	                      'B',           '\x1b', '[',    'A', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'a', 'l', 'p',    'h', 'a', '\x1b', '[', 'B', '\x1b',
+	                      '[', 'B', '\x1b', '[', 'B', '\x1b', '[', 'A', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_FIND, input, sizeof(input)) ==
+	            0);
 
 	ASSERT_TRUE(E.search_query != NULL);
 	ASSERT_EQ_STR("alpha", E.search_query);
@@ -216,14 +217,15 @@ static int test_editor_process_keypress_ctrl_f_arrow_navigation_wraps(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match(void) {
+static int test_editor_find_action_escape_restores_cursor_and_clears_match(void) {
 	add_row("alpha row");
 	add_row("other");
 	E.cy = 1;
 	E.cx = 2;
 
-	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\x1b', '[', 'x'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'a', 'l', 'p', 'h', 'a', '\x1b', '[', 'x'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_FIND, input, sizeof(input)) ==
+	            0);
 
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
@@ -232,14 +234,15 @@ static int test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_f_enter_keeps_active_match(void) {
+static int test_editor_find_action_enter_keeps_active_match(void) {
 	add_row("xx alpha");
 	add_row("alpha second");
 	E.cy = 1;
 	E.cx = 4;
 
-	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'a', 'l', 'p', 'h', 'a', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_FIND, input, sizeof(input)) ==
+	            0);
 
 	ASSERT_TRUE(E.search_query != NULL);
 	ASSERT_EQ_STR("alpha", E.search_query);
@@ -249,14 +252,15 @@ static int test_editor_process_keypress_ctrl_f_enter_keeps_active_match(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status(void) {
+static int test_editor_find_action_no_match_preserves_cursor_and_sets_status(void) {
 	add_row("hello world");
 	add_row("second line");
 	E.cy = 0;
 	E.cx = 5;
 
-	const char input[] = {CTRL_KEY('f'), 'z', 'z', 'z', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	const char input[] = {'z', 'z', 'z', '\r'};
+	ASSERT_TRUE(editor_dispatch_action_with_input(EDITOR_ACTION_FIND, input, sizeof(input)) ==
+	            0);
 
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -278,7 +282,7 @@ static int test_editor_process_keypress_find_file_filters_in_vim_normal_mode(voi
 	ASSERT_TRUE(editorTabsInit());
 	add_row("base");
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 
 	char leader_key[] = {' '};
 	char find_key[] = {'p'};
@@ -290,7 +294,6 @@ static int test_editor_process_keypress_find_file_filters_in_vim_normal_mode(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(filter, sizeof(filter)) == 0);
 	ASSERT_EQ_STR("b", editorFileSearchQuery());
 
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	ASSERT_TRUE(unlink(beta_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -307,10 +310,9 @@ static int test_editor_process_keypress_project_search_filters_in_vim_normal_mod
 	ASSERT_TRUE(editorTabsInit());
 	add_row("base");
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
-	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	editorVimReset();
 
-	char ctrl_alt_f[] = {'\x1b', CTRL_KEY('f')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_f, sizeof(ctrl_alt_f)) == 0);
+	editorOpenProjectSearchDrawer();
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
 
 	const char *query = "needle";
@@ -319,7 +321,6 @@ static int test_editor_process_keypress_project_search_filters_in_vim_normal_mod
 	}
 	ASSERT_EQ_STR("needle", editorProjectSearchQuery());
 
-	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	ASSERT_TRUE(unlink(alpha_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -338,16 +339,16 @@ const struct editorTestCase g_input_search_tests[] = {
          test_editor_process_keypress_project_search_filters_previews_and_opens},
         {"editor_process_keypress_project_search_recovers_collapsed_drawer_on_open",
          test_editor_process_keypress_project_search_recovers_collapsed_drawer_on_open},
-        {"editor_process_keypress_ctrl_f_incremental_find_first_match",
-         test_editor_process_keypress_ctrl_f_incremental_find_first_match},
-        {"editor_process_keypress_ctrl_f_arrow_navigation_wraps",
-         test_editor_process_keypress_ctrl_f_arrow_navigation_wraps},
-        {"editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match",
-         test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match},
-        {"editor_process_keypress_ctrl_f_enter_keeps_active_match",
-         test_editor_process_keypress_ctrl_f_enter_keeps_active_match},
-        {"editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status",
-         test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status},
+        {"editor_find_action_incremental_find_first_match",
+         test_editor_find_action_incremental_find_first_match},
+        {"editor_find_action_arrow_navigation_wraps",
+         test_editor_find_action_arrow_navigation_wraps},
+        {"editor_find_action_escape_restores_cursor_and_clears_match",
+         test_editor_find_action_escape_restores_cursor_and_clears_match},
+        {"editor_find_action_enter_keeps_active_match",
+         test_editor_find_action_enter_keeps_active_match},
+        {"editor_find_action_no_match_preserves_cursor_and_sets_status",
+         test_editor_find_action_no_match_preserves_cursor_and_sets_status},
 };
 
 const int g_input_search_test_count =
