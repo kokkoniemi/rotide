@@ -23,6 +23,7 @@ src/editing/document_position.c	documentPosition
 src/editing/edit.c	edit
 src/editing/edit_pipeline.c	editPipeline
 src/editing/history.c	history
+src/editing/jumplist.c	editorJumplist
 src/editing/post_edit_notify.c	postEditNotify
 src/editing/row_cache.c	rowCache
 src/editing/selection.c	selection

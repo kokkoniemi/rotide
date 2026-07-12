@@ -671,9 +671,15 @@ struct editorConfig {
 	/* --- Input: Vim marks a-z (set via `m`, jumped via `` ` `` / `'`) --- */
 	struct editorVimMark {
 		int set;
+		char *filename; /* owned; identifies the mark's buffer (NULL = unnamed) */
 		int cy;
 		int cx;
 	} vim_marks[26];
+
+	/* --- Input: interned path pool backing per-pane jumplists (owned) --- */
+	char **jump_path_pool;
+	int jump_path_pool_count;
+	int jump_path_pool_capacity;
 
 	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;

@@ -21,6 +21,7 @@ int editorGitBlameTestIncrementalLookup(const char *incremental, int one_based_l
 int editorGitTestParseStatus(const char *data, size_t len, int *ahead_out, int *behind_out);
 const char *editorVimModeLabel(void);
 void editorVimRegistersClear(void);
+void editorVimMarksClear(void);
 char *vimSystemExCompletionTest(const char *current, int tab_iteration);
 
 char *editorDrawerMovePathCompletionTest(const char *current, const char *anchor,

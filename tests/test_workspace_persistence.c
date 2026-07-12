@@ -1,5 +1,6 @@
 #include "config/common.h"
 #include "editing/edit.h"
+#include "editing/jumplist.h"
 #include "editor_test_api.h"
 #include "language/lsp.h"
 #include "rotide.h"
@@ -2055,7 +2056,7 @@ static char *read_whole_file(const char *path, size_t *len_out) {
 	return buf;
 }
 
-static int test_editor_workspace_state_save_emits_term_token_and_version_two(void) {
+static int test_editor_workspace_state_save_emits_term_token_and_version(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
@@ -2076,11 +2077,134 @@ static int test_editor_workspace_state_save_emits_term_token_and_version_two(voi
 	size_t file_len = 0;
 	char *contents = read_whole_file(editorWorkspaceStatePath(), &file_len);
 	ASSERT_TRUE(contents != NULL);
-	int has_version = strstr(contents, "version=2\n") != NULL;
+	int has_version = strstr(contents, "version=3\n") != NULL;
 	int has_term = strstr(contents, "layout=(h ") != NULL && strstr(contents, "term") != NULL;
 	free(contents);
 	ASSERT_TRUE(has_version);
 	ASSERT_TRUE(has_term);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_restores_jumplist(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "l0\nl1\nl2\nl3\nl4\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+
+	char buf[1024];
+	int n = snprintf(buf, sizeof(buf),
+	                 "version=3\n"
+	                 "tab=0|0|%s\n"
+	                 "layout=leaf\n"
+	                 "pane_tab=0|1|%s\n"
+	                 "focused_pane=0\n"
+	                 "jump=0|1|0|%s\n"
+	                 "jump=0|3|2|%s\n"
+	                 "jump_index=0|1\n",
+	                 alpha_file, alpha_file, alpha_file, alpha_file);
+	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
+	ASSERT_TRUE(write_text_file(state_path, buf));
+
+	E.window_cols = 100;
+	E.window_rows = 40;
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_TRUE(E.focused_leaf != NULL && !E.focused_leaf->is_split);
+	const struct editorJumplist *jl = &E.focused_leaf->as.leaf.view.jumplist;
+	ASSERT_EQ_INT(2, jl->count);
+	ASSERT_EQ_INT(1, jl->entries[0].cy);
+	ASSERT_EQ_INT(0, jl->entries[0].cx);
+	ASSERT_EQ_INT(3, jl->entries[1].cy);
+	ASSERT_EQ_INT(2, jl->entries[1].cx);
+	ASSERT_EQ_INT(1, jl->index);
+	ASSERT_TRUE(editorJumplistResolvePath(jl->entries[0].path_id) != NULL);
+	ASSERT_EQ_STR(alpha_file, editorJumplistResolvePath(jl->entries[0].path_id));
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_saves_jumplist(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "l0\nl1\nl2\nl3\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(alpha_file));
+
+	E.cy = 2;
+	E.cx = 1;
+	editorJumplistRecord();
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	size_t file_len = 0;
+	char *contents = read_whole_file(editorWorkspaceStatePath(), &file_len);
+	ASSERT_TRUE(contents != NULL);
+	int has_jump = strstr(contents, "jump=0|2|1|") != NULL;
+	int has_index = strstr(contents, "jump_index=0|") != NULL;
+	free(contents);
+	ASSERT_TRUE(has_jump);
+	ASSERT_TRUE(has_index);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_version_two_has_empty_jumplist(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "l0\nl1\nl2\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+
+	char buf[1024];
+	int n = snprintf(buf, sizeof(buf),
+	                 "version=2\n"
+	                 "tab=0|0|%s\n"
+	                 "layout=leaf\n"
+	                 "pane_tab=0|1|%s\n"
+	                 "focused_pane=0\n",
+	                 alpha_file, alpha_file);
+	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
+	ASSERT_TRUE(write_text_file(state_path, buf));
+
+	E.window_cols = 100;
+	E.window_rows = 40;
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_TRUE(E.focused_leaf != NULL && !E.focused_leaf->is_split);
+	ASSERT_EQ_INT(0, E.focused_leaf->as.leaf.view.jumplist.count);
 
 	editorTabsFreeAll();
 	editorWorkspaceStateShutdown();
@@ -2306,8 +2430,12 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_workspace_state_clamps_focused_pane_out_of_range},
         {"editor_workspace_state_ignores_orphan_pane_tab_paths",
          test_editor_workspace_state_ignores_orphan_pane_tab_paths},
-        {"editor_workspace_state_save_emits_term_token_and_version_two",
-         test_editor_workspace_state_save_emits_term_token_and_version_two},
+        {"editor_workspace_state_save_emits_term_token_and_version",
+         test_editor_workspace_state_save_emits_term_token_and_version},
+        {"editor_workspace_state_restores_jumplist", test_editor_workspace_state_restores_jumplist},
+        {"editor_workspace_state_saves_jumplist", test_editor_workspace_state_saves_jumplist},
+        {"editor_workspace_state_version_two_has_empty_jumplist",
+         test_editor_workspace_state_version_two_has_empty_jumplist},
         {"editor_workspace_state_restore_hydrates_terminal_placeholder",
          test_editor_workspace_state_restore_hydrates_terminal_placeholder},
         {"editor_workspace_state_restore_terminal_only_layout",

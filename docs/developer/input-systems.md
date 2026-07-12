@@ -36,6 +36,16 @@ marks, bracket matching, screen motions, dot repeat, and ex commands are
 structural built-ins. Shared workspace and language behavior remains
 action-driven.
 
+The jumplist (`src/editing/jumplist.c`) is per-pane: each editor leaf's
+`editorPaneView` carries a POD `struct editorJumplist` (path ids into a
+session-global interned pool on `E`, never owned pointers, so by-value view
+copies on split/pane-move stay safe). Jump motions call `editorJumplistRecord()`
+before moving — in-buffer motions from `vimSystemApplyMotion`, search from
+`vimSystemSearchExecute`/`vimSystemSearchPrompt`, and all cross-file navigation
+from `dispatchJumpToPathLocation`. `Ctrl-O`/`Ctrl-I` resolve through
+`editorDispatchJumplistBack`/`Forward`. Lists persist in the workspace state
+file (`jump=`/`jump_index=` lines, version 3).
+
 The direct interface is declared in `src/input/system_vim.h`:
 
 - `editorVimInitialize` and `editorVimReset`;
@@ -94,7 +104,9 @@ Visual-Block, and ex routes.
 Vim owns the C0 control range. Unmapped controls are inert. Built-ins include:
 
 - Normal: `Ctrl-R` redo, `Ctrl-C` cancel pending input, `Ctrl-V`
-  Visual-Block;
+  Visual-Block, `Ctrl-O`/`Ctrl-I` jumplist back/forward (`Ctrl-I` arrives as
+  `Tab`/`0x09`, which the control-key predicate excludes, so it is handled as a
+  literal `\t` right after the control switch);
 - Normal/Visual: `Ctrl-D`/`Ctrl-U` half-page,
   `Ctrl-F`/`Ctrl-B` page, `Ctrl-E`/`Ctrl-Y` one-line scroll;
 - Insert: `Ctrl-C` Normal mode, `Ctrl-H` backspace, `Ctrl-W` delete word,

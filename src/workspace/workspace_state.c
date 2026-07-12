@@ -3,6 +3,7 @@
 #include "config/dap_config.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/jumplist.h"
 #include "language/lsp.h"
 #include "render/viewport.h"
 #include "rotide.h"
@@ -32,7 +33,9 @@
 /* Bumped on incompatible file-format changes so an older binary reading a
  * newer state file can refuse rather than silently misinterpret unknown
  * keys. Unversioned files (pre-versioning) are treated as version 1. */
-#define ROTIDE_WORKSPACE_STATE_VERSION 2
+#define ROTIDE_WORKSPACE_STATE_VERSION 3
+
+#define ROTIDE_WORKSPACE_PENDING_JUMP_LIMIT 8192
 
 struct workspaceStatePendingTab {
 	char *path;
@@ -46,6 +49,18 @@ struct workspaceStatePendingPaneTab {
 	char *path;
 };
 
+struct workspaceStatePendingJump {
+	int pane_idx;
+	int cy;
+	int cx;
+	char *path;
+};
+
+struct workspaceStatePendingJumpIndex {
+	int pane_idx;
+	int index;
+};
+
 static struct workspaceStatePendingTab *g_pending_tabs;
 static int g_pending_tab_count;
 static int g_pending_tab_capacity;
@@ -53,6 +68,12 @@ static struct workspaceStatePendingPaneTab *g_pending_pane_tabs;
 static int g_pending_pane_tab_count;
 static int g_pending_pane_tab_capacity;
 static int g_pending_focused_pane = -1;
+static struct workspaceStatePendingJump *g_pending_jumps;
+static int g_pending_jump_count;
+static int g_pending_jump_capacity;
+static struct workspaceStatePendingJumpIndex *g_pending_jump_indices;
+static int g_pending_jump_index_count;
+static int g_pending_jump_index_capacity;
 
 static void workspaceStateFreeRecentFiles(void);
 static void workspaceStateFreePendingTabs(void);
@@ -213,6 +234,20 @@ static void workspaceStateFreePendingTabs(void) {
 	g_pending_tab_capacity = 0;
 }
 
+static void workspaceStateFreePendingJumps(void) {
+	for (int i = 0; i < g_pending_jump_count; i++) {
+		free(g_pending_jumps[i].path);
+	}
+	free(g_pending_jumps);
+	g_pending_jumps = NULL;
+	g_pending_jump_count = 0;
+	g_pending_jump_capacity = 0;
+	free(g_pending_jump_indices);
+	g_pending_jump_indices = NULL;
+	g_pending_jump_index_count = 0;
+	g_pending_jump_index_capacity = 0;
+}
+
 static void workspaceStateFreePendingPaneTabs(void) {
 	for (int i = 0; i < g_pending_pane_tab_count; i++) {
 		free(g_pending_pane_tabs[i].path);
@@ -222,6 +257,7 @@ static void workspaceStateFreePendingPaneTabs(void) {
 	g_pending_pane_tab_count = 0;
 	g_pending_pane_tab_capacity = 0;
 	g_pending_focused_pane = -1;
+	workspaceStateFreePendingJumps();
 }
 
 static int workspaceStateAppendPendingPaneTab(int pane_idx, int is_active, const char *path) {
@@ -561,6 +597,119 @@ static void workspaceStateLoadFocusedPaneLine(const char *value) {
 	}
 }
 
+static int workspaceStateParseJumpLine(const char *value, int *pane_out, int *cy_out, int *cx_out,
+                                       const char **path_out) {
+	if (value == NULL) {
+		return 0;
+	}
+	const char *bar1 = strchr(value, '|');
+	if (bar1 == NULL) {
+		return 0;
+	}
+	const char *bar2 = strchr(bar1 + 1, '|');
+	if (bar2 == NULL) {
+		return 0;
+	}
+	const char *bar3 = strchr(bar2 + 1, '|');
+	if (bar3 == NULL) {
+		return 0;
+	}
+	char pane_buf[32];
+	char cy_buf[32];
+	char cx_buf[32];
+	size_t pane_len = (size_t)(bar1 - value);
+	size_t cy_len = (size_t)(bar2 - bar1 - 1);
+	size_t cx_len = (size_t)(bar3 - bar2 - 1);
+	if (pane_len >= sizeof(pane_buf) || cy_len >= sizeof(cy_buf) || cx_len >= sizeof(cx_buf)) {
+		return 0;
+	}
+	memcpy(pane_buf, value, pane_len);
+	pane_buf[pane_len] = '\0';
+	memcpy(cy_buf, bar1 + 1, cy_len);
+	cy_buf[cy_len] = '\0';
+	memcpy(cx_buf, bar2 + 1, cx_len);
+	cx_buf[cx_len] = '\0';
+	int pane = 0;
+	int cy = 0;
+	int cx = 0;
+	if (!workspaceStateParseInt(pane_buf, &pane) || !workspaceStateParseInt(cy_buf, &cy) ||
+	    !workspaceStateParseInt(cx_buf, &cx)) {
+		return 0;
+	}
+	*pane_out = pane;
+	*cy_out = cy;
+	*cx_out = cx;
+	*path_out = bar3 + 1;
+	return 1;
+}
+
+static void workspaceStateLoadJumpLine(const char *value) {
+	int pane_idx = -1;
+	int cy = 0;
+	int cx = 0;
+	const char *path = NULL;
+	if (!workspaceStateParseJumpLine(value, &pane_idx, &cy, &cx, &path) || pane_idx < 0 ||
+	    path == NULL || path[0] == '\0') {
+		return;
+	}
+	if (g_pending_jump_count >= ROTIDE_WORKSPACE_PENDING_JUMP_LIMIT) {
+		return;
+	}
+	struct workspaceStatePendingJump *grown = workspaceStateEnsureArrayCapacity(
+	        g_pending_jumps, g_pending_jump_count + 1, &g_pending_jump_capacity,
+	        sizeof(*g_pending_jumps), ROTIDE_WORKSPACE_PENDING_JUMP_LIMIT, 16);
+	if (grown == NULL) {
+		return;
+	}
+	g_pending_jumps = grown;
+	char *copy = strdup(path);
+	if (copy == NULL) {
+		return;
+	}
+	g_pending_jumps[g_pending_jump_count].pane_idx = pane_idx;
+	g_pending_jumps[g_pending_jump_count].cy = cy < 0 ? 0 : cy;
+	g_pending_jumps[g_pending_jump_count].cx = cx < 0 ? 0 : cx;
+	g_pending_jumps[g_pending_jump_count].path = copy;
+	g_pending_jump_count++;
+}
+
+static void workspaceStateLoadJumpIndexLine(const char *value) {
+	if (value == NULL) {
+		return;
+	}
+	const char *bar = strchr(value, '|');
+	if (bar == NULL) {
+		return;
+	}
+	char pane_buf[32];
+	size_t pane_len = (size_t)(bar - value);
+	if (pane_len >= sizeof(pane_buf)) {
+		return;
+	}
+	memcpy(pane_buf, value, pane_len);
+	pane_buf[pane_len] = '\0';
+	int pane_idx = -1;
+	int index = 0;
+	if (!workspaceStateParseInt(pane_buf, &pane_idx) ||
+	    !workspaceStateParseInt(bar + 1, &index) || pane_idx < 0) {
+		return;
+	}
+	if (g_pending_jump_index_count >= ROTIDE_WORKSPACE_PENDING_JUMP_LIMIT) {
+		return;
+	}
+	struct workspaceStatePendingJumpIndex *grown = workspaceStateEnsureArrayCapacity(
+	        g_pending_jump_indices, g_pending_jump_index_count + 1,
+	        &g_pending_jump_index_capacity, sizeof(*g_pending_jump_indices),
+	        ROTIDE_WORKSPACE_PENDING_JUMP_LIMIT, 16);
+	if (grown == NULL) {
+		return;
+	}
+	g_pending_jump_indices = grown;
+	g_pending_jump_indices[g_pending_jump_index_count].pane_idx = pane_idx;
+	g_pending_jump_indices[g_pending_jump_index_count].index = index;
+	g_pending_jump_index_count++;
+}
+
 /* Returns 1 normally, 0 to abort the load (newer-format file). */
 static int workspaceStateProcessLine(const char *key, const char *value, int reset_panes,
                                      struct workspaceStateParsedSettings *s) {
@@ -600,6 +749,10 @@ static int workspaceStateProcessLine(const char *key, const char *value, int res
 			workspaceStateLoadFocusedPaneLine(value);
 		} else if (strcmp(key, "layout") == 0) {
 			workspaceStateLoadLayoutLine(value);
+		} else if (strcmp(key, "jump") == 0) {
+			workspaceStateLoadJumpLine(value);
+		} else if (strcmp(key, "jump_index") == 0) {
+			workspaceStateLoadJumpIndexLine(value);
 		}
 	}
 	return 1;
@@ -811,6 +964,59 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 	}
 }
 
+/* Leaf indices are meaningful only after layout and pane restoration. */
+static void workspaceStateApplyPendingJumps(void) {
+	if (g_pending_jump_count <= 0 || E.layout_root == NULL) {
+		return;
+	}
+	struct editorPaneNode *leaves[ROTIDE_WORKSPACE_MAX_LEAVES];
+	int leaf_count =
+	        workspaceStateCollectLeaves(E.layout_root, leaves, ROTIDE_WORKSPACE_MAX_LEAVES);
+	if (leaf_count <= 0) {
+		return;
+	}
+
+	for (int j = 0; j < g_pending_jump_count; j++) {
+		const struct workspaceStatePendingJump *p = &g_pending_jumps[j];
+		if (p->pane_idx < 0 || p->pane_idx >= leaf_count) {
+			continue;
+		}
+		if (leaves[p->pane_idx]->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+			continue;
+		}
+		int path_id = editorJumplistInternPath(p->path);
+		editorJumplistAppendRaw(&leaves[p->pane_idx]->as.leaf.view.jumplist, path_id, p->cy,
+		                        p->cx);
+	}
+
+	for (int i = 0; i < leaf_count; i++) {
+		if (leaves[i]->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+			continue;
+		}
+		struct editorJumplist *list = &leaves[i]->as.leaf.view.jumplist;
+		list->index = list->count;
+	}
+
+	for (int j = 0; j < g_pending_jump_index_count; j++) {
+		int pane_idx = g_pending_jump_indices[j].pane_idx;
+		if (pane_idx < 0 || pane_idx >= leaf_count) {
+			continue;
+		}
+		if (leaves[pane_idx]->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+			continue;
+		}
+		struct editorJumplist *list = &leaves[pane_idx]->as.leaf.view.jumplist;
+		int index = g_pending_jump_indices[j].index;
+		if (index < 0) {
+			index = 0;
+		}
+		if (index > list->count) {
+			index = list->count;
+		}
+		list->index = index;
+	}
+}
+
 static void workspaceStateHydrateTerminalsIfAny(void) {
 	if (E.layout_root == NULL) {
 		return;
@@ -890,6 +1096,7 @@ int editorWorkspaceStateRestoreTabs(void) {
 		 * sets E.focused_leaf and switches to the focused pane's active tab. */
 		workspaceStateApplyPendingPaneAssignment();
 	}
+	workspaceStateApplyPendingJumps();
 	/* Hydrate AFTER pane assignment: assignment wipes and repopulates each
 	 * editor leaf's membership, so a terminal placeholder must still be a
 	 * TERMINAL leaf during assignment (it skips non-editor leaves). Hydration
@@ -1063,6 +1270,42 @@ static int workspaceStateWritePaneTabsForLeaf(int fd, struct editorPaneNode *lea
 	return 1;
 }
 
+static int workspaceStateWriteJumplistForLeaf(int fd, struct editorPaneNode *leaf, int leaf_idx) {
+	if (leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 1;
+	}
+	const struct editorJumplist *list = &leaf->as.leaf.view.jumplist;
+	int wrote_any = 0;
+	for (int i = 0; i < list->count; i++) {
+		const struct editorJumpEntry *entry = &list->entries[i];
+		const char *path = editorJumplistResolvePath(entry->path_id);
+		if (!workspaceStatePathCanWriteLine(path)) {
+			continue;
+		}
+		char prefix[64];
+		int prefix_len = snprintf(prefix, sizeof(prefix), "jump=%d|%d|%d|", leaf_idx,
+		                          entry->cy, entry->cx);
+		if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
+			continue;
+		}
+		if (!workspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
+		    !workspaceStateWriteAll(fd, path, strlen(path)) ||
+		    !workspaceStateWriteAll(fd, "\n", 1)) {
+			return 0;
+		}
+		wrote_any = 1;
+	}
+	if (wrote_any) {
+		char buf[64];
+		int n = snprintf(buf, sizeof(buf), "jump_index=%d|%d\n", leaf_idx, list->index);
+		if (n > 0 && (size_t)n < sizeof(buf) &&
+		    !workspaceStateWriteAll(fd, buf, (size_t)n)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 static int workspaceStateWriteFocusedPane(int fd, int focused_idx) {
 	if (focused_idx < 0) {
 		return 1;
@@ -1088,6 +1331,9 @@ static int workspaceStateWritePaneTabsAndFocus(int fd) {
 			focused_idx = i;
 		}
 		if (!workspaceStateWritePaneTabsForLeaf(fd, leaves[i], i)) {
+			return 0;
+		}
+		if (!workspaceStateWriteJumplistForLeaf(fd, leaves[i], i)) {
 			return 0;
 		}
 	}

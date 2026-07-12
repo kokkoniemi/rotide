@@ -7,6 +7,7 @@
 #include "debug/dap.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/jumplist.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
@@ -63,6 +64,8 @@ void clear_editor_state(void) {
 	editorOutputTestResetFrameCache();
 	editorClipboardClear();
 	editorVimRegistersClear();
+	editorVimMarksClear();
+	editorJumplistPoolClear();
 	editorVimKeymapResetDefaults();
 	editorPaneNodeFree(E.layout_root);
 	E.layout_root = NULL;

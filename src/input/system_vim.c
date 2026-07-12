@@ -6,6 +6,7 @@
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/history.h"
+#include "editing/jumplist.h"
 #include "editing/selection.h"
 #include "input/actions_file_tab.h"
 #include "input/actions_language.h"
@@ -216,8 +217,8 @@ static const struct vimExCommand g_vim_ex_commands[] = {
 static const size_t g_vim_ex_command_count =
         sizeof(g_vim_ex_commands) / sizeof(g_vim_ex_commands[0]);
 
-static const char *const g_vim_ex_builtin_commands[] = {"w", "q",    "q!",  "wq", "x",
-                                                        "e", "edit", "git", "lsp"};
+static const char *const g_vim_ex_builtin_commands[] = {"w", "q",    "q!",  "wq",  "x",
+                                                        "e", "edit", "git", "lsp", "jumps"};
 
 static const size_t g_vim_ex_builtin_command_count =
         sizeof(g_vim_ex_builtin_commands) / sizeof(g_vim_ex_builtin_commands[0]);
@@ -425,6 +426,16 @@ void editorVimRegistersClear(void) {
 		E.vim_registers[i].linewise = 0;
 	}
 	E.vim_default_register_linewise = 0;
+}
+
+void editorVimMarksClear(void) {
+	for (int i = 0; i < 26; i++) {
+		free(E.vim_marks[i].filename);
+		E.vim_marks[i].filename = NULL;
+		E.vim_marks[i].set = 0;
+		E.vim_marks[i].cy = 0;
+		E.vim_marks[i].cx = 0;
+	}
 }
 
 /* Store yank/delete text into the active register (a named register if one was
@@ -1337,12 +1348,31 @@ static int vimSystemMotionRange(enum vimSystemMotion motion, int count,
 	return vimSystemMakeRange(start_cy, start_cx, target_cy, target_cx, range_out);
 }
 
+static int vimSystemMotionIsJump(enum vimSystemMotion motion) {
+	switch (motion) {
+		case VIM_SYSTEM_MOTION_FIRST_LINE:
+		case VIM_SYSTEM_MOTION_LAST_LINE:
+		case VIM_SYSTEM_MOTION_PARAGRAPH_FORWARD:
+		case VIM_SYSTEM_MOTION_PARAGRAPH_BACKWARD:
+		case VIM_SYSTEM_MOTION_MATCH_BRACKET:
+		case VIM_SYSTEM_MOTION_SCREEN_TOP:
+		case VIM_SYSTEM_MOTION_SCREEN_MIDDLE:
+		case VIM_SYSTEM_MOTION_SCREEN_BOTTOM:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
 static int vimSystemApplyMotion(enum vimSystemMotion motion, int count, int *effects_out) {
 	int cy = E.cy;
 	int cx = E.cx;
 
 	if (!vimSystemMotionTargetCounted(motion, count, &cy, &cx)) {
 		return 0;
+	}
+	if (vimSystemMotionIsJump(motion) && (cy != E.cy || cx != E.cx)) {
+		editorJumplistRecord();
 	}
 	(void)vimSystemSetCursor(cy, cx, effects_out);
 	return 1;
@@ -3023,6 +3053,7 @@ static int vimSystemSearchExecute(const char *query, int direction, int count, i
 	if (count < 1) {
 		count = 1;
 	}
+	editorJumplistRecord();
 	for (int i = 0; i < count; i++) {
 		int match_row = -1;
 		int match_col = -1;
@@ -3045,6 +3076,8 @@ static int vimSystemSearchExecute(const char *query, int direction, int count, i
 
 static int vimSystemSearchPrompt(int direction, int *effects_out) {
 	char *query = NULL;
+	int origin_cy = E.cy;
+	int origin_cx = E.cx;
 
 	E.input_vim_search_direction = direction;
 	E.search_saved_offset = E.cursor_offset;
@@ -3060,6 +3093,8 @@ static int vimSystemSearchPrompt(int direction, int *effects_out) {
 	}
 	(void)vimSystemSearchSetQuery(query);
 	free(query);
+	/* Incremental search has already moved the live cursor. */
+	editorJumplistRecordPos(origin_cy, origin_cx);
 	if (effects_out != NULL) {
 		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
 	}
@@ -3164,6 +3199,9 @@ static void vimSystemGotoLine(long line_no, int *effects_out) {
 		line_no = E.numrows;
 	}
 	target = (int)(line_no - 1);
+	if (target != E.cy) {
+		editorJumplistRecord();
+	}
 	(void)vimSystemSetCursor(target, vimSystemLineFirstNonblank(target), effects_out);
 }
 
@@ -3372,6 +3410,53 @@ static void vimSystemExLsp(const char *args, int *effects_out) {
 	editorSetStatusMsg("Unknown :lsp subcommand: %s", args);
 }
 
+static const char *vimSystemJumpBasename(const char *path) {
+	if (path == NULL) {
+		return "[No Name]";
+	}
+	const char *slash = strrchr(path, '/');
+	return slash != NULL ? slash + 1 : path;
+}
+
+static void vimSystemExJumps(void) {
+	int count = editorJumplistActiveCount();
+	int index = editorJumplistActiveIndex();
+
+	if (count == 0) {
+		editorSetStatusMsg("jumps: empty");
+		return;
+	}
+
+	const struct editorJumpEntry *back = NULL;
+	const struct editorJumpEntry *fwd = NULL;
+	if (index >= count) {
+		back = editorJumplistActiveEntry(count - 1);
+	} else if (index > 0) {
+		back = editorJumplistActiveEntry(index - 1);
+	}
+	if (index < count - 1) {
+		fwd = editorJumplistActiveEntry(index + 1);
+	}
+
+	char back_buf[40];
+	char fwd_buf[40];
+	if (back != NULL) {
+		snprintf(back_buf, sizeof(back_buf), "%s:%d",
+		         vimSystemJumpBasename(editorJumplistResolvePath(back->path_id)),
+		         back->cy + 1);
+	} else {
+		snprintf(back_buf, sizeof(back_buf), "-");
+	}
+	if (fwd != NULL) {
+		snprintf(fwd_buf, sizeof(fwd_buf), "%s:%d",
+		         vimSystemJumpBasename(editorJumplistResolvePath(fwd->path_id)),
+		         fwd->cy + 1);
+	} else {
+		snprintf(fwd_buf, sizeof(fwd_buf), "-");
+	}
+	editorSetStatusMsg("jumps %d/%d  <- %s  -> %s", index, count, back_buf, fwd_buf);
+}
+
 static void vimSystemRunExCommand(char *line, int *effects_out) {
 	char *cmd = line;
 	char *args = NULL;
@@ -3428,6 +3513,10 @@ static void vimSystemRunExCommand(char *line, int *effects_out) {
 	}
 	if (strcmp(cmd, "lsp") == 0) {
 		vimSystemExLsp(args, effects_out);
+		return;
+	}
+	if (strcmp(cmd, "jumps") == 0) {
+		vimSystemExJumps();
 		return;
 	}
 	if (args != NULL && args[0] != '\0') {
@@ -3640,11 +3729,25 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 				vimSystemResetPending();
 				vimSystemBeginVisualBlock();
 				return 0;
+			case CTRL_KEY('o'): {
+				int count = vimSystemEffectiveCount();
+				vimSystemResetPending();
+				(void)editorDispatchJumplistBack(count, effects_out);
+				return 0;
+			}
 			default:
 				break;
 		}
 		(void)vimSystemHandleSharedControlKey(c, effects_out, &shared_result);
 		return shared_result;
+	}
+
+	/* Terminals encode Ctrl-I as Tab, outside the control-key path above. */
+	if (c == '\t') {
+		int count = vimSystemEffectiveCount();
+		vimSystemResetPending();
+		(void)editorDispatchJumplistForward(count, effects_out);
+		return 0;
 	}
 
 	if (E.input_vim_pending_find) {
@@ -3692,19 +3795,43 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		if (c >= 'a' && c <= 'z') {
 			struct editorVimMark *mark = &E.vim_marks[c - 'a'];
 			if (cmd == 'm') {
+				free(mark->filename);
+				mark->filename = E.filename != NULL ? strdup(E.filename) : NULL;
 				mark->set = 1;
 				mark->cy = E.cy;
 				mark->cx = E.cx;
 			} else if (mark->set) {
-				int tcy = mark->cy;
-				if (tcy >= E.numrows) {
-					tcy = E.numrows - 1;
+				int same_file = (mark->filename == NULL && E.filename == NULL) ||
+				                (mark->filename != NULL && E.filename != NULL &&
+				                 strcmp(mark->filename, E.filename) == 0);
+				editorJumplistRecord();
+				if (same_file) {
+					int tcy = mark->cy;
+					if (tcy >= E.numrows) {
+						tcy = E.numrows - 1;
+					}
+					if (tcy < 0) {
+						tcy = 0;
+					}
+					int tcx = cmd == '`' ? mark->cx
+					                     : vimSystemLineFirstNonblank(tcy);
+					(void)vimSystemSetCursor(tcy, tcx, effects_out);
+				} else if (mark->filename != NULL) {
+					int tcx = cmd == '`' ? mark->cx : 0;
+					if (editorDispatchGoToBufferPosition(mark->filename,
+					                                     mark->cy, tcx)) {
+						if (cmd == '\'') {
+							(void)vimSystemSetCursor(
+							        E.cy,
+							        vimSystemLineFirstNonblank(E.cy),
+							        effects_out);
+						}
+						if (effects_out != NULL) {
+							*effects_out |=
+							        EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+						}
+					}
 				}
-				if (tcy < 0) {
-					tcy = 0;
-				}
-				int tcx = cmd == '`' ? mark->cx : vimSystemLineFirstNonblank(tcy);
-				(void)vimSystemSetCursor(tcy, tcx, effects_out);
 			}
 		}
 		vimSystemResetPending();
