@@ -12,6 +12,7 @@ enum editorInputKeyEffect {
 void editorVimInitialize(void);
 void editorVimReset(void);
 int editorVimHandleKey(int c, int *effects_out);
+int editorVimOpenExCommandLine(int *effects_out);
 int editorVimKeySequencePending(void);
 int editorVimResolveCommand(const char *name, int *command_id_out);
 int editorVimBindKey(const char *mode, const char *name, int key);

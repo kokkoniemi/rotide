@@ -4699,6 +4699,10 @@ int editorVimHandleKey(int c, int *effects_out) {
 	return vimSystemHandleKey(c, effects_out);
 }
 
+int editorVimOpenExCommandLine(int *effects_out) {
+	return vimSystemExCommandLine(effects_out);
+}
+
 int editorVimKeySequencePending(void) {
 	return vimSystemKeySequencePending();
 }

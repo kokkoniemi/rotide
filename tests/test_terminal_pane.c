@@ -1167,6 +1167,22 @@ static int test_terminal_input_vim_normal_leader_resolves(void) {
 	return E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
+static int test_terminal_input_vim_normal_colon_runs_ex_command(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	feed_keys("\x17N");
+	if (t->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
+		return 1;
+	}
+	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
+	feed_keys(":vsplit\r");
+	int failed = editorPaneTreeLeafCount(E.layout_root) != leaves_before + 1;
+	return failed;
+}
+
 static int test_terminal_input_modes_are_per_tab(void) {
 	struct editorTerminalPane *a = NULL;
 	struct editorPaneNode *leaf_a = setup_focused_terminal("sleep 5", &a);
@@ -1216,6 +1232,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_input_vim_ctrl_w_t_from_editor_pane},
         {"terminal_input_vim_normal_leader_resolves",
          test_terminal_input_vim_normal_leader_resolves},
+        {"terminal_input_vim_normal_colon_runs_ex_command",
+         test_terminal_input_vim_normal_colon_runs_ex_command},
         {"terminal_input_modes_are_per_tab", test_terminal_input_modes_are_per_tab},
         {"terminal_new_tab_inserts_beside_active", test_terminal_new_tab_inserts_beside_active},
         {"terminal_new_tab_order_with_following_tab",

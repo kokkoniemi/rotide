@@ -3266,6 +3266,11 @@ static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, in
 		terminal->input_mode = EDITOR_TERMINAL_INPUT_INSERT;
 		return;
 	}
+	if (c == ':') {
+		int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorVimOpenExCommandLine(&effects);
+		return;
+	}
 	if (c == CTRL_KEY('w')) {
 		terminal->pending_ctrl_w = 1;
 		return;
