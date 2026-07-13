@@ -1261,12 +1261,31 @@ static int tabsKindUsesTitle(enum editorTabKind kind) {
 	       kind == EDITOR_TAB_GIT_LOG || kind == EDITOR_TAB_GIT_STASH;
 }
 
+/* Nerd Fonts terminal glyph (nf-fa-terminal, U+F120). */
+#define TABS_TERMINAL_ICON "\xEF\x84\xA0"
+
+static const char *tabsTerminalDisplayName(int idx) {
+	/* Tab-strip callers consume each label before requesting the next one. */
+	static char label[96];
+	const char *program = editorTerminalPaneForegroundProgram(
+	        (struct editorTerminalPane *)E.tabs[idx].payload);
+	if (program == NULL || program[0] == '\0') {
+		program = "Terminal";
+	}
+	if (E.nerd_fonts_enabled) {
+		(void)snprintf(label, sizeof(label), "%s %s", TABS_TERMINAL_ICON, program);
+	} else {
+		(void)snprintf(label, sizeof(label), "%s", program);
+	}
+	return label;
+}
+
 const char *editorTabDisplayNameAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return "[No Name]";
 	}
 	if (E.tabs[idx].kind == EDITOR_PANE_KIND_TERMINAL) {
-		return "Terminal";
+		return tabsTerminalDisplayName(idx);
 	}
 	if (E.tabs[idx].kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
 		return "Debug Console";

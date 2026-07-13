@@ -820,13 +820,35 @@ static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
 		return 1;
 	}
 	int term_idx = sibling->as.leaf.view.active_tab_idx;
-	/* The hosting leaf stays an editor leaf; the terminal lives on the tab,
-	 * which is labeled "Terminal" in the strip. */
+	const char *label = editorTabDisplayNameAt(term_idx);
 	int failed = sibling->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
 	             sibling->as.leaf.view.pane_tab_count != 1 ||
-	             editorTabKindAt(term_idx) != EDITOR_PANE_KIND_TERMINAL ||
-	             strcmp(editorTabDisplayNameAt(term_idx), "Terminal") != 0;
+	             editorTabKindAt(term_idx) != EDITOR_PANE_KIND_TERMINAL || label == NULL ||
+	             label[0] == '\0';
 	return failed;
+}
+
+static int test_terminal_pane_label_reflects_foreground_program(void) {
+	/* exec makes sleep the foreground group leader instead of the shell wrapper. */
+	struct editorTerminalPane *t = editorTerminalPaneCreate("exec sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	int resolved = 0;
+	int waited = 0;
+	while (waited < 2000) {
+		(void)editorTerminalPanePump(t);
+		const char *program = editorTerminalPaneForegroundProgram(t);
+		if (program != NULL && strcmp(program, "sleep") == 0) {
+			resolved = 1;
+			break;
+		}
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	editorTerminalPaneFree(t);
+	return resolved ? 0 : 1;
 }
 
 static int test_terminal_pane_resize_all_matches_layout_rect(void) {
@@ -1208,6 +1230,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_split_keeps_terminal_single_host},
         {"terminal_pane_open_split_creates_labeled_terminal_tab",
          test_terminal_pane_open_split_creates_labeled_terminal_tab},
+        {"terminal_pane_label_reflects_foreground_program",
+         test_terminal_pane_label_reflects_foreground_program},
         {"terminal_pane_create_rejects_null_command",
          test_terminal_pane_create_rejects_null_command},
         {"terminal_pane_pump_captures_child_output", test_terminal_pane_pump_captures_child_output},
