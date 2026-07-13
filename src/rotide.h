@@ -825,6 +825,7 @@ struct editorConfig {
 	int line_numbers_enabled;
 	int current_line_highlight_enabled;
 	int nerd_fonts_enabled;
+	int terminal_pane_repel_files_enabled;
 	int auto_indent_enabled;
 	int indent_use_tabs;
 	int indent_width;

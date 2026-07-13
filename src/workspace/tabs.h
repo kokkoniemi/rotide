@@ -29,6 +29,12 @@ enum editorPaneKind editorTabActiveKind(void);
 enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane);
 void *editorTabPayloadAt(int idx);
 
+/* A terminal-only pane has at least one tab and no editor-kind tabs. */
+int editorPaneIsTerminalOnly(const struct editorPaneNode *pane);
+/* Return the first editor leaf other than exclude, or NULL if none exists. */
+struct editorPaneNode *editorPaneTreeFirstEditorLeaf(struct editorPaneNode *root,
+                                                     const struct editorPaneNode *exclude);
+
 /*
  * Create a non-editor tab (kind != EDITOR) owning `payload` and make it the sole
  * active tab of `pane` (an editor leaf). `payload_free` releases it on close.

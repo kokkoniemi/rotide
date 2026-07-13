@@ -211,6 +211,40 @@ enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane) {
 	return editorTabKindAt(pane->as.leaf.view.active_tab_idx);
 }
 
+int editorPaneIsTerminalOnly(const struct editorPaneNode *pane) {
+	if (pane == NULL || pane->is_split) {
+		return 0;
+	}
+	const struct editorPaneView *view = &pane->as.leaf.view;
+	if (view->pane_tab_count <= 0) {
+		return 0;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (editorTabKindAt(view->pane_tabs[i]) == EDITOR_PANE_KIND_EDITOR) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+struct editorPaneNode *editorPaneTreeFirstEditorLeaf(struct editorPaneNode *root,
+                                                     const struct editorPaneNode *exclude) {
+	if (root == NULL) {
+		return NULL;
+	}
+	if (!root->is_split) {
+		if (root == exclude || editorPaneIsTerminalOnly(root)) {
+			return NULL;
+		}
+		return root;
+	}
+	struct editorPaneNode *found = editorPaneTreeFirstEditorLeaf(root->as.split.first, exclude);
+	if (found != NULL) {
+		return found;
+	}
+	return editorPaneTreeFirstEditorLeaf(root->as.split.second, exclude);
+}
+
 void editorBufferAliasSnapshot(struct editorBuffer *snap) {
 	if (snap == NULL) {
 		return;
@@ -847,10 +881,27 @@ int editorTabOpenFileAsNew(const char *filename) {
 	return 1;
 }
 
+static void tabsRedirectAwayFromTerminalPane(void) {
+	if (!E.terminal_pane_repel_files_enabled) {
+		return;
+	}
+	struct editorPaneNode *focused = E.focused_leaf;
+	if (focused == NULL || focused->is_split || !editorPaneIsTerminalOnly(focused)) {
+		return;
+	}
+	struct editorPaneNode *target = editorPaneTreeFirstEditorLeaf(E.layout_root, focused);
+	if (target == NULL) {
+		return;
+	}
+	(void)editorLayoutSetFocusedLeaf(target);
+}
+
 int editorTabOpenOrSwitchToFile(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
+
+	tabsRedirectAwayFromTerminalPane();
 
 	int existing_tab = tabsFindEditableFileIndex(filename);
 	if (existing_tab >= 0) {
@@ -970,6 +1021,8 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
+
+	tabsRedirectAwayFromTerminalPane();
 
 	int existing_tab = tabsFindOpenFileIndexInFocusedPane(filename);
 	if (existing_tab >= 0) {
@@ -1787,6 +1840,9 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 	if (title == NULL || title[0] == '\0' || text == NULL) {
 		return 0;
 	}
+
+	/* Generated tabs use editor panes and follow file-open placement. */
+	tabsRedirectAwayFromTerminalPane();
 
 	/* Diff and commit tabs are keyed by title (per-file diffs coexist; a
 	 * commit and its amend variant are distinct surfaces); the list views are

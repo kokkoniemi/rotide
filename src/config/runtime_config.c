@@ -21,6 +21,7 @@ struct runtimeConfigStatus {
 	enum editorLineNumbersLoadStatus line_numbers_status;
 	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status;
 	enum editorNerdFontsLoadStatus nerd_fonts_status;
+	enum editorTerminalPaneRepelFilesLoadStatus terminal_pane_repel_files_status;
 	enum editorIndentConfigLoadStatus indent_config_status;
 	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status;
 	enum editorThemeLoadStatus theme_status;
@@ -37,6 +38,8 @@ static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
 	status->current_line_highlight_status =
 	        editorCurrentLineHighlightLoadConfigured(&E.current_line_highlight_enabled);
 	status->nerd_fonts_status = editorNerdFontsLoadConfigured(&E.nerd_fonts_enabled);
+	status->terminal_pane_repel_files_status =
+	        editorTerminalPaneRepelFilesLoadConfigured(&E.terminal_pane_repel_files_enabled);
 	status->indent_config_status = editorIndentConfigLoadConfigured(
 	        &E.auto_indent_enabled, &E.indent_use_tabs, &E.indent_width);
 	status->column_select_drag_modifier_status =
@@ -64,6 +67,8 @@ static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
 	    (status->current_line_highlight_status &
 	     EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
 	    (status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY) != 0 ||
+	    (status->terminal_pane_repel_files_status &
+	     EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY) != 0 ||
 	    (status->indent_config_status & EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||
 	    (status->column_select_drag_modifier_status &
 	     EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
@@ -172,6 +177,26 @@ static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
 	}
 	if ((status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg("Invalid nerd_fonts in ~/.rotide/config.toml, using false");
+		return 1;
+	}
+	if ((status->terminal_pane_repel_files_status &
+	     EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_GLOBAL) != 0 &&
+	    (status->terminal_pane_repel_files_status &
+	     EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg(
+		        "Invalid terminal_pane_repel_files in global/project config, using true");
+		return 1;
+	}
+	if ((status->terminal_pane_repel_files_status &
+	     EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg(
+		        "Invalid terminal_pane_repel_files in ./.rotide.toml, using true");
+		return 1;
+	}
+	if ((status->terminal_pane_repel_files_status &
+	     EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg(
+		        "Invalid terminal_pane_repel_files in ~/.rotide/config.toml, using true");
 		return 1;
 	}
 	if ((status->indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&
