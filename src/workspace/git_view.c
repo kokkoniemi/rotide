@@ -8,6 +8,7 @@
 #include "language/syntax.h"
 #include "rotide.h"
 #include "support/alloc.h"
+#include "support/file_io.h"
 #include "text/document.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
@@ -754,6 +755,45 @@ int editorGitViewLineNumber(int row_idx) {
 		return 0;
 	}
 	return E.git_view_line_numbers[row_idx];
+}
+
+int editorGitViewCursorSourceTarget(char **abs_path_out, int *line0_out) {
+	if (abs_path_out != NULL) {
+		*abs_path_out = NULL;
+	}
+	if (line0_out != NULL) {
+		*line0_out = 0;
+	}
+	if (E.tab_kind != EDITOR_TAB_GIT_DIFF || E.git_view_source_path == NULL ||
+	    E.git_view_line_numbers == NULL || abs_path_out == NULL || line0_out == NULL) {
+		return 0;
+	}
+	/* Header/@@/blank rows carry line number 0; scan downward to the next row
+	 * that maps to a real source line so a jump from a hunk header still lands
+	 * somewhere sensible. */
+	int line_number = 0;
+	for (int row = E.cy; row >= 0 && row < E.git_view_line_kind_count; row++) {
+		if (E.git_view_line_numbers[row] > 0) {
+			line_number = E.git_view_line_numbers[row];
+			break;
+		}
+	}
+	if (line_number <= 0) {
+		return 0;
+	}
+
+	char *abs_path = NULL;
+	if (E.git_repo_root != NULL) {
+		abs_path = editorPathJoin(E.git_repo_root, E.git_view_source_path);
+	} else {
+		abs_path = strdup(E.git_view_source_path);
+	}
+	if (abs_path == NULL) {
+		return 0;
+	}
+	*abs_path_out = abs_path;
+	*line0_out = line_number - 1;
+	return 1;
 }
 
 enum editorGitOpsPatchKind editorGitViewDiffKindForStatus(char index_status, char worktree_status,

@@ -52,6 +52,7 @@
 #define STATUS_GIT_ICON_EXPAND "\xEF\x81\xA5"    /* U+F065 expand */
 #define STATUS_GIT_ICON_COMPRESS "\xEF\x81\xA6"  /* U+F066 compress */
 #define STATUS_GIT_ICON_ABORT "\xEF\x80\x8D"     /* U+F00D close */
+#define STATUS_GIT_ICON_SPLIT "\xEF\x83\x9B"     /* U+F0DB columns */
 
 #define STATUS_TERM_ICON_NEW "\xEF\x81\xA7" /* U+F067 plus */
 
@@ -359,10 +360,16 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 	        {STATUS_GIT_ICON_ABORT, "Abort", "close", EDITOR_ACTION_CLOSE_TAB},
 	};
 	static const struct statusBarGitButton k_diff_hunks[] = {
+	        {STATUS_GIT_ICON_CHECKOUT, "Jump to file", "enter",
+	         EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE},
+	        {STATUS_GIT_ICON_SPLIT, "Open in split", "v", EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT},
 	        {STATUS_GIT_ICON_EXPAND, "Show whole", "z", EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT},
 	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
 	};
 	static const struct statusBarGitButton k_diff_whole[] = {
+	        {STATUS_GIT_ICON_CHECKOUT, "Jump to file", "enter",
+	         EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE},
+	        {STATUS_GIT_ICON_SPLIT, "Open in split", "v", EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT},
 	        {STATUS_GIT_ICON_COMPRESS, "Show hunks", "z",
 	         EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT},
 	        {STATUS_GIT_ICON_REFRESH, "Refresh", "R", EDITOR_ACTION_GIT_REFRESH},
@@ -393,8 +400,13 @@ static int statusBarAppendGitSegment(struct writeBuf *wb, enum statusBarGitConte
 			count = (int)(sizeof(k_commit) / sizeof(k_commit[0]));
 			break;
 		case STATUS_GIT_CONTEXT_DIFF:
-			buttons = E.git_view_whole_file ? k_diff_whole : k_diff_hunks;
-			count = 2;
+			if (E.git_view_whole_file) {
+				buttons = k_diff_whole;
+				count = (int)(sizeof(k_diff_whole) / sizeof(k_diff_whole[0]));
+			} else {
+				buttons = k_diff_hunks;
+				count = (int)(sizeof(k_diff_hunks) / sizeof(k_diff_hunks[0]));
+			}
 			break;
 		default:
 			return 1;

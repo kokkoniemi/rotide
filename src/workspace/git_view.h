@@ -31,15 +31,15 @@ char *editorGitViewBuildDiffDup(const char *patch, size_t patch_len, unsigned ch
                                 int **line_numbers_out, int *line_kind_count_out,
                                 char **source_path_out);
 int editorGitViewLineNumber(int row_idx);
+int editorGitViewCursorSourceTarget(char **abs_path_out, int *line0_out);
 /* A partially-staged file lists under both Staged and Changes; staged_group
  * picks that row's side (cached index diff vs worktree diff). */
 int editorGitViewOpenDiffForEntry(const char *rel_path, char index_status, char worktree_status,
                                   int staged_group);
 enum editorGitOpsPatchKind editorGitViewDiffKindForStatus(char index_status, char worktree_status,
                                                           int staged_group);
-/* Returns 1 when the active tab is the diff opened for this entry (matching
- * rel_path and the group-derived patch kind), so the Git drawer highlights only
- * the row whose side is currently shown. */
+/* Returns 1 when the active tab is the diff opened for this entry, so the
+ * Git drawer highlights only the row whose side is currently shown. */
 int editorGitViewActiveDiffMatchesEntry(const char *rel_path, char index_status,
                                         char worktree_status, int staged_group);
 void editorGitViewToggleDiffContext(void);

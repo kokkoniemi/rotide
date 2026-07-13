@@ -544,6 +544,155 @@ static int test_git_view_branches_render_golden(void) {
 	return 0;
 }
 
+/* Installs a freshly built single-file diff onto the editor state so the cursor
+ * resolver sees a live git diff tab. Takes ownership of the builder outputs. */
+static void install_diff_state(const char *patch, const char *repo_root) {
+	unsigned char *kinds = NULL;
+	int *line_numbers = NULL;
+	int kind_count = 0;
+	char *source_path = NULL;
+	char *text = editorGitViewBuildDiffDup(patch, strlen(patch), &kinds, &line_numbers,
+	                                       &kind_count, &source_path);
+	free(text);
+	free(E.git_view_line_kinds);
+	free(E.git_view_line_numbers);
+	free(E.git_view_source_path);
+	free(E.git_repo_root);
+	E.git_view_line_kinds = kinds;
+	E.git_view_line_numbers = line_numbers;
+	E.git_view_line_kind_count = kind_count;
+	E.git_view_source_path = source_path;
+	E.git_repo_root = repo_root != NULL ? strdup(repo_root) : NULL;
+	E.tab_kind = EDITOR_TAB_GIT_DIFF;
+}
+
+static void clear_diff_state(void) {
+	free(E.git_view_line_kinds);
+	free(E.git_view_line_numbers);
+	free(E.git_view_source_path);
+	free(E.git_repo_root);
+	E.git_view_line_kinds = NULL;
+	E.git_view_line_numbers = NULL;
+	E.git_view_line_kind_count = 0;
+	E.git_view_source_path = NULL;
+	E.git_repo_root = NULL;
+	E.tab_kind = EDITOR_TAB_FILE;
+	E.cy = 0;
+}
+
+/* Rows: 0 header, 1 @@, 2 removed(old 101), 3 added(new 201), 4 context(new 202). */
+static const char k_resolver_patch[] = "diff --git a/src/app.c b/src/app.c\n"
+                                       "--- a/src/app.c\n"
+                                       "+++ b/src/app.c\n"
+                                       "@@ -101,3 +201,3 @@\n"
+                                       "-int old_value = 1;\n"
+                                       "+int new_value = 2;\n"
+                                       " int kept_value = 3;\n";
+
+static int test_git_view_cursor_source_target_maps_rows(void) {
+	install_diff_state(k_resolver_patch, "/repo");
+	char *path = NULL;
+	int line0 = -1;
+
+	/* Removed row uses the old-side line number. */
+	E.cy = 2;
+	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
+	ASSERT_EQ_STR("/repo/src/app.c", path);
+	ASSERT_EQ_INT(100, line0);
+	free(path);
+
+	/* Added row uses the new-side line number. */
+	E.cy = 3;
+	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
+	ASSERT_EQ_INT(200, line0);
+	free(path);
+
+	/* Context row uses the new-side line number. */
+	E.cy = 4;
+	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
+	ASSERT_EQ_INT(201, line0);
+	free(path);
+
+	/* A header row (line number 0) scans down to the next mapped line. */
+	E.cy = 0;
+	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
+	ASSERT_EQ_INT(100, line0);
+	free(path);
+
+	clear_diff_state();
+	return 0;
+}
+
+static int test_git_view_cursor_source_target_relative_without_repo_root(void) {
+	install_diff_state(k_resolver_patch, NULL);
+	char *path = NULL;
+	int line0 = -1;
+	E.cy = 3;
+	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
+	/* No repo root: the repo-relative path is used verbatim. */
+	ASSERT_EQ_STR("src/app.c", path);
+	ASSERT_EQ_INT(200, line0);
+	free(path);
+	clear_diff_state();
+	return 0;
+}
+
+static int test_git_view_cursor_source_target_guards(void) {
+	char *path = (char *)0x1;
+	int line0 = -1;
+
+	install_diff_state(k_resolver_patch, "/repo");
+
+	/* Not a git diff tab. */
+	E.tab_kind = EDITOR_TAB_FILE;
+	E.cy = 3;
+	path = (char *)0x1;
+	ASSERT_TRUE(!editorGitViewCursorSourceTarget(&path, &line0));
+	ASSERT_TRUE(path == NULL);
+	E.tab_kind = EDITOR_TAB_GIT_DIFF;
+
+	/* Multi-file diff has no single source path. */
+	free(E.git_view_source_path);
+	E.git_view_source_path = NULL;
+	path = (char *)0x1;
+	ASSERT_TRUE(!editorGitViewCursorSourceTarget(&path, &line0));
+	ASSERT_TRUE(path == NULL);
+
+	clear_diff_state();
+	return 0;
+}
+
+static int test_git_view_status_bar_diff_context_jump_buttons(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "src/app.c", "context\n"));
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.window_rows = 10;
+	E.window_cols = 120;
+
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "Jump to file") != NULL);
+	ASSERT_TRUE(strstr(out, "Open in split") != NULL);
+	free(out);
+
+	int action = 0;
+	int found_jump = 0;
+	int found_split = 0;
+	for (int col = 0; col < E.window_cols; col++) {
+		if (editorStatusBarButtonAt(col, &action)) {
+			if (action == (int)EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE) {
+				found_jump = 1;
+			} else if (action == (int)EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT) {
+				found_split = 1;
+			}
+		}
+	}
+	ASSERT_TRUE(found_jump);
+	ASSERT_TRUE(found_split);
+	return 0;
+}
+
 const struct editorTestCase g_git_view_tests[] = {
         {"git_view_clean_message_strips_comments", test_git_view_clean_message_strips_comments},
         {"git_view_clean_message_all_comments_is_empty",
@@ -577,6 +726,12 @@ const struct editorTestCase g_git_view_tests[] = {
         {"git_view_drawer_action_rows_have_nerd_icons",
          test_git_view_drawer_action_rows_have_nerd_icons},
         {"git_view_branches_render_golden", test_git_view_branches_render_golden},
+        {"git_view_cursor_source_target_maps_rows", test_git_view_cursor_source_target_maps_rows},
+        {"git_view_cursor_source_target_relative_without_repo_root",
+         test_git_view_cursor_source_target_relative_without_repo_root},
+        {"git_view_cursor_source_target_guards", test_git_view_cursor_source_target_guards},
+        {"git_view_status_bar_diff_context_jump_buttons",
+         test_git_view_status_bar_diff_context_jump_buttons},
 };
 
 const int g_git_view_test_count = (int)(sizeof(g_git_view_tests) / sizeof(g_git_view_tests[0]));

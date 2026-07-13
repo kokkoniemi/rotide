@@ -1309,6 +1309,21 @@ static int dispatchJumpToPathLocation(const char *path, int line, int character,
 	return 1;
 }
 
+static int dispatchGitDiffJumpToFile(int in_split) {
+	char *path = NULL;
+	int line0 = 0;
+	if (!editorGitViewCursorSourceTarget(&path, &line0)) {
+		editorSetStatusMsg("No source line under cursor");
+		return 1;
+	}
+	if (in_split) {	
+		(void)editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	}
+	(void)dispatchJumpToPathLocation(path, line0, 0, /*preview=*/0, /*center=*/1);
+	free(path);
+	return 1;
+}
+
 static int dispatchJumpToDefinitionLocation(const struct editorLspLocation *location) {
 	if (location == NULL) {
 		return 0;
@@ -2974,6 +2989,12 @@ static int dispatchHandleModeAction(enum editorAction action) {
 			editorHistoryBreakGroup();
 			dispatchShowGitBlameDetails();
 			return 1;
+		case EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE:
+			editorHistoryBreakGroup();
+			return dispatchGitDiffJumpToFile(0);
+		case EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT:
+			editorHistoryBreakGroup();
+			return dispatchGitDiffJumpToFile(1);
 		case EDITOR_ACTION_CONTEXT_MENU:
 			editorHistoryBreakGroup();
 			dispatchOpenContextMenu();
@@ -3489,6 +3510,12 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 			switch (c) {
 				case 'z':
 					action = EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT;
+					break;
+				case '\r':
+					action = EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE;
+					break;
+				case 'v':
+					action = EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT;
 					break;
 				case 'R':
 					action = EDITOR_ACTION_GIT_REFRESH;
