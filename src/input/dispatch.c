@@ -1377,8 +1377,7 @@ int editorDispatchGoToBufferPosition(const char *path, int cy, int cx) {
 static void dispatchGoToJumpEntry(const struct editorJumpEntry *entry) {
 	if (entry->git_diff_title_id >= 0) {
 		const char *title = editorJumplistResolvePath(entry->git_diff_title_id);
-		if (title != NULL &&
-		    editorTabSwitchToGeneratedTab(EDITOR_TAB_GIT_DIFF, title)) {
+		if (title != NULL && editorTabSwitchToGeneratedTab(EDITOR_TAB_GIT_DIFF, title)) {
 			(void)editorDispatchGoToBufferPosition(NULL, entry->cy, entry->cx);
 		}
 		return;

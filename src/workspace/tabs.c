@@ -1841,7 +1841,8 @@ int editorTabSwitchToGeneratedTab(enum editorTabKind kind, const char *title) {
 		return 0;
 	}
 	for (int idx = 0; idx < E.tab_count; idx++) {
-		const char *existing_title = idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
+		const char *existing_title =
+		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
 		enum editorTabKind existing_kind =
 		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
 		if (existing_kind != kind || existing_title == NULL ||

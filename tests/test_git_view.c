@@ -740,10 +740,8 @@ static int test_git_view_jump_back_noop_when_diff_closed(void) {
 }
 
 const struct editorTestCase g_git_view_tests[] = {
-        {"git_view_jump_back_returns_to_open_diff",
-         test_git_view_jump_back_returns_to_open_diff},
-        {"git_view_jump_back_noop_when_diff_closed",
-         test_git_view_jump_back_noop_when_diff_closed},
+        {"git_view_jump_back_returns_to_open_diff", test_git_view_jump_back_returns_to_open_diff},
+        {"git_view_jump_back_noop_when_diff_closed", test_git_view_jump_back_noop_when_diff_closed},
         {"git_view_clean_message_strips_comments", test_git_view_clean_message_strips_comments},
         {"git_view_clean_message_all_comments_is_empty",
          test_git_view_clean_message_all_comments_is_empty},
