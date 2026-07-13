@@ -1836,6 +1836,23 @@ static int tabsLoadGeneratedIntoActive(enum editorTabKind kind, const char *titl
 	return 1;
 }
 
+int editorTabSwitchToGeneratedTab(enum editorTabKind kind, const char *title) {
+	if (title == NULL || title[0] == '\0') {
+		return 0;
+	}
+	for (int idx = 0; idx < E.tab_count; idx++) {
+		const char *existing_title = idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
+		enum editorTabKind existing_kind =
+		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
+		if (existing_kind != kind || existing_title == NULL ||
+		    strcmp(existing_title, title) != 0) {
+			continue;
+		}
+		return editorTabSwitchToIndex(idx);
+	}
+	return 0;
+}
+
 int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text) {
 	if (title == NULL || title[0] == '\0' || text == NULL) {
 		return 0;

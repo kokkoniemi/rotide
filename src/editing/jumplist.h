@@ -8,6 +8,10 @@ struct editorJumpEntry {
 	int path_id;
 	int cy;
 	int cx;
+	/* Interned title of an origin git-diff tab, or -1 for a normal file
+	 * origin. Lets a jump back return to the still-open diff instead of a
+	 * dead pathless entry. Not persisted (title-only, in-session). */
+	int git_diff_title_id;
 };
 
 struct editorJumplist {

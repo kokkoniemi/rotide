@@ -1,5 +1,7 @@
 #include "config/theme_config.h"
+#include "editing/jumplist.h"
 #include "editor_test_api.h"
+#include "input/dispatch.h"
 #include "language/syntax.h"
 #include "render/status_bar.h"
 #include "rotide.h"
@@ -686,7 +688,62 @@ static int test_git_view_status_bar_diff_context_jump_buttons(void) {
 	return 0;
 }
 
+/* Jumping from a diff into a file records the diff as a title-keyed origin, and
+ * Ctrl-O returns to the still-open diff tab at the same line. */
+static int test_git_view_jump_back_returns_to_open_diff(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "src/app.c", "l0\nl1\nl2\nl3\n"));
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.cy = 2;
+	E.cx = 0;
+
+	editorJumplistRecord();
+	const struct editorJumpEntry *entry = editorJumplistActiveEntry(0);
+	ASSERT_TRUE(entry != NULL);
+	ASSERT_EQ_INT(-1, entry->path_id);
+	ASSERT_TRUE(entry->git_diff_title_id >= 0);
+	ASSERT_EQ_STR("src/app.c", editorJumplistResolvePath(entry->git_diff_title_id));
+	ASSERT_EQ_INT(2, entry->cy);
+
+	/* Opening the file leaves the diff tab open (a diff tab is non-reusable). */
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(E.tab_kind != EDITOR_TAB_GIT_DIFF);
+
+	ASSERT_TRUE(editorDispatchJumplistBack(1, NULL));
+	ASSERT_EQ_INT((int)EDITOR_TAB_GIT_DIFF, (int)E.tab_kind);
+	ASSERT_EQ_STR("src/app.c", E.tab_title);
+	ASSERT_EQ_INT(2, E.cy);
+	return 0;
+}
+
+/* When the diff tab was closed, the pathless origin cannot reopen it, so jump
+ * back is a no-op rather than mangling the current file's cursor. */
+static int test_git_view_jump_back_noop_when_diff_closed(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "src/app.c", "l0\nl1\nl2\nl3\n"));
+	int diff_idx = E.active_tab;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.cy = 2;
+	editorJumplistRecord();
+
+	/* Open a file tab, then close the diff so its title no longer resolves. */
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabCloseAt(diff_idx) >= 0);
+	ASSERT_TRUE(editorTabSwitchToGeneratedTab(EDITOR_TAB_GIT_DIFF, "src/app.c") == 0);
+
+	E.cy = 0;
+	ASSERT_TRUE(editorDispatchJumplistBack(1, NULL));
+	/* Still on the plain file tab; cursor not dragged to the diff's line 2. */
+	ASSERT_TRUE(E.tab_kind != EDITOR_TAB_GIT_DIFF);
+	ASSERT_EQ_INT(0, E.cy);
+	return 0;
+}
+
 const struct editorTestCase g_git_view_tests[] = {
+        {"git_view_jump_back_returns_to_open_diff",
+         test_git_view_jump_back_returns_to_open_diff},
+        {"git_view_jump_back_noop_when_diff_closed",
+         test_git_view_jump_back_noop_when_diff_closed},
         {"git_view_clean_message_strips_comments", test_git_view_clean_message_strips_comments},
         {"git_view_clean_message_all_comments_is_empty",
          test_git_view_clean_message_all_comments_is_empty},

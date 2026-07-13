@@ -1374,14 +1374,26 @@ int editorDispatchGoToBufferPosition(const char *path, int cy, int cx) {
 	return 1;
 }
 
+static void dispatchGoToJumpEntry(const struct editorJumpEntry *entry) {
+	if (entry->git_diff_title_id >= 0) {
+		const char *title = editorJumplistResolvePath(entry->git_diff_title_id);
+		if (title != NULL &&
+		    editorTabSwitchToGeneratedTab(EDITOR_TAB_GIT_DIFF, title)) {
+			(void)editorDispatchGoToBufferPosition(NULL, entry->cy, entry->cx);
+		}
+		return;
+	}
+	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(entry->path_id), entry->cy,
+	                                       entry->cx);
+}
+
 /* Failed targets still advance the index so dead entries can be passed. */
 int editorDispatchJumplistBack(int count, int *effects_out) {
 	struct editorJumpEntry target;
 	if (!editorJumplistStepBack(count, &target)) {
 		return 0;
 	}
-	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(target.path_id), target.cy,
-	                                       target.cx);
+	dispatchGoToJumpEntry(&target);
 	if (effects_out != NULL) {
 		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
 	}
@@ -1393,8 +1405,7 @@ int editorDispatchJumplistForward(int count, int *effects_out) {
 	if (!editorJumplistStepForward(count, &target)) {
 		return 0;
 	}
-	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(target.path_id), target.cy,
-	                                       target.cx);
+	dispatchGoToJumpEntry(&target);
 	if (effects_out != NULL) {
 		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
 	}

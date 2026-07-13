@@ -92,6 +92,7 @@ struct editorPaneNode *editorTabOpenFileInSplit(enum editorSplitOrientation orie
                                                 double ratio, const char *filename);
 int editorTabOpenOrSwitchToPreviewFile(const char *filename);
 int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text);
+int editorTabSwitchToGeneratedTab(enum editorTabKind kind, const char *title);
 int editorTabSwitchToIndex(int idx);
 int editorTabSwitchByDelta(int delta);
 int editorTabCloseActive(void);
