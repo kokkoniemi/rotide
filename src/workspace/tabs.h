@@ -2,6 +2,7 @@
 #define ROTIDE_WORKSPACE_TABS_H
 
 #include "rotide.h"
+#include "workspace/layout.h"
 
 struct editorPaneView;
 struct editorPaneNode;
@@ -76,6 +77,13 @@ int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *targ
                       int target_slot);
 int editorTabOpenFileAsNew(const char *filename);
 int editorTabOpenOrSwitchToFile(const char *filename);
+/* Splits the focused pane and opens `filename` as the new pane's only tab (the
+ * origin pane keeps its tabs; the file is never seeded into it). Returns the new
+ * focused pane on success, or NULL without changing the layout when the split
+ * cannot be made or the file cannot be opened. Cursor positioning is the
+ * caller's responsibility. */
+struct editorPaneNode *editorTabOpenFileInSplit(enum editorSplitOrientation orientation,
+                                                double ratio, const char *filename);
 int editorTabOpenOrSwitchToPreviewFile(const char *filename);
 int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text);
 int editorTabSwitchToIndex(int idx);

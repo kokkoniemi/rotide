@@ -865,6 +865,56 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 	return editorTabOpenFileAsNew(filename);
 }
 
+struct editorPaneNode *editorTabOpenFileInSplit(enum editorSplitOrientation orientation,
+                                                double ratio, const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return NULL;
+	}
+
+	/* Pre-flight so a doomed open never leaves a half-made split behind: only
+	 * split once we know we can either reuse an already-open tab or load the
+	 * file fresh. */
+	int existing_tab = tabsFindEditableFileIndex(filename);
+	if (existing_tab < 0 && !editorFileCanOpen(filename)) {
+		return NULL;
+	}
+
+	struct editorPaneNode *origin = E.focused_leaf;
+	struct editorPaneNode *pane = editorLayoutSplitFocused(orientation, ratio);
+	if (pane == NULL || pane == origin || pane->is_split) {
+		return NULL;
+	}
+
+	/* editorLayoutSplitFocused seeds the new pane with the origin's active tab
+	 * (its "duplicate current window" behavior). We want only the file here, so
+	 * discard that seed. The origin pane keeps its own tabs untouched. */
+	editorPaneViewClearTabs(&pane->as.leaf.view);
+
+	if (existing_tab >= 0) {
+		/* Reuse the tab without seeding a scratch tab into the new pane. */
+		if (!editorTabSwitchToIndex(existing_tab)) {
+			goto rollback;
+		}
+	} else {
+		/* Load through a pane-owned tab so the origin keeps its membership. */
+		int new_idx = editorTabAppendEmptyForPane(pane);
+		if (new_idx < 0) {
+			goto rollback;
+		}
+		if (!editorTabSwitchToIndex(new_idx) || !editorOpen(filename)) {
+			goto rollback;
+		}
+	}
+
+	tabsSetActivePreview(0);
+	(void)editorWorkspaceStateRememberRecentFile(filename);
+	return pane;
+
+rollback:
+	(void)editorLayoutCloseFocused();
+	return NULL;
+}
+
 static int tabsOpenPreviewFileInner(const char *filename, int preview_tab, int is_binary,
                                     int can_open, int allow_empty_reuse) {
 	if (preview_tab >= 0) {

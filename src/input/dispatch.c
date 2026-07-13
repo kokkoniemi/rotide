@@ -1251,6 +1251,46 @@ static const char *dispatchBasenameFromPath(const char *path) {
 	return base + 1;
 }
 
+static void dispatchPlaceCursorAtLine(int line, int character, int center) {
+	if (E.numrows <= 0) {
+		(void)dispatchSetCursorFromOffset(0);
+	} else {
+		if (line < 0) {
+			line = 0;
+		}
+		if (line >= E.numrows) {
+			line = E.numrows - 1;
+		}
+		if (character < 0) {
+			character = 0;
+		}
+		character = editorLspProtocolCharacterToBufferColumn(line, character);
+		int target_cx = character;
+		struct editorLineView lview = {0};
+		if (editorDocumentLineView(E.document, line, &lview)) {
+			if (character > lview.size) {
+				character = lview.size;
+			}
+			target_cx = editorBytesClampCxToClusterBoundary(lview.data, lview.size,
+			                                                character);
+			if (target_cx > lview.size) {
+				target_cx = lview.size;
+			}
+			editorLineViewRelease(&lview);
+		}
+		size_t target_offset = 0;
+		if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
+		    !dispatchSetCursorFromOffset(target_offset)) {
+			(void)dispatchSetCursorFromOffset(0);
+		}
+	}
+	if (center) {
+		editorViewportCenterCursor();
+	} else {
+		editorViewportEnsureCursorVisible();
+	}
+}
+
 static int dispatchJumpToPathLocation(const char *path, int line, int character, int preview,
                                       int center) {
 	if (path == NULL || path[0] == '\0') {
@@ -1263,49 +1303,7 @@ static int dispatchJumpToPathLocation(const char *path, int line, int character,
 	if (!opened) {
 		return 0;
 	}
-
-	if (E.numrows <= 0) {
-		(void)dispatchSetCursorFromOffset(0);
-		if (center) {
-			editorViewportCenterCursor();
-		} else {
-			editorViewportEnsureCursorVisible();
-		}
-		return 1;
-	}
-
-	if (line < 0) {
-		line = 0;
-	}
-	if (line >= E.numrows) {
-		line = E.numrows - 1;
-	}
-	if (character < 0) {
-		character = 0;
-	}
-	character = editorLspProtocolCharacterToBufferColumn(line, character);
-	int target_cx = character;
-	struct editorLineView lview = {0};
-	if (editorDocumentLineView(E.document, line, &lview)) {
-		if (character > lview.size) {
-			character = lview.size;
-		}
-		target_cx = editorBytesClampCxToClusterBoundary(lview.data, lview.size, character);
-		if (target_cx > lview.size) {
-			target_cx = lview.size;
-		}
-		editorLineViewRelease(&lview);
-	}
-	size_t target_offset = 0;
-	if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
-	    !dispatchSetCursorFromOffset(target_offset)) {
-		(void)dispatchSetCursorFromOffset(0);
-	}
-	if (center) {
-		editorViewportCenterCursor();
-	} else {
-		editorViewportEnsureCursorVisible();
-	}
+	dispatchPlaceCursorAtLine(line, character, center);
 	return 1;
 }
 
@@ -1316,8 +1314,13 @@ static int dispatchGitDiffJumpToFile(int in_split) {
 		editorSetStatusMsg("No source line under cursor");
 		return 1;
 	}
-	if (in_split) {	
-		(void)editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (in_split) {
+		editorJumplistRecord(); /* cross-pane navigation is a Vim jump */
+		if (editorTabOpenFileInSplit(EDITOR_SPLIT_VERTICAL, 0.5, path) != NULL) {
+			dispatchPlaceCursorAtLine(line0, 0, /*center=*/1);
+			free(path);
+			return 1;
+		}
 	}
 	(void)dispatchJumpToPathLocation(path, line0, 0, /*preview=*/0, /*center=*/1);
 	free(path);

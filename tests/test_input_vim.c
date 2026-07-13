@@ -1044,12 +1044,14 @@ static int test_input_vim_ex_file_argument_commands(void) {
 	ASSERT_TRUE(vim_test_ex_command(split_cmd) == 0);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 	ASSERT_EQ_STR(split_path, editorTabFilenameAt(editorTabActiveIndex()));
+	ASSERT_EQ_INT(1, E.focused_leaf->as.leaf.view.pane_tab_count);
 
 	char vsplit_cmd[320];
 	ASSERT_TRUE(snprintf(vsplit_cmd, sizeof(vsplit_cmd), "vs %s", vsplit_path) > 0);
 	ASSERT_TRUE(vim_test_ex_command(vsplit_cmd) == 0);
 	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
 	ASSERT_EQ_STR(vsplit_path, editorTabFilenameAt(editorTabActiveIndex()));
+	ASSERT_EQ_INT(1, E.focused_leaf->as.leaf.view.pane_tab_count);
 
 	unlink(edit_path);
 	unlink(split_path);

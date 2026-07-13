@@ -594,26 +594,22 @@ static int test_git_view_cursor_source_target_maps_rows(void) {
 	char *path = NULL;
 	int line0 = -1;
 
-	/* Removed row uses the old-side line number. */
 	E.cy = 2;
 	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
 	ASSERT_EQ_STR("/repo/src/app.c", path);
 	ASSERT_EQ_INT(100, line0);
 	free(path);
 
-	/* Added row uses the new-side line number. */
 	E.cy = 3;
 	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
 	ASSERT_EQ_INT(200, line0);
 	free(path);
 
-	/* Context row uses the new-side line number. */
 	E.cy = 4;
 	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
 	ASSERT_EQ_INT(201, line0);
 	free(path);
 
-	/* A header row (line number 0) scans down to the next mapped line. */
 	E.cy = 0;
 	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
 	ASSERT_EQ_INT(100, line0);
@@ -629,7 +625,6 @@ static int test_git_view_cursor_source_target_relative_without_repo_root(void) {
 	int line0 = -1;
 	E.cy = 3;
 	ASSERT_TRUE(editorGitViewCursorSourceTarget(&path, &line0));
-	/* No repo root: the repo-relative path is used verbatim. */
 	ASSERT_EQ_STR("src/app.c", path);
 	ASSERT_EQ_INT(200, line0);
 	free(path);
@@ -643,7 +638,6 @@ static int test_git_view_cursor_source_target_guards(void) {
 
 	install_diff_state(k_resolver_patch, "/repo");
 
-	/* Not a git diff tab. */
 	E.tab_kind = EDITOR_TAB_FILE;
 	E.cy = 3;
 	path = (char *)0x1;
@@ -651,7 +645,6 @@ static int test_git_view_cursor_source_target_guards(void) {
 	ASSERT_TRUE(path == NULL);
 	E.tab_kind = EDITOR_TAB_GIT_DIFF;
 
-	/* Multi-file diff has no single source path. */
 	free(E.git_view_source_path);
 	E.git_view_source_path = NULL;
 	path = (char *)0x1;
