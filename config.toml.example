@@ -24,6 +24,8 @@ line_wrap = false
 line_numbers = true
 current_line_highlight = true
 nerd_fonts = false
+# Redirect file opens from terminal-only panes to an existing editor pane.
+terminal_pane_repel_files = true
 auto_indent = false
 indent_style = "spaces"
 indent_width = 4

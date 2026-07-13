@@ -18,6 +18,7 @@
 #include "support/alloc.h"
 #include "text/document.h"
 #include "text/row.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 
 #include <ctype.h>
@@ -3302,14 +3303,18 @@ static int vimSystemExOpenPath(const char *path, int *effects_out) {
 
 static void vimSystemExSplitOpen(enum editorAction split_action, const char *path,
                                  int *effects_out) {
-	struct editorPaneNode *old_focus = E.focused_leaf;
-
-	vimSystemExDispatch(split_action, effects_out);
-	if (E.focused_leaf == old_focus || E.focused_leaf == NULL) {
+	/* :split <file> / :vsplit <file> open the file in a NEW window showing only
+	 * that file (matching Vim), unlike bare :split/:vsplit which duplicate the
+	 * current window. */
+	enum editorSplitOrientation orientation = split_action == EDITOR_ACTION_SPLIT_VERTICAL
+	                                                  ? EDITOR_SPLIT_VERTICAL
+	                                                  : EDITOR_SPLIT_HORIZONTAL;
+	if (editorTabOpenFileInSplit(orientation, 0.5, path) == NULL) {
+		editorSetStatusMsg("Could not open %s", path);
 		return;
 	}
-	if (!vimSystemExOpenPath(path, effects_out)) {
-		vimSystemExDispatch(EDITOR_ACTION_CLOSE_PANE, effects_out);
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
 	}
 }
 
@@ -3441,18 +3446,18 @@ static void vimSystemExJumps(void) {
 	char back_buf[40];
 	char fwd_buf[40];
 	if (back != NULL) {
-		snprintf(back_buf, sizeof(back_buf), "%s:%d",
-		         vimSystemJumpBasename(editorJumplistResolvePath(back->path_id)),
-		         back->cy + 1);
+		(void)snprintf(back_buf, sizeof(back_buf), "%s:%d",
+		               vimSystemJumpBasename(editorJumplistResolvePath(back->path_id)),
+		               back->cy + 1);
 	} else {
-		snprintf(back_buf, sizeof(back_buf), "-");
+		(void)snprintf(back_buf, sizeof(back_buf), "-");
 	}
 	if (fwd != NULL) {
-		snprintf(fwd_buf, sizeof(fwd_buf), "%s:%d",
-		         vimSystemJumpBasename(editorJumplistResolvePath(fwd->path_id)),
-		         fwd->cy + 1);
+		(void)snprintf(fwd_buf, sizeof(fwd_buf), "%s:%d",
+		               vimSystemJumpBasename(editorJumplistResolvePath(fwd->path_id)),
+		               fwd->cy + 1);
 	} else {
-		snprintf(fwd_buf, sizeof(fwd_buf), "-");
+		(void)snprintf(fwd_buf, sizeof(fwd_buf), "-");
 	}
 	editorSetStatusMsg("jumps %d/%d  <- %s  -> %s", index, count, back_buf, fwd_buf);
 }
@@ -4692,6 +4697,10 @@ void editorVimReset(void) {
 
 int editorVimHandleKey(int c, int *effects_out) {
 	return vimSystemHandleKey(c, effects_out);
+}
+
+int editorVimOpenExCommandLine(int *effects_out) {
+	return vimSystemExCommandLine(effects_out);
 }
 
 int editorVimKeySequencePending(void) {

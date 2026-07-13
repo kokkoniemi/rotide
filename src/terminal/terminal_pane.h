@@ -64,6 +64,9 @@ struct editorTerminalPane {
 	enum editorTerminalInputMode input_mode;
 	int pending_ctrl_w;
 	int pending_leader;
+
+	pid_t foreground_pgrp;
+	char foreground_program[64];
 };
 
 /* Spawn command in PTY + vterm. Caller owns returned pane. */
@@ -148,6 +151,9 @@ struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode
 
 /* Drop sequences abandoned across a terminal-tab focus change. */
 void editorTerminalPaneResetPendingInput(struct editorTerminalPane *terminal);
+
+/* Owned by the pane and stays valid until the next call for the same pane. */
+const char *editorTerminalPaneForegroundProgram(struct editorTerminalPane *terminal);
 
 /* Pump every live terminal (the TERMINAL tabs in E.tabs); returns total
  * bytes/activity count. `root` is unused, kept for call-site symmetry. */

@@ -45,6 +45,13 @@ enum editorNerdFontsLoadStatus {
 	EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorTerminalPaneRepelFilesLoadStatus {
+	EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OK = 0,
+	EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 enum editorIndentConfigLoadStatus {
 	EDITOR_INDENT_CONFIG_LOAD_OK = 0,
 	EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL = 1 << 0,
@@ -83,6 +90,11 @@ enum editorNerdFontsLoadStatus editorNerdFontsLoadFromPaths(int *nerd_fonts_out,
                                                             const char *global_path,
                                                             const char *project_path);
 enum editorNerdFontsLoadStatus editorNerdFontsLoadConfigured(int *nerd_fonts_out);
+enum editorTerminalPaneRepelFilesLoadStatus
+editorTerminalPaneRepelFilesLoadFromPaths(int *terminal_pane_repel_files_out,
+                                          const char *global_path, const char *project_path);
+enum editorTerminalPaneRepelFilesLoadStatus
+editorTerminalPaneRepelFilesLoadConfigured(int *terminal_pane_repel_files_out);
 void editorIndentConfigInitDefaults(int *auto_indent_out, int *indent_use_tabs_out,
                                     int *indent_width_out);
 enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_indent_out,

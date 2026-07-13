@@ -64,7 +64,15 @@ struct editorJumplist *editorJumplistActive(void) {
 
 static struct editorJumpEntry editorJumplistCurrentEntry(void) {
 	struct editorJumpEntry entry;
-	entry.path_id = editorJumplistInternPath(E.filename);
+	entry.git_diff_title_id = -1;
+	/* A git-diff tab has no backing file, so record it by title instead so a
+	 * later jump back can return to the still-open diff. */
+	if (E.tab_kind == EDITOR_TAB_GIT_DIFF && E.tab_title != NULL) {
+		entry.path_id = -1;
+		entry.git_diff_title_id = editorJumplistInternPath(E.tab_title);
+	} else {
+		entry.path_id = editorJumplistInternPath(E.filename);
+	}
 	entry.cy = E.cy;
 	entry.cx = E.cx;
 	return entry;
@@ -88,7 +96,7 @@ void editorJumplistAppendRaw(struct editorJumplist *list, int path_id, int cy, i
 	if (list == NULL) {
 		return;
 	}
-	struct editorJumpEntry entry = {path_id, cy, cx};
+	struct editorJumpEntry entry = {path_id, cy, cx, -1};
 	editorJumplistAppendEntry(list, entry);
 }
 
@@ -107,7 +115,9 @@ static void editorJumplistRecordEntryInternal(struct editorJumplist *list,
 		list->count = list->index;
 	}
 	for (int i = 0; i < list->count; i++) {
-		if (list->entries[i].path_id == cur.path_id && list->entries[i].cy == cur.cy) {
+		if (list->entries[i].path_id == cur.path_id &&
+		    list->entries[i].git_diff_title_id == cur.git_diff_title_id &&
+		    list->entries[i].cy == cur.cy) {
 			for (int j = i; j < list->count - 1; j++) {
 				list->entries[j] = list->entries[j + 1];
 			}
@@ -132,7 +142,7 @@ void editorJumplistRecordPos(int cy, int cx) {
 	if (list == NULL) {
 		return;
 	}
-	struct editorJumpEntry entry = {editorJumplistInternPath(E.filename), cy, cx};
+	struct editorJumpEntry entry = {editorJumplistInternPath(E.filename), cy, cx, -1};
 	editorJumplistRecordEntryInternal(list, entry);
 }
 

@@ -211,6 +211,40 @@ enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane) {
 	return editorTabKindAt(pane->as.leaf.view.active_tab_idx);
 }
 
+int editorPaneIsTerminalOnly(const struct editorPaneNode *pane) {
+	if (pane == NULL || pane->is_split) {
+		return 0;
+	}
+	const struct editorPaneView *view = &pane->as.leaf.view;
+	if (view->pane_tab_count <= 0) {
+		return 0;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (editorTabKindAt(view->pane_tabs[i]) == EDITOR_PANE_KIND_EDITOR) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+struct editorPaneNode *editorPaneTreeFirstEditorLeaf(struct editorPaneNode *root,
+                                                     const struct editorPaneNode *exclude) {
+	if (root == NULL) {
+		return NULL;
+	}
+	if (!root->is_split) {
+		if (root == exclude || editorPaneIsTerminalOnly(root)) {
+			return NULL;
+		}
+		return root;
+	}
+	struct editorPaneNode *found = editorPaneTreeFirstEditorLeaf(root->as.split.first, exclude);
+	if (found != NULL) {
+		return found;
+	}
+	return editorPaneTreeFirstEditorLeaf(root->as.split.second, exclude);
+}
+
 void editorBufferAliasSnapshot(struct editorBuffer *snap) {
 	if (snap == NULL) {
 		return;
@@ -847,10 +881,27 @@ int editorTabOpenFileAsNew(const char *filename) {
 	return 1;
 }
 
+static void tabsRedirectAwayFromTerminalPane(void) {
+	if (!E.terminal_pane_repel_files_enabled) {
+		return;
+	}
+	struct editorPaneNode *focused = E.focused_leaf;
+	if (focused == NULL || focused->is_split || !editorPaneIsTerminalOnly(focused)) {
+		return;
+	}
+	struct editorPaneNode *target = editorPaneTreeFirstEditorLeaf(E.layout_root, focused);
+	if (target == NULL) {
+		return;
+	}
+	(void)editorLayoutSetFocusedLeaf(target);
+}
+
 int editorTabOpenOrSwitchToFile(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
+
+	tabsRedirectAwayFromTerminalPane();
 
 	int existing_tab = tabsFindEditableFileIndex(filename);
 	if (existing_tab >= 0) {
@@ -863,6 +914,56 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 	}
 
 	return editorTabOpenFileAsNew(filename);
+}
+
+struct editorPaneNode *editorTabOpenFileInSplit(enum editorSplitOrientation orientation,
+                                                double ratio, const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return NULL;
+	}
+
+	/* Pre-flight so a doomed open never leaves a half-made split behind: only
+	 * split once we know we can either reuse an already-open tab or load the
+	 * file fresh. */
+	int existing_tab = tabsFindEditableFileIndex(filename);
+	if (existing_tab < 0 && !editorFileCanOpen(filename)) {
+		return NULL;
+	}
+
+	struct editorPaneNode *origin = E.focused_leaf;
+	struct editorPaneNode *pane = editorLayoutSplitFocused(orientation, ratio);
+	if (pane == NULL || pane == origin || pane->is_split) {
+		return NULL;
+	}
+
+	/* editorLayoutSplitFocused seeds the new pane with the origin's active tab
+	 * (its "duplicate current window" behavior). We want only the file here, so
+	 * discard that seed. The origin pane keeps its own tabs untouched. */
+	editorPaneViewClearTabs(&pane->as.leaf.view);
+
+	if (existing_tab >= 0) {
+		/* Reuse the tab without seeding a scratch tab into the new pane. */
+		if (!editorTabSwitchToIndex(existing_tab)) {
+			goto rollback;
+		}
+	} else {
+		/* Load through a pane-owned tab so the origin keeps its membership. */
+		int new_idx = editorTabAppendEmptyForPane(pane);
+		if (new_idx < 0) {
+			goto rollback;
+		}
+		if (!editorTabSwitchToIndex(new_idx) || !editorOpen(filename)) {
+			goto rollback;
+		}
+	}
+
+	tabsSetActivePreview(0);
+	(void)editorWorkspaceStateRememberRecentFile(filename);
+	return pane;
+
+rollback:
+	(void)editorLayoutCloseFocused();
+	return NULL;
 }
 
 static int tabsOpenPreviewFileInner(const char *filename, int preview_tab, int is_binary,
@@ -920,6 +1021,8 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
+
+	tabsRedirectAwayFromTerminalPane();
 
 	int existing_tab = tabsFindOpenFileIndexInFocusedPane(filename);
 	if (existing_tab >= 0) {
@@ -1261,12 +1364,31 @@ static int tabsKindUsesTitle(enum editorTabKind kind) {
 	       kind == EDITOR_TAB_GIT_LOG || kind == EDITOR_TAB_GIT_STASH;
 }
 
+/* Nerd Fonts terminal glyph (nf-fa-terminal, U+F120). */
+#define TABS_TERMINAL_ICON "\xEF\x84\xA0"
+
+static const char *tabsTerminalDisplayName(int idx) {
+	/* Tab-strip callers consume each label before requesting the next one. */
+	static char label[96];
+	const char *program = editorTerminalPaneForegroundProgram(
+	        (struct editorTerminalPane *)E.tabs[idx].payload);
+	if (program == NULL || program[0] == '\0') {
+		program = "Terminal";
+	}
+	if (E.nerd_fonts_enabled) {
+		(void)snprintf(label, sizeof(label), "%s %s", TABS_TERMINAL_ICON, program);
+	} else {
+		(void)snprintf(label, sizeof(label), "%s", program);
+	}
+	return label;
+}
+
 const char *editorTabDisplayNameAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return "[No Name]";
 	}
 	if (E.tabs[idx].kind == EDITOR_PANE_KIND_TERMINAL) {
-		return "Terminal";
+		return tabsTerminalDisplayName(idx);
 	}
 	if (E.tabs[idx].kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
 		return "Debug Console";
@@ -1714,10 +1836,31 @@ static int tabsLoadGeneratedIntoActive(enum editorTabKind kind, const char *titl
 	return 1;
 }
 
+int editorTabSwitchToGeneratedTab(enum editorTabKind kind, const char *title) {
+	if (title == NULL || title[0] == '\0') {
+		return 0;
+	}
+	for (int idx = 0; idx < E.tab_count; idx++) {
+		const char *existing_title =
+		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
+		enum editorTabKind existing_kind =
+		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
+		if (existing_kind != kind || existing_title == NULL ||
+		    strcmp(existing_title, title) != 0) {
+			continue;
+		}
+		return editorTabSwitchToIndex(idx);
+	}
+	return 0;
+}
+
 int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text) {
 	if (title == NULL || title[0] == '\0' || text == NULL) {
 		return 0;
 	}
+
+	/* Generated tabs use editor panes and follow file-open placement. */
+	tabsRedirectAwayFromTerminalPane();
 
 	/* Diff and commit tabs are keyed by title (per-file diffs coexist; a
 	 * commit and its amend variant are distinct surfaces); the list views are

@@ -820,13 +820,35 @@ static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
 		return 1;
 	}
 	int term_idx = sibling->as.leaf.view.active_tab_idx;
-	/* The hosting leaf stays an editor leaf; the terminal lives on the tab,
-	 * which is labeled "Terminal" in the strip. */
+	const char *label = editorTabDisplayNameAt(term_idx);
 	int failed = sibling->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
 	             sibling->as.leaf.view.pane_tab_count != 1 ||
-	             editorTabKindAt(term_idx) != EDITOR_PANE_KIND_TERMINAL ||
-	             strcmp(editorTabDisplayNameAt(term_idx), "Terminal") != 0;
+	             editorTabKindAt(term_idx) != EDITOR_PANE_KIND_TERMINAL || label == NULL ||
+	             label[0] == '\0';
 	return failed;
+}
+
+static int test_terminal_pane_label_reflects_foreground_program(void) {
+	/* exec makes sleep the foreground group leader instead of the shell wrapper. */
+	struct editorTerminalPane *t = editorTerminalPaneCreate("exec sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	int resolved = 0;
+	int waited = 0;
+	while (waited < 2000) {
+		(void)editorTerminalPanePump(t);
+		const char *program = editorTerminalPaneForegroundProgram(t);
+		if (program != NULL && strcmp(program, "sleep") == 0) {
+			resolved = 1;
+			break;
+		}
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	editorTerminalPaneFree(t);
+	return resolved ? 0 : 1;
 }
 
 static int test_terminal_pane_resize_all_matches_layout_rect(void) {
@@ -1145,6 +1167,22 @@ static int test_terminal_input_vim_normal_leader_resolves(void) {
 	return E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
+static int test_terminal_input_vim_normal_colon_runs_ex_command(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	feed_keys("\x17N");
+	if (t->input_mode != EDITOR_TERMINAL_INPUT_NORMAL) {
+		return 1;
+	}
+	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
+	feed_keys(":vsplit\r");
+	int failed = editorPaneTreeLeafCount(E.layout_root) != leaves_before + 1;
+	return failed;
+}
+
 static int test_terminal_input_modes_are_per_tab(void) {
 	struct editorTerminalPane *a = NULL;
 	struct editorPaneNode *leaf_a = setup_focused_terminal("sleep 5", &a);
@@ -1194,6 +1232,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_input_vim_ctrl_w_t_from_editor_pane},
         {"terminal_input_vim_normal_leader_resolves",
          test_terminal_input_vim_normal_leader_resolves},
+        {"terminal_input_vim_normal_colon_runs_ex_command",
+         test_terminal_input_vim_normal_colon_runs_ex_command},
         {"terminal_input_modes_are_per_tab", test_terminal_input_modes_are_per_tab},
         {"terminal_new_tab_inserts_beside_active", test_terminal_new_tab_inserts_beside_active},
         {"terminal_new_tab_order_with_following_tab",
@@ -1208,6 +1248,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_split_keeps_terminal_single_host},
         {"terminal_pane_open_split_creates_labeled_terminal_tab",
          test_terminal_pane_open_split_creates_labeled_terminal_tab},
+        {"terminal_pane_label_reflects_foreground_program",
+         test_terminal_pane_label_reflects_foreground_program},
         {"terminal_pane_create_rejects_null_command",
          test_terminal_pane_create_rejects_null_command},
         {"terminal_pane_pump_captures_child_output", test_terminal_pane_pump_captures_child_output},

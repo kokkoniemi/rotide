@@ -156,6 +156,7 @@ void reset_editor_state(void) {
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
 	E.nerd_fonts_enabled = 0;
+	E.terminal_pane_repel_files_enabled = 1;
 	E.auto_indent_enabled = 0;
 	E.indent_use_tabs = 0;
 	E.indent_width = ROTIDE_INDENT_WIDTH_DEFAULT;

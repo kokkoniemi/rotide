@@ -533,6 +533,74 @@ enum editorNerdFontsLoadStatus editorNerdFontsLoadConfigured(int *nerd_fonts_out
 	return status;
 }
 
+enum editorTerminalPaneRepelFilesLoadStatus
+editorTerminalPaneRepelFilesLoadFromPaths(int *terminal_pane_repel_files_out,
+                                          const char *global_path, const char *project_path) {
+	if (terminal_pane_repel_files_out == NULL) {
+		return EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY;
+	}
+
+	int repel = 1;
+	enum editorTerminalPaneRepelFilesLoadStatus status =
+	        EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum configEditorBoolFileStatus global_status =
+		        configEditorBoolApplyFile(&repel, global_path, "terminal_pane_repel_files");
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*terminal_pane_repel_files_out = 1;
+			return EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
+			repel = 1;
+			status = (enum editorTerminalPaneRepelFilesLoadStatus)(
+			        status | EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum configEditorBoolFileStatus project_status = configEditorBoolApplyFile(
+		        &repel, project_path, "terminal_pane_repel_files");
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*terminal_pane_repel_files_out = 1;
+			return EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
+			repel = 1;
+			status = (enum editorTerminalPaneRepelFilesLoadStatus)(
+			        status | EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*terminal_pane_repel_files_out = repel;
+	return status;
+}
+
+enum editorTerminalPaneRepelFilesLoadStatus
+editorTerminalPaneRepelFilesLoadConfigured(int *terminal_pane_repel_files_out) {
+	if (terminal_pane_repel_files_out == NULL) {
+		return EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorTerminalPaneRepelFilesLoadFromPaths(terminal_pane_repel_files_out,
+		                                                 NULL, NULL);
+	}
+
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		*terminal_pane_repel_files_out = 1;
+		return EDITOR_TERMINAL_PANE_REPEL_FILES_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorTerminalPaneRepelFilesLoadStatus status =
+	        editorTerminalPaneRepelFilesLoadFromPaths(terminal_pane_repel_files_out,
+	                                                  global_path, NULL);
+	free(global_path);
+	return status;
+}
+
 enum configEditorIndentFileStatus {
 	CONFIG_EDITOR_INDENT_FILE_APPLIED = 0,
 	CONFIG_EDITOR_INDENT_FILE_MISSING,

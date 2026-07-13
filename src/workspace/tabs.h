@@ -2,6 +2,7 @@
 #define ROTIDE_WORKSPACE_TABS_H
 
 #include "rotide.h"
+#include "workspace/layout.h"
 
 struct editorPaneView;
 struct editorPaneNode;
@@ -27,6 +28,12 @@ enum editorPaneKind editorTabKindAt(int idx);
 enum editorPaneKind editorTabActiveKind(void);
 enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane);
 void *editorTabPayloadAt(int idx);
+
+/* A terminal-only pane has at least one tab and no editor-kind tabs. */
+int editorPaneIsTerminalOnly(const struct editorPaneNode *pane);
+/* Return the first editor leaf other than exclude, or NULL if none exists. */
+struct editorPaneNode *editorPaneTreeFirstEditorLeaf(struct editorPaneNode *root,
+                                                     const struct editorPaneNode *exclude);
 
 /*
  * Create a non-editor tab (kind != EDITOR) owning `payload` and make it the sole
@@ -76,8 +83,16 @@ int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *targ
                       int target_slot);
 int editorTabOpenFileAsNew(const char *filename);
 int editorTabOpenOrSwitchToFile(const char *filename);
+/* Splits the focused pane and opens `filename` as the new pane's only tab (the
+ * origin pane keeps its tabs; the file is never seeded into it). Returns the new
+ * focused pane on success, or NULL without changing the layout when the split
+ * cannot be made or the file cannot be opened. Cursor positioning is the
+ * caller's responsibility. */
+struct editorPaneNode *editorTabOpenFileInSplit(enum editorSplitOrientation orientation,
+                                                double ratio, const char *filename);
 int editorTabOpenOrSwitchToPreviewFile(const char *filename);
 int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const char *text);
+int editorTabSwitchToGeneratedTab(enum editorTabKind kind, const char *title);
 int editorTabSwitchToIndex(int idx);
 int editorTabSwitchByDelta(int delta);
 int editorTabCloseActive(void);

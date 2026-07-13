@@ -10,7 +10,9 @@
 #include "workspace/tabs.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -347,6 +349,47 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 		}
 	}
 	return total;
+}
+
+const char *editorTerminalPaneForegroundProgram(struct editorTerminalPane *terminal) {
+	if (terminal == NULL) {
+		return NULL;
+	}
+	const char *cached =
+	        terminal->foreground_program[0] != '\0' ? terminal->foreground_program : NULL;
+	if (terminal->child.master_fd < 0) {
+		return cached;
+	}
+	pid_t pgrp = tcgetpgrp(terminal->child.master_fd);
+	if (pgrp <= 0) {
+		return cached;
+	}
+	/* Avoid reopening /proc while the same foreground job remains active. */
+	if (pgrp == terminal->foreground_pgrp && cached != NULL) {
+		return cached;
+	}
+	char path[64];
+	(void)snprintf(path, sizeof(path), "/proc/%d/comm", (int)pgrp);
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		return cached;
+	}
+	char comm[sizeof(terminal->foreground_program)];
+	ssize_t n = read(fd, comm, sizeof(comm) - 1);
+	(void)close(fd);
+	if (n <= 0) {
+		return cached;
+	}
+	while (n > 0 && (comm[n - 1] == '\n' || comm[n - 1] == '\r')) {
+		n--;
+	}
+	if (n <= 0) {
+		return cached;
+	}
+	comm[n] = '\0';
+	terminal->foreground_pgrp = pgrp;
+	memcpy(terminal->foreground_program, comm, (size_t)n + 1);
+	return terminal->foreground_program;
 }
 
 int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int rows) {

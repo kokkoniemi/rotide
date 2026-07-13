@@ -2314,7 +2314,164 @@ static int test_process_terminates_promptly_on_sigterm(void) {
 	return 0;
 }
 
+static int test_editor_open_file_in_split_new_file_shows_only_file(void) {
+	char open_file[64];
+	ASSERT_TRUE(write_temp_text_file(open_file, sizeof(open_file), "a\nb\nc\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 20;
+	E.window_cols = 80;
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "origin", "diff\n"));
+	int origin_tab = editorTabActiveIndex();
+	struct editorPaneNode *origin = E.focused_leaf;
+	int tab_count_before = editorTabCount();
+
+	struct editorPaneNode *pane =
+	        editorTabOpenFileInSplit(EDITOR_SPLIT_VERTICAL, 0.5, open_file);
+	ASSERT_TRUE(pane != NULL);
+	ASSERT_TRUE(pane == E.focused_leaf && pane != origin);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_EQ_INT(1, pane->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(EDITOR_TAB_FILE, E.tab_kind);
+	ASSERT_TRUE(E.filename != NULL && strcmp(E.filename, open_file) == 0);
+	ASSERT_TRUE(!editorPaneViewHasTab(&pane->as.leaf.view, origin_tab));
+
+	ASSERT_EQ_INT(tab_count_before + 1, editorTabCount());
+	ASSERT_TRUE(editorPaneViewHasTab(&origin->as.leaf.view, origin_tab));
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	return 0;
+}
+
+static int test_editor_open_file_in_split_reuses_already_open_tab(void) {
+	char open_file[64];
+	ASSERT_TRUE(write_temp_text_file(open_file, sizeof(open_file), "a\nb\nc\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 20;
+	E.window_cols = 80;
+	ASSERT_TRUE(editorTabOpenFileAsNew(open_file));
+	int file_tab = editorTabActiveIndex();
+	struct editorPaneNode *origin = E.focused_leaf;
+	int tab_count_before = editorTabCount();
+
+	struct editorPaneNode *pane =
+	        editorTabOpenFileInSplit(EDITOR_SPLIT_VERTICAL, 0.5, open_file);
+	ASSERT_TRUE(pane != NULL && pane != origin);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_EQ_INT(1, pane->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(file_tab, pane->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(tab_count_before, editorTabCount());
+	ASSERT_EQ_INT(EDITOR_TAB_FILE, E.tab_kind);
+	ASSERT_TRUE(E.filename != NULL && strcmp(E.filename, open_file) == 0);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	return 0;
+}
+
+static int test_editor_open_file_in_split_unopenable_file_does_not_split(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 20;
+	E.window_cols = 80;
+	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
+	int tab_count_before = editorTabCount();
+
+	struct editorPaneNode *pane = editorTabOpenFileInSplit(
+	        EDITOR_SPLIT_VERTICAL, 0.5, "/nonexistent-rotide-dir-zzz/missing.txt");
+	ASSERT_TRUE(pane == NULL);
+	ASSERT_EQ_INT(leaves_before, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_INT(tab_count_before, editorTabCount());
+	return 0;
+}
+
+static int install_git_diff_tab(const char *open_file) {
+	int diff_idx = editorTabActiveIndex();
+	int *line_numbers = malloc(2 * sizeof(int));
+	if (line_numbers == NULL) {
+		return -1;
+	}
+	line_numbers[0] = 5;
+	line_numbers[1] = 6;
+	free(E.git_view_line_numbers);
+	free(E.git_view_source_path);
+	E.git_view_line_numbers = line_numbers;
+	E.git_view_line_kind_count = 2;
+	E.git_view_source_path = strdup(open_file);
+	E.cy = 0;
+	return diff_idx;
+}
+
+static int test_editor_git_diff_open_in_split_shows_only_file(void) {
+	char open_file[64];
+	ASSERT_TRUE(write_temp_text_file(open_file, sizeof(open_file), "l1\nl2\nl3\nl4\nl5\nl6\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 20;
+	E.window_cols = 80;
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, open_file, "diff\ncontext\n"));
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+
+	int diff_idx = install_git_diff_tab(open_file);
+	ASSERT_TRUE(diff_idx >= 0);
+	struct editorPaneNode *original = E.focused_leaf;
+	ASSERT_TRUE(original != NULL);
+
+	(void)input_actions_dispatch(EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT);
+
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	struct editorPaneNode *sibling = E.focused_leaf;
+	ASSERT_TRUE(sibling != NULL && sibling != original && !sibling->is_split);
+
+	ASSERT_EQ_INT(EDITOR_TAB_FILE, E.tab_kind);
+	ASSERT_TRUE(E.filename != NULL && strcmp(E.filename, open_file) == 0);
+	ASSERT_EQ_INT(4, E.cy);
+	int file_idx = editorTabActiveIndex();
+	ASSERT_TRUE(file_idx != diff_idx);
+	ASSERT_EQ_INT(1, sibling->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(file_idx, sibling->as.leaf.view.pane_tabs[0]);
+	ASSERT_TRUE(!editorPaneViewHasTab(&sibling->as.leaf.view, diff_idx));
+
+	ASSERT_TRUE(editorPaneViewHasTab(&original->as.leaf.view, diff_idx));
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	return 0;
+}
+
+static int test_editor_git_diff_jump_to_file_replaces_current_pane(void) {
+	char open_file[64];
+	ASSERT_TRUE(write_temp_text_file(open_file, sizeof(open_file), "l1\nl2\nl3\nl4\nl5\nl6\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 20;
+	E.window_cols = 80;
+	ASSERT_TRUE(editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, open_file, "diff\ncontext\n"));
+	int diff_idx = install_git_diff_tab(open_file);
+	ASSERT_TRUE(diff_idx >= 0);
+
+	(void)input_actions_dispatch(EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE);
+
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_INT(EDITOR_TAB_FILE, E.tab_kind);
+	ASSERT_TRUE(E.filename != NULL && strcmp(E.filename, open_file) == 0);
+	ASSERT_EQ_INT(4, E.cy);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_input_actions_tests[] = {
+        {"editor_open_file_in_split_new_file_shows_only_file",
+         test_editor_open_file_in_split_new_file_shows_only_file},
+        {"editor_open_file_in_split_reuses_already_open_tab",
+         test_editor_open_file_in_split_reuses_already_open_tab},
+        {"editor_open_file_in_split_unopenable_file_does_not_split",
+         test_editor_open_file_in_split_unopenable_file_does_not_split},
+        {"editor_git_diff_open_in_split_shows_only_file",
+         test_editor_git_diff_open_in_split_shows_only_file},
+        {"editor_git_diff_jump_to_file_replaces_current_pane",
+         test_editor_git_diff_jump_to_file_replaces_current_pane},
         {"editor_process_keypress_alt_b_git_blame_details_popup_behaviors",
          test_editor_process_keypress_alt_b_git_blame_details_popup_behaviors},
         {"editor_task_log_document_stays_authoritative",

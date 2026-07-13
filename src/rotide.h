@@ -404,6 +404,8 @@ enum editorAction {
 	EDITOR_ACTION_GIT_STASH_POP,
 	EDITOR_ACTION_GIT_STASH_DROP,
 	EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT,
+	EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE,
+	EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT,
 	EDITOR_ACTION_COUNT
 };
 
@@ -823,6 +825,7 @@ struct editorConfig {
 	int line_numbers_enabled;
 	int current_line_highlight_enabled;
 	int nerd_fonts_enabled;
+	int terminal_pane_repel_files_enabled;
 	int auto_indent_enabled;
 	int indent_use_tabs;
 	int indent_width;

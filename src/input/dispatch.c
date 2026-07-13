@@ -1251,6 +1251,46 @@ static const char *dispatchBasenameFromPath(const char *path) {
 	return base + 1;
 }
 
+static void dispatchPlaceCursorAtLine(int line, int character, int center) {
+	if (E.numrows <= 0) {
+		(void)dispatchSetCursorFromOffset(0);
+	} else {
+		if (line < 0) {
+			line = 0;
+		}
+		if (line >= E.numrows) {
+			line = E.numrows - 1;
+		}
+		if (character < 0) {
+			character = 0;
+		}
+		character = editorLspProtocolCharacterToBufferColumn(line, character);
+		int target_cx = character;
+		struct editorLineView lview = {0};
+		if (editorDocumentLineView(E.document, line, &lview)) {
+			if (character > lview.size) {
+				character = lview.size;
+			}
+			target_cx = editorBytesClampCxToClusterBoundary(lview.data, lview.size,
+			                                                character);
+			if (target_cx > lview.size) {
+				target_cx = lview.size;
+			}
+			editorLineViewRelease(&lview);
+		}
+		size_t target_offset = 0;
+		if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
+		    !dispatchSetCursorFromOffset(target_offset)) {
+			(void)dispatchSetCursorFromOffset(0);
+		}
+	}
+	if (center) {
+		editorViewportCenterCursor();
+	} else {
+		editorViewportEnsureCursorVisible();
+	}
+}
+
 static int dispatchJumpToPathLocation(const char *path, int line, int character, int preview,
                                       int center) {
 	if (path == NULL || path[0] == '\0') {
@@ -1263,49 +1303,27 @@ static int dispatchJumpToPathLocation(const char *path, int line, int character,
 	if (!opened) {
 		return 0;
 	}
+	dispatchPlaceCursorAtLine(line, character, center);
+	return 1;
+}
 
-	if (E.numrows <= 0) {
-		(void)dispatchSetCursorFromOffset(0);
-		if (center) {
-			editorViewportCenterCursor();
-		} else {
-			editorViewportEnsureCursorVisible();
-		}
+static int dispatchGitDiffJumpToFile(int in_split) {
+	char *path = NULL;
+	int line0 = 0;
+	if (!editorGitViewCursorSourceTarget(&path, &line0)) {
+		editorSetStatusMsg("No source line under cursor");
 		return 1;
 	}
-
-	if (line < 0) {
-		line = 0;
-	}
-	if (line >= E.numrows) {
-		line = E.numrows - 1;
-	}
-	if (character < 0) {
-		character = 0;
-	}
-	character = editorLspProtocolCharacterToBufferColumn(line, character);
-	int target_cx = character;
-	struct editorLineView lview = {0};
-	if (editorDocumentLineView(E.document, line, &lview)) {
-		if (character > lview.size) {
-			character = lview.size;
+	if (in_split) {
+		editorJumplistRecord(); /* cross-pane navigation is a Vim jump */
+		if (editorTabOpenFileInSplit(EDITOR_SPLIT_VERTICAL, 0.5, path) != NULL) {
+			dispatchPlaceCursorAtLine(line0, 0, /*center=*/1);
+			free(path);
+			return 1;
 		}
-		target_cx = editorBytesClampCxToClusterBoundary(lview.data, lview.size, character);
-		if (target_cx > lview.size) {
-			target_cx = lview.size;
-		}
-		editorLineViewRelease(&lview);
 	}
-	size_t target_offset = 0;
-	if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
-	    !dispatchSetCursorFromOffset(target_offset)) {
-		(void)dispatchSetCursorFromOffset(0);
-	}
-	if (center) {
-		editorViewportCenterCursor();
-	} else {
-		editorViewportEnsureCursorVisible();
-	}
+	(void)dispatchJumpToPathLocation(path, line0, 0, /*preview=*/0, /*center=*/1);
+	free(path);
 	return 1;
 }
 
@@ -1356,14 +1374,25 @@ int editorDispatchGoToBufferPosition(const char *path, int cy, int cx) {
 	return 1;
 }
 
+static void dispatchGoToJumpEntry(const struct editorJumpEntry *entry) {
+	if (entry->git_diff_title_id >= 0) {
+		const char *title = editorJumplistResolvePath(entry->git_diff_title_id);
+		if (title != NULL && editorTabSwitchToGeneratedTab(EDITOR_TAB_GIT_DIFF, title)) {
+			(void)editorDispatchGoToBufferPosition(NULL, entry->cy, entry->cx);
+		}
+		return;
+	}
+	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(entry->path_id), entry->cy,
+	                                       entry->cx);
+}
+
 /* Failed targets still advance the index so dead entries can be passed. */
 int editorDispatchJumplistBack(int count, int *effects_out) {
 	struct editorJumpEntry target;
 	if (!editorJumplistStepBack(count, &target)) {
 		return 0;
 	}
-	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(target.path_id), target.cy,
-	                                       target.cx);
+	dispatchGoToJumpEntry(&target);
 	if (effects_out != NULL) {
 		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
 	}
@@ -1375,8 +1404,7 @@ int editorDispatchJumplistForward(int count, int *effects_out) {
 	if (!editorJumplistStepForward(count, &target)) {
 		return 0;
 	}
-	(void)editorDispatchGoToBufferPosition(editorJumplistResolvePath(target.path_id), target.cy,
-	                                       target.cx);
+	dispatchGoToJumpEntry(&target);
 	if (effects_out != NULL) {
 		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
 	}
@@ -2974,6 +3002,12 @@ static int dispatchHandleModeAction(enum editorAction action) {
 			editorHistoryBreakGroup();
 			dispatchShowGitBlameDetails();
 			return 1;
+		case EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE:
+			editorHistoryBreakGroup();
+			return dispatchGitDiffJumpToFile(0);
+		case EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT:
+			editorHistoryBreakGroup();
+			return dispatchGitDiffJumpToFile(1);
 		case EDITOR_ACTION_CONTEXT_MENU:
 			editorHistoryBreakGroup();
 			dispatchOpenContextMenu();
@@ -3242,6 +3276,11 @@ static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, in
 		terminal->input_mode = EDITOR_TERMINAL_INPUT_INSERT;
 		return;
 	}
+	if (c == ':') {
+		int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorVimOpenExCommandLine(&effects);
+		return;
+	}
 	if (c == CTRL_KEY('w')) {
 		terminal->pending_ctrl_w = 1;
 		return;
@@ -3489,6 +3528,12 @@ static int dispatchTryGitViewKey(int c, int *effects) {
 			switch (c) {
 				case 'z':
 					action = EDITOR_ACTION_GIT_DIFF_TOGGLE_CONTEXT;
+					break;
+				case '\r':
+					action = EDITOR_ACTION_GIT_DIFF_JUMP_TO_FILE;
+					break;
+				case 'v':
+					action = EDITOR_ACTION_GIT_DIFF_OPEN_IN_SPLIT;
 					break;
 				case 'R':
 					action = EDITOR_ACTION_GIT_REFRESH;

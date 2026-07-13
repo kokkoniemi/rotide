@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static int rects_equal(struct editorRect a, struct editorRect b) {
 	return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
@@ -1542,6 +1543,228 @@ static int test_layout_split_node_rect_returns_parent_rect(void) {
 	return failed;
 }
 
+static int repel_setup_tabs(void) {
+	if (!editorTabsInit() || !editorTabNewEmpty() || !editorTabNewEmpty()) {
+		return 1;
+	}
+	if (E.tab_count != 3) {
+		return 1;
+	}
+	E.tabs[0].kind = EDITOR_PANE_KIND_EDITOR;
+	E.tabs[1].kind = EDITOR_PANE_KIND_TERMINAL;
+	E.tabs[2].kind = EDITOR_PANE_KIND_DEBUG_CONSOLE;
+	return 0;
+}
+
+static struct editorPaneNode *repel_leaf_with_tabs(const int *tab_indices, int count) {
+	struct editorPaneNode *leaf = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (leaf == NULL) {
+		return NULL;
+	}
+	for (int i = 0; i < count; i++) {
+		(void)editorPaneViewAddTab(&leaf->as.leaf.view, tab_indices[i]);
+	}
+	return leaf;
+}
+
+static int test_layout_terminal_only_pane_predicate(void) {
+	if (repel_setup_tabs()) {
+		return 1;
+	}
+	int failed = 0;
+	int t_term[] = {1};
+	int t_console[] = {2};
+	int t_term_console[] = {1, 2};
+	int t_editor[] = {0};
+	int t_mixed[] = {0, 1};
+
+	struct editorPaneNode *term = repel_leaf_with_tabs(t_term, 1);
+	struct editorPaneNode *console = repel_leaf_with_tabs(t_console, 1);
+	struct editorPaneNode *term_console = repel_leaf_with_tabs(t_term_console, 2);
+	struct editorPaneNode *editor = repel_leaf_with_tabs(t_editor, 1);
+	struct editorPaneNode *mixed = repel_leaf_with_tabs(t_mixed, 2);
+	struct editorPaneNode *empty = repel_leaf_with_tabs(NULL, 0);
+	struct editorPaneNode *split = make_split(EDITOR_SPLIT_VERTICAL, 0.5, term, editor);
+	if (term == NULL || console == NULL || term_console == NULL || editor == NULL ||
+	    mixed == NULL || empty == NULL || split == NULL) {
+		failed = 1;
+		goto out;
+	}
+
+	failed |= !editorPaneIsTerminalOnly(term);
+	failed |= !editorPaneIsTerminalOnly(console);
+	failed |= !editorPaneIsTerminalOnly(term_console);
+	failed |= editorPaneIsTerminalOnly(editor);
+	failed |= editorPaneIsTerminalOnly(mixed);
+	failed |= editorPaneIsTerminalOnly(empty);
+	failed |= editorPaneIsTerminalOnly(split);
+	failed |= editorPaneIsTerminalOnly(NULL);
+
+out:
+	editorPaneNodeFree(split);
+	editorPaneNodeFree(console);
+	editorPaneNodeFree(term_console);
+	editorPaneNodeFree(mixed);
+	editorPaneNodeFree(empty);
+	return failed;
+}
+
+static int test_layout_first_editor_leaf_skips_terminal(void) {
+	if (repel_setup_tabs()) {
+		return 1;
+	}
+	int failed = 0;
+	int t_term[] = {1};
+	int t_editor[] = {0};
+
+	struct editorPaneNode *term = repel_leaf_with_tabs(t_term, 1);
+	struct editorPaneNode *editor = repel_leaf_with_tabs(t_editor, 1);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, term, editor);
+	if (term == NULL || editor == NULL || root == NULL) {
+		editorPaneNodeFree(term);
+		editorPaneNodeFree(editor);
+		free(root);
+		return 1;
+	}
+
+	failed |= editorPaneTreeFirstEditorLeaf(root, NULL) != editor;
+	failed |= editorPaneTreeFirstEditorLeaf(root, editor) != NULL;
+
+	(void)editorPaneViewAddTab(&editor->as.leaf.view, 2);
+	editorPaneViewRemoveTab(&editor->as.leaf.view, 0);
+	failed |= editorPaneTreeFirstEditorLeaf(root, NULL) != NULL;
+
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_open_file_redirects_from_terminal_pane(void) {
+	char path[] = "/tmp/rotide-test-repel-XXXXXX";
+	int fd = mkstemp(path);
+	if (fd < 0) {
+		return 1;
+	}
+	(void)!write(fd, "hello\n", 6);
+	close(fd);
+
+	int failed = 0;
+	if (repel_setup_tabs()) {
+		unlink(path);
+		return 1;
+	}
+
+	struct editorPaneNode *term = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *editor = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, term, editor);
+	if (term == NULL || editor == NULL || root == NULL) {
+		editorPaneNodeFree(term);
+		editorPaneNodeFree(editor);
+		free(root);
+		unlink(path);
+		return 1;
+	}
+	(void)editorPaneViewAddTab(&term->as.leaf.view, 1);
+	term->as.leaf.view.active_tab_idx = 1;
+	(void)editorPaneViewAddTab(&editor->as.leaf.view, 0);
+	editor->as.leaf.view.active_tab_idx = 0;
+
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = root;
+	E.focused_leaf = term;
+	E.active_tab = 1;
+
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		failed = 1;
+		goto out;
+	}
+	failed |= E.focused_leaf != editor;
+	failed |= E.filename == NULL || strcmp(E.filename, path) != 0;
+
+out:
+	unlink(path);
+	return failed;
+}
+
+static int test_layout_open_file_flag_off_keeps_terminal_pane(void) {
+	char path[] = "/tmp/rotide-test-repel-off-XXXXXX";
+	int fd = mkstemp(path);
+	if (fd < 0) {
+		return 1;
+	}
+	(void)!write(fd, "hello\n", 6);
+	close(fd);
+
+	int failed = 0;
+	if (repel_setup_tabs()) {
+		unlink(path);
+		return 1;
+	}
+	E.terminal_pane_repel_files_enabled = 0;
+
+	struct editorPaneNode *term = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *editor = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, term, editor);
+	if (term == NULL || editor == NULL || root == NULL) {
+		editorPaneNodeFree(term);
+		editorPaneNodeFree(editor);
+		free(root);
+		unlink(path);
+		return 1;
+	}
+	(void)editorPaneViewAddTab(&term->as.leaf.view, 1);
+	term->as.leaf.view.active_tab_idx = 1;
+	(void)editorPaneViewAddTab(&editor->as.leaf.view, 0);
+	editor->as.leaf.view.active_tab_idx = 0;
+
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = root;
+	E.focused_leaf = term;
+	E.active_tab = 1;
+
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		failed = 1;
+		goto out;
+	}
+	failed |= E.focused_leaf != term;
+
+out:
+	unlink(path);
+	return failed;
+}
+
+static int test_layout_open_generated_redirects_from_terminal_pane(void) {
+	int failed = 0;
+	if (repel_setup_tabs()) {
+		return 1;
+	}
+
+	struct editorPaneNode *term = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *editor = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, term, editor);
+	if (term == NULL || editor == NULL || root == NULL) {
+		editorPaneNodeFree(term);
+		editorPaneNodeFree(editor);
+		free(root);
+		return 1;
+	}
+	(void)editorPaneViewAddTab(&term->as.leaf.view, 1);
+	term->as.leaf.view.active_tab_idx = 1;
+	(void)editorPaneViewAddTab(&editor->as.leaf.view, 0);
+	editor->as.leaf.view.active_tab_idx = 0;
+
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = root;
+	E.focused_leaf = term;
+	E.active_tab = 1;
+
+	if (!editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "diff --git a/x b/x", "+added\n")) {
+		return 1;
+	}
+	failed |= E.focused_leaf != editor;
+	failed |= E.tab_kind != EDITOR_TAB_GIT_DIFF;
+	return failed;
+}
+
 const struct editorTestCase g_layout_tests[] = {
         {"layout_single_leaf_returns_full_viewport", test_layout_single_leaf_returns_full_viewport},
         {"layout_vertical_split_tiles_viewport", test_layout_vertical_split_tiles_viewport},
@@ -1630,6 +1853,14 @@ const struct editorTestCase g_layout_tests[] = {
          test_layout_split_node_rect_returns_parent_rect},
         {"layout_close_focused_clears_split_resize_state",
          test_layout_close_focused_clears_split_resize_state},
+        {"layout_terminal_only_pane_predicate", test_layout_terminal_only_pane_predicate},
+        {"layout_first_editor_leaf_skips_terminal", test_layout_first_editor_leaf_skips_terminal},
+        {"layout_open_file_redirects_from_terminal_pane",
+         test_layout_open_file_redirects_from_terminal_pane},
+        {"layout_open_file_flag_off_keeps_terminal_pane",
+         test_layout_open_file_flag_off_keeps_terminal_pane},
+        {"layout_open_generated_redirects_from_terminal_pane",
+         test_layout_open_generated_redirects_from_terminal_pane},
 };
 
 const int g_layout_test_count = (int)(sizeof(g_layout_tests) / sizeof(g_layout_tests[0]));

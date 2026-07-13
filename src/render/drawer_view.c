@@ -36,7 +36,6 @@
 #define DRAWER_NERD_FOLDER_UTF8 "\xEF\x81\xBB"
 #define DRAWER_NERD_FILE_UTF8 "\xEF\x85\x9B"
 #define DRAWER_NERD_FILE_TEXT_UTF8 "\xEF\x85\x9C"
-#define DRAWER_NERD_FILE_CODE_UTF8 "\xEF\x87\x89"
 #define DRAWER_NERD_FILE_IMAGE_UTF8 "\xEF\x87\x85"
 #define DRAWER_NERD_FILE_ARCHIVE_UTF8 "\xEF\x87\x86"
 #define DRAWER_NERD_FILE_PDF_UTF8 "\xEF\x87\x81"
@@ -45,7 +44,7 @@
 #define DRAWER_NERD_GEAR_UTF8 "\xEF\x80\x93"
 #define DRAWER_NERD_SEARCH_UTF8 "\xEF\x80\x82"
 #define DRAWER_NERD_TREE_UTF8 "\xEF\x83\xA8"
-#define DRAWER_NERD_TERMINAL_UTF8 "\xEF\x84\xA0"
+#define DRAWER_NERD_CODE_UTF8 "\xEF\x84\xA1"
 #define DRAWER_NERD_BUG_UTF8 "\xEF\x86\x88"
 #define DRAWER_NERD_BRANCH_UTF8 "\xEF\x84\xA6"
 #define DRAWER_NERD_BARS_UTF8 "\xEF\x83\x89"
@@ -164,7 +163,7 @@ static const char *drawerViewHeaderSymbol(enum editorDrawerMode mode) {
 		case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
 			return DRAWER_NERD_SEARCH_UTF8;
 		case EDITOR_DRAWER_MODE_LSP:
-			return DRAWER_NERD_TERMINAL_UTF8;
+			return DRAWER_NERD_CODE_UTF8;
 		case EDITOR_DRAWER_MODE_DAP:
 			return DRAWER_NERD_BUG_UTF8;
 		case EDITOR_DRAWER_MODE_GIT:
@@ -318,7 +317,7 @@ static const char *drawerViewNerdIconForMenuLabel(const char *label) {
 		return DRAWER_NERD_BRANCH_UTF8;
 	}
 	if (strcmp(label, "LSP") == 0) {
-		return DRAWER_NERD_TERMINAL_UTF8;
+		return DRAWER_NERD_CODE_UTF8;
 	}
 	if (strcmp(label, "Debugger") == 0) {
 		return DRAWER_NERD_BUG_UTF8;
@@ -344,53 +343,81 @@ static const char *drawerViewNerdIconForMenuLabel(const char *label) {
 	return DRAWER_NERD_FILE_TEXT_UTF8;
 }
 
+static const char *drawerViewNerdIconForSyntaxLanguage(enum editorSyntaxLanguage language) {
+	static const char *const k_icons[EDITOR_SYNTAX_LANGUAGE_COUNT] = {
+	        [EDITOR_SYNTAX_C] = "\xEE\x98\x9E",          /* nf-custom-c */
+	        [EDITOR_SYNTAX_CPP] = "\xEE\x98\x9D",        /* nf-custom-cpp */
+	        [EDITOR_SYNTAX_GO] = "\xEE\x98\xA6",         /* nf-custom-go */
+	        [EDITOR_SYNTAX_SHELL] = "\xEE\x9A\x91",      /* nf-seti-shell */
+	        [EDITOR_SYNTAX_HTML] = "\xEE\x98\x8E",       /* nf-seti-html */
+	        [EDITOR_SYNTAX_JAVASCRIPT] = "\xEE\x98\x8C", /* nf-seti-javascript */
+	        [EDITOR_SYNTAX_TYPESCRIPT] = "\xEE\x98\xA8", /* nf-seti-typescript */
+	        [EDITOR_SYNTAX_TSX] = "\xEE\x98\xA5",        /* nf-seti-react */
+	        [EDITOR_SYNTAX_CSS] = "\xEE\x9A\xB8",        /* nf-custom-css */
+	        [EDITOR_SYNTAX_JSON] = "\xEE\x98\x8B",       /* nf-seti-json */
+	        [EDITOR_SYNTAX_PYTHON] = "\xEE\x98\x86",     /* nf-seti-python */
+	        [EDITOR_SYNTAX_PHP] = "\xEE\x98\x88",        /* nf-seti-php */
+	        [EDITOR_SYNTAX_RUST] = "\xEE\x9A\x8B",       /* nf-seti-rust */
+	        [EDITOR_SYNTAX_JAVA] = "\xEE\x99\xAD",       /* nf-seti-java */
+	        [EDITOR_SYNTAX_REGEX] = "\xEE\xAC\xB8",      /* nf-cod-regex */
+	        [EDITOR_SYNTAX_CSHARP] = "\xEE\x99\x88",     /* nf-seti-c_sharp */
+	        [EDITOR_SYNTAX_HASKELL] = "\xEE\x98\x9F",    /* nf-seti-haskell */
+	        [EDITOR_SYNTAX_RUBY] = "\xEE\x98\x85",       /* nf-custom-ruby */
+	        [EDITOR_SYNTAX_OCAML] = "\xEE\x99\xBA",      /* nf-seti-ocaml */
+	        [EDITOR_SYNTAX_JULIA] = "\xEE\x98\xA4",      /* nf-seti-julia */
+	        [EDITOR_SYNTAX_SCALA] = "\xEE\x9A\x8E",      /* nf-seti-scala */
+	        [EDITOR_SYNTAX_EJS] = "\xEE\x98\x98",        /* nf-seti-ejs */
+	        [EDITOR_SYNTAX_ERB] = "\xEE\x98\x84",        /* nf-seti-rails */
+	        [EDITOR_SYNTAX_MARKDOWN] = "\xEE\x98\x89",   /* nf-seti-markdown */
+	        [EDITOR_SYNTAX_TOML] = "\xEE\x9A\xB2",       /* nf-custom-toml */
+	        [EDITOR_SYNTAX_YAML] = "\xEE\x9A\xA8",       /* nf-seti-yml */
+	        [EDITOR_SYNTAX_XML] = "\xEE\x98\x99",        /* nf-seti-xml */
+	        [EDITOR_SYNTAX_MAKE] = "\xEE\x99\xB3",       /* nf-seti-makefile */
+	        [EDITOR_SYNTAX_DIFF] = "\xEE\xAB\xA1",       /* nf-cod-diff */
+	        [EDITOR_SYNTAX_LATEX] = "\xEE\x9A\x9B",      /* nf-seti-tex */
+	        [EDITOR_SYNTAX_BIBTEX] = "\xEE\x9A\x9B",     /* nf-seti-tex */
+	        [EDITOR_SYNTAX_HCL] = "\xEE\x9A\x9A",        /* nf-seti-terraform */
+	        [EDITOR_SYNTAX_LUA] = "\xEE\x98\xA0",        /* nf-seti-lua */
+	        [EDITOR_SYNTAX_GLSL] = "\xEE\xA1\x95",       /* nf-dev-opengl */
+	        [EDITOR_SYNTAX_KOTLIN] = "\xEE\x98\xB4",     /* nf-custom-kotlin */
+	        [EDITOR_SYNTAX_SVELTE] = "\xEE\x9A\x97",     /* nf-seti-svelte */
+	        [EDITOR_SYNTAX_VUE] = "\xEE\x9A\xA0",        /* nf-seti-vue */
+	        [EDITOR_SYNTAX_HELM] = "\xEE\x9F\xBB",       /* nf-dev-helm */
+	        [EDITOR_SYNTAX_DOCKERFILE] = "\xEE\x99\x90", /* nf-seti-docker */
+	        [EDITOR_SYNTAX_CLOJURE] = "\xEE\x99\x82",    /* nf-seti-clojure */
+	        [EDITOR_SYNTAX_R] = "\xEE\x9A\x8A",          /* nf-seti-r */
+	        [EDITOR_SYNTAX_GDSCRIPT] = "\xEE\x99\x9F",   /* nf-seti-godot */
+	        [EDITOR_SYNTAX_ZIG] = "\xEE\x9A\xA9",        /* nf-seti-zig */
+	        [EDITOR_SYNTAX_SWIFT] = "\xEE\x9A\x99",      /* nf-seti-swift */
+	        [EDITOR_SYNTAX_PERL] = "\xEE\x99\xBE",       /* nf-seti-perl */
+	        [EDITOR_SYNTAX_SCHEME] = "\xEE\x9A\xB1",     /* nf-custom-scheme */
+	        [EDITOR_SYNTAX_ERLANG] = "\xEF\x88\xBF",     /* nf-fa-erlang */
+	        [EDITOR_SYNTAX_ELIXIR] = "\xEE\x98\xAD",     /* nf-custom-elixir */
+	};
+	if (language <= EDITOR_SYNTAX_NONE || language >= EDITOR_SYNTAX_LANGUAGE_COUNT) {
+		return NULL;
+	}
+	return k_icons[language];
+}
+
 static const char *drawerViewNerdIconForFileName(const char *name) {
 	if (name == NULL || name[0] == '\0') {
 		return DRAWER_NERD_FILE_UTF8;
 	}
 	const char *slash = strrchr(name, '/');
 	const char *base = slash != NULL ? slash + 1 : name;
-	if (strcmp(base, "Makefile") == 0 || strcmp(base, "makefile") == 0 ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".c") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".h") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".cc") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".cpp") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".cxx") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".hpp") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".go") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".rs") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".js") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".jsx") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".ts") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".tsx") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".py") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".php") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".java") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".rb") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".cs") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".hs") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".ml") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".jl") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".scala") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".sh") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".bash") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".zsh")) {
-		return DRAWER_NERD_FILE_CODE_UTF8;
+	const char *syntax_icon =
+	        drawerViewNerdIconForSyntaxLanguage(editorSyntaxDetectLanguageFromFilename(name));
+	if (syntax_icon != NULL) {
+		return syntax_icon;
 	}
-	if (drawerViewHasSuffixCaseInsensitive(base, ".toml") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".json") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".yaml") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".yml") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".xml") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".ini") ||
+	if (drawerViewHasSuffixCaseInsensitive(base, ".ini") ||
 	    drawerViewHasSuffixCaseInsensitive(base, ".conf") ||
 	    drawerViewHasSuffixCaseInsensitive(base, ".cfg") ||
 	    drawerViewHasSuffixCaseInsensitive(base, ".env")) {
 		return DRAWER_NERD_GEAR_UTF8;
 	}
-	if (drawerViewHasSuffixCaseInsensitive(base, ".md") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".markdown") ||
-	    drawerViewHasSuffixCaseInsensitive(base, ".txt") ||
+	if (drawerViewHasSuffixCaseInsensitive(base, ".txt") ||
 	    drawerViewHasSuffixCaseInsensitive(base, ".log")) {
 		return DRAWER_NERD_FILE_TEXT_UTF8;
 	}
@@ -423,6 +450,10 @@ static const char *drawerViewNerdIconForFileName(const char *name) {
 		return DRAWER_NERD_FILE_VIDEO_UTF8;
 	}
 	return DRAWER_NERD_FILE_UTF8;
+}
+
+const char *editorDrawerNerdIconForFilenameTest(const char *filename) {
+	return drawerViewNerdIconForFileName(filename);
 }
 
 static const char *drawerViewNerdIconForGitActionLabel(const char *label) {
