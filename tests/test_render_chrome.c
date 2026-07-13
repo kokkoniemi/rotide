@@ -42,7 +42,7 @@
 #define TEST_NERD_SEARCH "\xEF\x80\x82"
 #define TEST_NERD_BRANCH "\xEF\x84\xA6"
 #define TEST_NERD_BARS "\xEF\x83\x89"
-#define TEST_NERD_TERMINAL "\xEF\x84\xA0"
+#define TEST_NERD_CODE "\xEF\x84\xA1"
 #define TEST_DRAWER_COLLAPSE_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_COLLAPSE_SYMBOL " " TEST_HEADER_RESET
 #define TEST_DRAWER_EXPAND_CELL TEST_HEADER_BG " " TEST_DRAWER_EXPAND_SYMBOL " " TEST_HEADER_RESET
@@ -823,7 +823,7 @@ static int test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled(v
 	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_FILE_TEXT) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_SEARCH) != NULL);
-	ASSERT_TRUE(strstr(output, TEST_NERD_TERMINAL) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_CODE) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_BRANCH) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_BARS) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER_OPEN " src") == NULL);

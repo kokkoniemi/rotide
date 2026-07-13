@@ -45,7 +45,7 @@
 #define DRAWER_NERD_GEAR_UTF8 "\xEF\x80\x93"
 #define DRAWER_NERD_SEARCH_UTF8 "\xEF\x80\x82"
 #define DRAWER_NERD_TREE_UTF8 "\xEF\x83\xA8"
-#define DRAWER_NERD_TERMINAL_UTF8 "\xEF\x84\xA0"
+#define DRAWER_NERD_CODE_UTF8 "\xEF\x84\xA1"
 #define DRAWER_NERD_BUG_UTF8 "\xEF\x86\x88"
 #define DRAWER_NERD_BRANCH_UTF8 "\xEF\x84\xA6"
 #define DRAWER_NERD_BARS_UTF8 "\xEF\x83\x89"
@@ -164,7 +164,7 @@ static const char *drawerViewHeaderSymbol(enum editorDrawerMode mode) {
 		case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
 			return DRAWER_NERD_SEARCH_UTF8;
 		case EDITOR_DRAWER_MODE_LSP:
-			return DRAWER_NERD_TERMINAL_UTF8;
+			return DRAWER_NERD_CODE_UTF8;
 		case EDITOR_DRAWER_MODE_DAP:
 			return DRAWER_NERD_BUG_UTF8;
 		case EDITOR_DRAWER_MODE_GIT:
@@ -318,7 +318,7 @@ static const char *drawerViewNerdIconForMenuLabel(const char *label) {
 		return DRAWER_NERD_BRANCH_UTF8;
 	}
 	if (strcmp(label, "LSP") == 0) {
-		return DRAWER_NERD_TERMINAL_UTF8;
+		return DRAWER_NERD_CODE_UTF8;
 	}
 	if (strcmp(label, "Debugger") == 0) {
 		return DRAWER_NERD_BUG_UTF8;
