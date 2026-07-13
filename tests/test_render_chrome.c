@@ -1,4 +1,6 @@
+#include "editor_test_api.h"
 #include "input/system_vim.h"
+#include "language/languages.h"
 #include "render/display_text.h"
 #include "render/status_bar.h"
 #include "render/tab_bar.h"
@@ -38,7 +40,8 @@
 #define TEST_NERD_FOLDER "\xEF\x81\xBB"
 #define TEST_NERD_FOLDER_OPEN "\xEF\x81\xBC"
 #define TEST_NERD_FILE_TEXT "\xEF\x85\x9C"
-#define TEST_NERD_FILE_CODE "\xEF\x87\x89"
+#define TEST_NERD_CUSTOM_C "\xEE\x98\x9E"
+#define TEST_NERD_MARKDOWN "\xEE\x98\x89"
 #define TEST_NERD_SEARCH "\xEF\x80\x82"
 #define TEST_NERD_BRANCH "\xEF\x84\xA6"
 #define TEST_NERD_BARS "\xEF\x83\x89"
@@ -828,8 +831,8 @@ static int test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled(v
 	ASSERT_TRUE(strstr(output, TEST_NERD_BARS) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER_OPEN " src") == NULL);
 	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER " src") == NULL);
-	ASSERT_TRUE(strstr(output, TEST_NERD_FILE_CODE "\x1b[39m main.c") != NULL);
-	ASSERT_TRUE(strstr(output, TEST_NERD_FILE_TEXT "\x1b[39m README.md") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_CUSTOM_C "\x1b[39m main.c") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_MARKDOWN "\x1b[39m README.md") != NULL);
 	free(output);
 
 	ASSERT_TRUE(editorDrawerMainMenuToggle());
@@ -844,6 +847,52 @@ static int test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled(v
 	ASSERT_TRUE(rmdir(src_dir) == 0);
 	ASSERT_TRUE(unlink(text_file) == 0);
 	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_nerd_icons_cover_syntax_file_types(void) {
+	static const struct {
+		const char *filename;
+		const char *icon;
+	} k_cases[] = {
+	        {"main.c", "\xEE\x98\x9E"},     {"main.cpp", "\xEE\x98\x9D"},
+	        {"main.go", "\xEE\x98\xA6"},    {"main.sh", "\xEE\x9A\x91"},
+	        {"main.html", "\xEE\x98\x8E"},  {"main.js", "\xEE\x98\x8C"},
+	        {"main.ts", "\xEE\x98\xA8"},    {"main.tsx", "\xEE\x98\xA5"},
+	        {"main.css", "\xEE\x9A\xB8"},   {"main.json", "\xEE\x98\x8B"},
+	        {"main.py", "\xEE\x98\x86"},    {"main.php", "\xEE\x98\x88"},
+	        {"main.rs", "\xEE\x9A\x8B"},    {"Main.java", "\xEE\x99\xAD"},
+	        {"main.regex", "\xEE\xAC\xB8"}, {"main.cs", "\xEE\x99\x88"},
+	        {"main.hs", "\xEE\x98\x9F"},    {"main.rb", "\xEE\x98\x85"},
+	        {"main.ml", "\xEE\x99\xBA"},    {"main.jl", "\xEE\x98\xA4"},
+	        {"main.scala", "\xEE\x9A\x8E"}, {"main.ejs", "\xEE\x98\x98"},
+	        {"main.erb", "\xEE\x98\x84"},   {"main.md", "\xEE\x98\x89"},
+	        {"main.toml", "\xEE\x9A\xB2"},  {"main.yaml", "\xEE\x9A\xA8"},
+	        {"main.xml", "\xEE\x98\x99"},   {"Makefile", "\xEE\x99\xB3"},
+	        {"main.diff", "\xEE\xAB\xA1"},  {"main.tex", "\xEE\x9A\x9B"},
+	        {"main.bib", "\xEE\x9A\x9B"},   {"main.tf", "\xEE\x9A\x9A"},
+	        {"main.lua", "\xEE\x98\xA0"},   {"main.glsl", "\xEE\xA1\x95"},
+	        {"main.kt", "\xEE\x98\xB4"},    {"main.svelte", "\xEE\x9A\x97"},
+	        {"main.vue", "\xEE\x9A\xA0"},   {"main.helm", "\xEE\x9F\xBB"},
+	        {"Dockerfile", "\xEE\x99\x90"}, {"main.clj", "\xEE\x99\x82"},
+	        {"main.R", "\xEE\x9A\x8A"},     {"main.gd", "\xEE\x99\x9F"},
+	        {"main.zig", "\xEE\x9A\xA9"},   {"main.swift", "\xEE\x9A\x99"},
+	        {"main.pl", "\xEE\x99\xBE"},    {"main.scm", "\xEE\x9A\xB1"},
+	        {"main.erl", "\xEF\x88\xBF"},   {"main.ex", "\xEE\x98\xAD"},
+	};
+	size_t case_count = sizeof(k_cases) / sizeof(k_cases[0]);
+	int file_language_count = 0;
+	for (int i = 0; i < editorSyntaxLanguageDefCount(); i++) {
+		const struct editorSyntaxLanguageDef *def = editorSyntaxLanguageDefAt(i);
+		if (def != NULL && (def->extensions != NULL || def->basenames != NULL)) {
+			file_language_count++;
+		}
+	}
+	ASSERT_EQ_INT(file_language_count, (int)case_count);
+	for (size_t i = 0; i < case_count; i++) {
+		ASSERT_EQ_STR(k_cases[i].icon,
+		              editorDrawerNerdIconForFilenameTest(k_cases[i].filename));
+	}
 	return 0;
 }
 
@@ -1491,6 +1540,8 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_refresh_screen_drawer_header_background_fills_wide_row},
         {"editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled",
          test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled},
+        {"editor_drawer_nerd_icons_cover_syntax_file_types",
+         test_editor_drawer_nerd_icons_cover_syntax_file_types},
         {"editor_refresh_screen_main_menu_drawer_groups_actions",
          test_editor_refresh_screen_main_menu_drawer_groups_actions},
         {"editor_refresh_screen_drawer_renders_unicode_tree_connectors",
