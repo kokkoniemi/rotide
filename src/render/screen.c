@@ -1194,8 +1194,8 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 		int total_cols = row->render_display_cols;
 		int draw_cols = available_cols;
 		if (segment_coloff < total_cols) {
-			int next_start = editorWrapNextStartCol(row, segment_coloff, available_cols,
-			                                        total_cols);
+			int next_start =
+			        editorWrapNextStartColCached(row, segment_coloff, body_cols);
 			if (next_start > segment_coloff &&
 			    next_start - segment_coloff < draw_cols) {
 				draw_cols = next_start - segment_coloff;

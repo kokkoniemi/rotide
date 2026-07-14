@@ -1,14 +1,98 @@
-#include "rotide.h"
 #include "render/wrap.h"
+#include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
+#include "text/utf8.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Keep editorWrapNextStartCol's established behavior as the oracle for the
- * single-pass cache builder. */
+/* Independent single-segment oracle: a straightforward O(rsize) scan from the
+ * segment start that returns the next wrap boundary. */
+static int wrap_breaks_after_codepoint(unsigned int cp) {
+	switch (cp) {
+		case ' ':
+		case '\t':
+		case '.':
+		case ',':
+		case ';':
+		case ':':
+		case '/':
+		case '\\':
+		case '-':
+		case '_':
+		case '(':
+		case '[':
+		case '{':
+		case ')':
+		case ']':
+		case '}':
+		case '=':
+		case '+':
+		case '&':
+		case '|':
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int wrap_next_start_col_oracle(const struct editorRow *row, int start_col,
+                                      int available_cols, int total_cols) {
+	if (row == NULL || available_cols <= 0 || start_col < 0 || start_col >= total_cols) {
+		return total_cols;
+	}
+	if (start_col + available_cols >= total_cols) {
+		return total_cols;
+	}
+
+	int target_col = start_col + available_cols;
+	int best_break_col = -1;
+	int best_fit_col = -1;
+	int first_advance_col = -1;
+	int rx = 0;
+	for (int i = 0; i < row->rsize;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&row->render[i], row->rsize - i, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > row->rsize - i) {
+			src_len = row->rsize - i;
+		}
+		int width = editorCharDisplayWidth(&row->render[i], row->rsize - i);
+		int next_rx = rx + width;
+		if (next_rx > start_col && first_advance_col == -1) {
+			first_advance_col = next_rx;
+		}
+		if (next_rx > start_col && next_rx <= target_col) {
+			best_fit_col = next_rx;
+			if (wrap_breaks_after_codepoint(cp)) {
+				best_break_col = next_rx;
+			}
+		}
+		if (next_rx > target_col) {
+			break;
+		}
+		rx = next_rx;
+		i += src_len;
+	}
+
+	if (best_break_col > start_col) {
+		return best_break_col;
+	}
+	if (best_fit_col > start_col) {
+		return best_fit_col;
+	}
+	if (first_advance_col > start_col) {
+		return first_advance_col;
+	}
+	return total_cols;
+}
+
+/* Builds the full reference segmentation by repeatedly asking the oracle for the
+ * next break from each segment start -- the algorithm the cache builder replaced. */
 static int wrap_reference_segments(struct editorRow *row, int body_cols, int *out, int max_out) {
 	if (body_cols < 1) {
 		body_cols = 1;
@@ -27,7 +111,8 @@ static int wrap_reference_segments(struct editorRow *row, int body_cols, int *ou
 		if (available_cols < 1) {
 			available_cols = 1;
 		}
-		int next_start = editorWrapNextStartCol(row, start_col, available_cols, total_cols);
+		int next_start =
+		        wrap_next_start_col_oracle(row, start_col, available_cols, total_cols);
 		if (next_start >= total_cols || next_start <= start_col) {
 			break;
 		}
@@ -49,17 +134,30 @@ static int wrap_check_row_against_reference(int row_idx, int body_cols) {
 	int actual_count = editorWrapSegmentCountForRowIndex(row_idx, body_cols);
 
 	if (actual_count != ref_count) {
-		fprintf(stderr, "wrap mismatch row=%d body_cols=%d: count actual=%d ref=%d\n",
-		        row_idx, body_cols, actual_count, ref_count);
+		(void)fprintf(stderr, "wrap mismatch row=%d body_cols=%d: count actual=%d ref=%d\n",
+		              row_idx, body_cols, actual_count, ref_count);
 		return 1;
 	}
+	int total_cols = row->render_display_cols;
 	for (int seg = 0; seg < ref_count; seg++) {
 		int start_col = 0;
 		editorWrapSegmentInfo(row, seg, body_cols, &start_col, NULL, NULL);
 		if (start_col != reference[seg]) {
-			fprintf(stderr,
-			        "wrap mismatch row=%d body_cols=%d seg=%d: start actual=%d ref=%d\n",
-			        row_idx, body_cols, seg, start_col, reference[seg]);
+			(void)fprintf(stderr,
+			              "wrap mismatch row=%d body_cols=%d seg=%d: start actual=%d "
+			              "ref=%d\n",
+			              row_idx, body_cols, seg, start_col, reference[seg]);
+			return 1;
+		}
+		/* The render path uses the cache-backed lookup to size each drawn
+		 * segment; it must return the next boundary (or total_cols at the end). */
+		int cached_next = editorWrapNextStartColCached(row, start_col, body_cols);
+		int expected_next = seg + 1 < ref_count ? reference[seg + 1] : total_cols;
+		if (cached_next != expected_next) {
+			(void)fprintf(stderr,
+			              "cached-next mismatch row=%d body_cols=%d seg=%d: actual=%d "
+			              "expected=%d\n",
+			              row_idx, body_cols, seg, cached_next, expected_next);
 			return 1;
 		}
 	}
@@ -81,8 +179,9 @@ static int wrap_check_all_rows(void) {
 /* Deterministic pseudo-random content covering break chars, spaces, tabs, and
  * multibyte / wide glyphs so the fit/break/force-advance branches all fire. */
 static void wrap_fill_pseudorandom(char *buf, size_t len, unsigned int seed) {
-	static const char *tokens[] = {"a",  "b",  "z",  " ", "  ", "\t", ".", ",",
-	                               "-",  "_",  "(",  ")", "=",  "é", "\xe4\xb8\xad" /* CJK */,
+	static const char *tokens[] = {"a",    "b", "z", " ", "  ",
+	                               "\t",   ".", ",", "-", "_",
+	                               "(",    ")", "=", "é", "\xe4\xb8\xad" /* CJK */,
 	                               "long", "x"};
 	size_t pos = 0;
 	unsigned int state = seed * 2654435761u + 1u;
@@ -93,8 +192,9 @@ static void wrap_fill_pseudorandom(char *buf, size_t len, unsigned int seed) {
 		if (pos + tlen >= len) {
 			break;
 		}
-		memcpy(buf + pos, tok, tlen);
-		pos += tlen;
+		for (size_t k = 0; k < tlen; k++) {
+			buf[pos++] = tok[k];
+		}
 	}
 	while (pos < len) {
 		buf[pos++] = 'a';
@@ -152,7 +252,8 @@ static int test_wrap_cache_long_line_is_linear(void) {
 	int count = editorWrapSegmentCountForRowIndex(0, body_cols);
 	int expected = (line_len + body_cols - 1) / body_cols;
 	if (count != expected) {
-		fprintf(stderr, "long line segment count actual=%d expected=%d\n", count, expected);
+		(void)fprintf(stderr, "long line segment count actual=%d expected=%d\n", count,
+		              expected);
 		failed = 1;
 	}
 	if (!failed) {
@@ -163,8 +264,7 @@ static int test_wrap_cache_long_line_is_linear(void) {
 }
 
 const struct editorTestCase g_wrap_tests[] = {
-        {"wrap_cache_matches_reference_varied_rows",
-         test_wrap_cache_matches_reference_varied_rows},
+        {"wrap_cache_matches_reference_varied_rows", test_wrap_cache_matches_reference_varied_rows},
         {"wrap_cache_matches_reference_pseudorandom",
          test_wrap_cache_matches_reference_pseudorandom},
         {"wrap_cache_long_line_is_linear", test_wrap_cache_long_line_is_linear},

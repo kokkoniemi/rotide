@@ -5,11 +5,10 @@
 
 int editorWrapBodyCols(void);
 int editorWrapContinuationIndentCols(const struct editorRow *row, int body_cols);
-int editorWrapNextStartCol(const struct editorRow *row, int start_col, int available_cols,
-                           int total_cols);
 void editorWrapSegmentInfo(struct editorRow *row, int segment_idx, int body_cols,
                            int *start_col_out, int *available_cols_out, int *indent_cols_out);
 int editorWrapSegmentCountForRowIndex(int row_idx, int body_cols);
+int editorWrapNextStartColCached(struct editorRow *row, int start_col, int body_cols);
 int editorWrapCursorSegmentForRx(struct editorRow *row, int rx, int body_cols);
 void editorWrappedClampViewportOffsets(void);
 void editorWrappedAdvancePosition(int *row_idx, int *segment_idx, int body_cols);
