@@ -1666,9 +1666,54 @@ typedef int (*dispatchLspLocationRequestFn)(const char *filename,
                                             int character, struct editorLspLocation **locations_out,
                                             int *count_out, int *timed_out_out);
 
+static char *dispatchIdentifierAtCursorDup(void) {
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		return NULL;
+	}
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return NULL;
+	}
+	int cx = editorBytesClampCxToCharBoundary(line.data, line.size, E.cx);
+	if (cx >= line.size) {
+		cx = editorBytesPrevCharIdx(line.data, line.size, line.size);
+	}
+	char *result = NULL;
+	if (cx >= 0 && cx < line.size && dispatchIsWordByte((unsigned char)line.data[cx])) {
+		int start = cx;
+		while (start > 0) {
+			int prev = editorBytesPrevCharIdx(line.data, line.size, start);
+			if (prev >= start || !dispatchIsWordByte((unsigned char)line.data[prev])) {
+				break;
+			}
+			start = prev;
+		}
+		int end = editorBytesNextCharIdx(line.data, line.size, cx);
+		while (end < line.size) {
+			if (!dispatchIsWordByte((unsigned char)line.data[end])) {
+				break;
+			}
+			int next = editorBytesNextCharIdx(line.data, line.size, end);
+			if (next <= end) {
+				break;
+			}
+			end = next;
+		}
+		int len = end - start;
+		result = malloc((size_t)len + 1);
+		if (result != NULL) {
+			memcpy(result, line.data + start, (size_t)len);
+			result[len] = '\0';
+		}
+	}
+	editorLineViewRelease(&line);
+	return result;
+}
+
 static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_capitalized,
                                       const char *kind_plural,
-                                      dispatchLspLocationRequestFn request_fn) {
+                                      dispatchLspLocationRequestFn request_fn,
+                                      int present_in_drawer) {
 	char *full_text = NULL;
 	struct editorLspLocation *locations = NULL;
 	int count = 0;
@@ -1760,6 +1805,18 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		goto cleanup;
 	}
 
+	if (present_in_drawer) {
+		char *symbol = dispatchIdentifierAtCursorDup();
+		int shown = editorDrawerLspShowUsages(locations, count, symbol);
+		free(symbol);
+		if (!shown) {
+			editorSetStatusMsg("Unable to show %s", kind_plural);
+		} else {
+			editorSetStatusMsg("Found %d %s", count, kind_plural);
+		}
+		goto cleanup;
+	}
+
 	int choice_count = 0;
 	int choice_cap = 0;
 	int has_declaration = 0;
@@ -1829,17 +1886,17 @@ cleanup:
 
 static void dispatchGoToDefinition(void) {
 	dispatchRunLocationLookup("definition", "Definition", "definitions",
-	                          editorLspRequestDefinition);
+	                          editorLspRequestDefinition, 0);
 }
 
 static void dispatchGoToImplementation(void) {
 	dispatchRunLocationLookup("implementation", "Implementation", "implementations",
-	                          editorLspRequestImplementation);
+	                          editorLspRequestImplementation, 0);
 }
 
 static void dispatchGoToReferences(void) {
 	dispatchRunLocationLookup("references", "References", "references",
-	                          editorLspRequestReferences);
+	                          editorLspRequestReferences, 1);
 }
 
 static void dispatchFreeHoverItems(struct editorPopupItem *items, int count) {

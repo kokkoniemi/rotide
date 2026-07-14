@@ -872,7 +872,7 @@ static long long mouseMonotonicMillis(void) {
 	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
 }
 
-#define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 8
+#define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 10
 #define MOUSE_TAB_CONTEXT_MAX_ITEMS 3
 
 static enum editorAction g_mouse_editor_context_actions[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
@@ -886,6 +886,7 @@ static int g_mouse_tab_context_tab_idx;
 
 static int mouseSetCursorFromOffset(size_t offset);
 static void mouseClearSelectionMode(void);
+static int mouseIsWordByte(unsigned char b);
 
 static int mouseHasSelection(void) {
 	if (E.column_select_active) {
@@ -908,6 +909,29 @@ static void mouseAppendEditorContextItem(struct editorPopupItem *items, int *cou
 	*count_io = idx + 1;
 }
 
+int editorIdentifierAtOffset(size_t offset) {
+	int cy = 0;
+	int cx = 0;
+	if (!editorBufferOffsetToPos(offset, &cy, &cx)) {
+		return 0;
+	}
+	if (cy < 0 || cy >= E.numrows) {
+		return 0;
+	}
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, cy, &line)) {
+		return 0;
+	}
+	int result = 0;
+	int clamped = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+	if (clamped >= 0 && clamped < line.size &&
+	    mouseIsWordByte((unsigned char)line.data[clamped])) {
+		result = 1;
+	}
+	editorLineViewRelease(&line);
+	return result;
+}
+
 int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_context_offset,
                                   size_t context_offset) {
 	struct editorPopupItem items[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
@@ -917,9 +941,18 @@ int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_contex
 	size_t clip_len = 0;
 	(void)editorClipboardGet(&clip_len);
 
-	if (editorLspFileSupportsDefinition(E.filename, E.syntax_language)) {
+	int lsp_available = editorLspFileSupportsDefinition(E.filename, E.syntax_language);
+	if (lsp_available) {
 		mouseAppendEditorContextItem(items, &count, "Go to Definition",
 		                             EDITOR_ACTION_GOTO_DEFINITION);
+		size_t symbol_offset = context_offset;
+		if (!has_context_offset && !editorBufferPosToOffset(E.cy, E.cx, &symbol_offset)) {
+			symbol_offset = 0;
+		}
+		if (editorIdentifierAtOffset(symbol_offset)) {
+			mouseAppendEditorContextItem(items, &count, "Show Usages",
+			                             EDITOR_ACTION_GOTO_REFERENCES);
+		}
 	}
 	if (has_selection) {
 		mouseAppendEditorContextItem(items, &count, "Copy", EDITOR_ACTION_COPY_SELECTION);
@@ -956,8 +989,8 @@ int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_contex
 }
 
 static int mouseEditorContextActionUsesOffset(enum editorAction action) {
-	return action == EDITOR_ACTION_GOTO_DEFINITION || action == EDITOR_ACTION_PASTE ||
-	       action == EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT;
+	return action == EDITOR_ACTION_GOTO_DEFINITION || action == EDITOR_ACTION_GOTO_REFERENCES ||
+	       action == EDITOR_ACTION_PASTE || action == EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT;
 }
 
 int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_action,

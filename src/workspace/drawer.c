@@ -262,6 +262,7 @@ const char *editorDrawerRootPath(void) {
 void editorDrawerShutdown(void) {
 	editorFileSearchFree();
 	editorProjectSearchFree();
+	editorDrawerLspUsagesFree();
 	editorDrawerNodeFree(E.drawer_root);
 	E.drawer_root = NULL;
 	free(E.drawer_root_path);

@@ -247,6 +247,13 @@ struct editorProjectSearchResult {
 	char *display;
 };
 
+struct editorUsageResult {
+	char *path;
+	char *display;
+	int line;
+	int character;
+};
+
 struct editorTabLayoutEntry {
 	int tab_idx;
 	int start_col;
@@ -784,6 +791,11 @@ struct editorConfig {
 	int drawer_project_search_active_tab_before;
 	int drawer_project_search_restore_collapsed;
 	enum editorDrawerMode drawer_project_search_mode_before;
+
+	struct editorUsageResult *drawer_usages_results;
+	int drawer_usages_count;
+	int drawer_usages_capacity;
+	char *drawer_usages_symbol;
 
 	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;

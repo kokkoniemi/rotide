@@ -1,8 +1,11 @@
+#include "editing/document_position.h"
+#include "input/mouse.h"
 #include "input/system_vim.h"
 #include "render/popup.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
+#include "workspace/drawer.h"
 
 static int find_drawer_entry_containing(const char *needle, int *idx_out,
                                         struct editorDrawerEntryView *view_out) {
@@ -1335,7 +1338,7 @@ static int lsp_nav_vim_key(int key) {
 	return editorVimHandleKey(key, &effects);
 }
 
-static int test_editor_vim_gr_goto_references_single_jumps(void) {
+static int test_editor_vim_gr_goto_references_single_opens_drawer(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_config.gopls_enabled = 1;
 	E.lsp_config.clangd_enabled = 0;
@@ -1355,8 +1358,16 @@ static int test_editor_vim_gr_goto_references_single_jumps(void) {
 	editorVimReset();
 	(void)lsp_nav_vim_key('g');
 	(void)lsp_nav_vim_key('r');
-	ASSERT_EQ_INT(2, E.cy);
-	ASSERT_EQ_INT(5, E.cx);
+
+	/* References always open the drawer, even when the result is unique. */
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_EQ_INT(5, E.cy);
+	ASSERT_EQ_INT(1, E.drawer_usages_count);
+
+	struct editorDrawerEntryView view = {0};
+	ASSERT_TRUE(find_drawer_entry_containing("Usages of `helper` (1)", NULL, &view));
+	ASSERT_EQ_INT(1, view.depth);
 
 	struct editorLspTestStats stats = {0};
 	editorLspTestGetStats(&stats);
@@ -1366,7 +1377,7 @@ static int test_editor_vim_gr_goto_references_single_jumps(void) {
 	return 0;
 }
 
-static int test_editor_vim_gr_goto_references_multiple_opens_menu(void) {
+static int test_editor_vim_gr_goto_references_multiple_populate_drawer(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_config.gopls_enabled = 1;
 	E.lsp_config.clangd_enabled = 0;
@@ -1380,18 +1391,175 @@ static int test_editor_vim_gr_goto_references_multiple_opens_menu(void) {
 	E.cy = 5;
 	E.cx = 5;
 
+	/* Deliberately out of order to exercise the (path,line,character) sort. */
 	struct editorLspLocation targets[2] = {
+	        {.path = go_path, .line = 5, .character = 4},
 	        {.path = go_path, .line = 2, .character = 5},
-	        {.path = go_path, .line = 6, .character = 5},
 	};
 	editorLspTestSetMockReferencesResponse(1, targets, 2);
 
 	editorVimReset();
 	(void)lsp_nav_vim_key('g');
 	(void)lsp_nav_vim_key('r');
-	ASSERT_TRUE(editorPopupIsVisible());
-	ASSERT_EQ_INT(EDITOR_POPUP_KIND_LSP_LOCATION_MENU, E.popup.kind);
-	ASSERT_EQ_INT(2, editorPopupItemCount());
+
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(2, E.drawer_usages_count);
+	ASSERT_TRUE(find_drawer_entry_containing("Usages of `helper` (2)", NULL, NULL));
+
+	int first_idx = -1;
+	int second_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing(":3:6", &first_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry_containing(":6:5", &second_idx, NULL));
+	ASSERT_TRUE(first_idx < second_idx);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_drawer_usages_group_navigation_and_location(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        go_path, sizeof(go_path), "rotide-test-go-lsp-usages-", ".go",
+	        "tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+
+	struct editorLspLocation targets[2] = {
+	        {.path = go_path, .line = 2, .character = 5},
+	        {.path = go_path, .line = 5, .character = 4},
+	};
+	ASSERT_TRUE(editorDrawerLspShowUsages(targets, 2, "helper"));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(2, E.drawer_usages_count);
+
+	const char *sel_path = NULL;
+	int sel_line = 0;
+	int sel_char = 0;
+	ASSERT_TRUE(editorDrawerSelectedLspLocation(&sel_path, &sel_line, &sel_char));
+	ASSERT_EQ_STR(go_path, sel_path);
+	ASSERT_EQ_INT(2, sel_line);
+	ASSERT_EQ_INT(5, sel_char);
+
+	int group_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing("Usages of `helper`", &group_idx, NULL));
+	ASSERT_TRUE(editorDrawerCollapseSelection(E.window_rows));
+	ASSERT_EQ_INT(group_idx, E.drawer_selected_index);
+
+	int expanded_count = editorDrawerVisibleCount();
+	ASSERT_TRUE(editorDrawerCollapseSelection(E.window_rows));
+	ASSERT_EQ_INT(expanded_count - 2, editorDrawerVisibleCount());
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_drawer_usages_scrolls_focus_into_view(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        go_path, sizeof(go_path), "rotide-test-go-lsp-usages-scroll-", ".go",
+	        "tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+	E.window_rows = 8;
+
+	/* Force the Usages group below the viewport. */
+	struct editorLspSymbol symbols[20];
+	memset(symbols, 0, sizeof(symbols));
+	for (int i = 0; i < 20; i++) {
+		symbols[i].name = "sym";
+		symbols[i].kind = 12;
+		symbols[i].line = i;
+		symbols[i].character = 0;
+		symbols[i].parent_index = -1;
+		symbols[i].is_last_sibling = i == 19;
+	}
+	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 20);
+
+	struct editorLspLocation targets[2] = {
+	        {.path = go_path, .line = 2, .character = 5},
+	        {.path = go_path, .line = 5, .character = 4},
+	};
+	ASSERT_TRUE(editorDrawerLspShowUsages(targets, 2, "helper"));
+
+	ASSERT_TRUE(E.drawer_selected_index >= E.drawer_rowoff);
+	ASSERT_TRUE(E.drawer_selected_index < E.drawer_rowoff + E.window_rows);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_identifier_at_offset_detects_word(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("  helper()");
+	E.syntax_language = EDITOR_SYNTAX_GO;
+
+	size_t on_word = 0;
+	ASSERT_TRUE(editorBufferPosToOffset(0, 4, &on_word));
+	ASSERT_EQ_INT(1, editorIdentifierAtOffset(on_word));
+
+	size_t on_space = 0;
+	ASSERT_TRUE(editorBufferPosToOffset(0, 0, &on_space));
+	ASSERT_EQ_INT(0, editorIdentifierAtOffset(on_space));
+
+	size_t on_paren = 0;
+	ASSERT_TRUE(editorBufferPosToOffset(0, 8, &on_paren));
+	ASSERT_EQ_INT(0, editorIdentifierAtOffset(on_paren));
+
+	return 0;
+}
+
+static int test_editor_context_menu_show_usages_context_aware(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+	                               "package main\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+
+	size_t on_word = 0;
+	ASSERT_TRUE(editorBufferPosToOffset(2, 14, &on_word));
+	ASSERT_TRUE(editorOpenEditorContextMenuAt(1, 1, 1, on_word));
+	int found_usages = 0;
+	for (int i = 0; i < editorPopupItemCount(); i++) {
+		if (E.popup.items[i].label != NULL &&
+		    strcmp(E.popup.items[i].label, "Show Usages") == 0) {
+			found_usages = 1;
+		}
+	}
+	ASSERT_TRUE(found_usages);
+	editorPopupClose();
+
+	size_t on_space = 0;
+	ASSERT_TRUE(editorBufferPosToOffset(1, 0, &on_space));
+	ASSERT_TRUE(editorOpenEditorContextMenuAt(1, 1, 1, on_space));
+	found_usages = 0;
+	int found_definition = 0;
+	for (int i = 0; i < editorPopupItemCount(); i++) {
+		if (E.popup.items[i].label == NULL) {
+			continue;
+		}
+		if (strcmp(E.popup.items[i].label, "Show Usages") == 0) {
+			found_usages = 1;
+		}
+		if (strcmp(E.popup.items[i].label, "Go to Definition") == 0) {
+			found_definition = 1;
+		}
+	}
+	ASSERT_EQ_INT(0, found_usages);
+	ASSERT_EQ_INT(1, found_definition);
+	editorPopupClose();
 
 	ASSERT_TRUE(unlink(go_path) == 0);
 	return 0;
@@ -1460,10 +1628,17 @@ static int test_editor_vim_k_hover_empty_reports_not_found(void) {
 }
 
 const struct editorTestCase g_lsp_navigation_tests[] = {
-        {"editor_vim_gr_goto_references_single_jumps",
-         test_editor_vim_gr_goto_references_single_jumps},
-        {"editor_vim_gr_goto_references_multiple_opens_menu",
-         test_editor_vim_gr_goto_references_multiple_opens_menu},
+        {"editor_vim_gr_goto_references_single_opens_drawer",
+         test_editor_vim_gr_goto_references_single_opens_drawer},
+        {"editor_vim_gr_goto_references_multiple_populate_drawer",
+         test_editor_vim_gr_goto_references_multiple_populate_drawer},
+        {"editor_lsp_drawer_usages_group_navigation_and_location",
+         test_editor_lsp_drawer_usages_group_navigation_and_location},
+        {"editor_lsp_drawer_usages_scrolls_focus_into_view",
+         test_editor_lsp_drawer_usages_scrolls_focus_into_view},
+        {"editor_identifier_at_offset_detects_word", test_editor_identifier_at_offset_detects_word},
+        {"editor_context_menu_show_usages_context_aware",
+         test_editor_context_menu_show_usages_context_aware},
         {"editor_vim_k_hover_opens_popup", test_editor_vim_k_hover_opens_popup},
         {"editor_vim_k_hover_empty_reports_not_found",
          test_editor_vim_k_hover_empty_reports_not_found},

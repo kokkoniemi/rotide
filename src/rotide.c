@@ -116,6 +116,10 @@ void editorInit(void) {
 	E.drawer_project_search_active_tab_before = -1;
 	E.drawer_project_search_restore_collapsed = 0;
 	E.drawer_project_search_mode_before = EDITOR_DRAWER_MODE_TREE;
+	E.drawer_usages_results = NULL;
+	E.drawer_usages_count = 0;
+	E.drawer_usages_capacity = 0;
+	E.drawer_usages_symbol = NULL;
 	E.git_repo_root = NULL;
 	E.git_branch = NULL;
 	E.git_head = NULL;
