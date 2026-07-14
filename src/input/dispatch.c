@@ -1307,6 +1307,10 @@ static int dispatchJumpToPathLocation(const char *path, int line, int character,
 	return 1;
 }
 
+int editorDispatchJumpToPathLocation(const char *path, int line, int character) {
+	return dispatchJumpToPathLocation(path, line, character, /*preview=*/0, /*center=*/0);
+}
+
 static int dispatchGitDiffJumpToFile(int in_split) {
 	char *path = NULL;
 	int line0 = 0;

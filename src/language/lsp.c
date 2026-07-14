@@ -551,7 +551,8 @@ static int lspEnsureRunningReal(const char *filename, enum editorLspServerKind s
 	}
 
 	int request_id = client->next_request_id++;
-	char *init = editorLspBuildInitializeRequestJson(request_id, root_uri, (int)getpid());
+	char *init = editorLspBuildInitializeRequestJson(request_id, root_uri, (int)getpid(),
+	                                                 server_kind);
 	free(root_uri);
 	if (init == NULL) {
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;

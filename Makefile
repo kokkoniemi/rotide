@@ -139,7 +139,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_input_vim.c test_input_actions.c test_input_selection.c test_input_mouse.c \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
-	test_render_terminal.c test_layout.c test_pty.c \
+	test_render_terminal.c test_layout.c test_wrap.c test_pty.c \
 	test_terminal_pane.c test_text_invariants.c test_text_summary.c \
 	test_text_tree.c test_syntax_incremental_equiv.c test_runner_internals.c \
 	test_long_session.c \

@@ -4,6 +4,7 @@
 #include "editing/edit.h"
 #include "editing/edit_pipeline.h"
 #include "editing/text_source.h"
+#include "input/dispatch.h"
 #include "language/lsp.h"
 #include "language/lsp_framing.h"
 #include "language/lsp_json.h"
@@ -25,7 +26,270 @@
 #include <string.h>
 #include <strings.h>
 
-char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id) {
+struct lspProtocolCommand {
+	char *storage;
+	const char **argv;
+	int argc;
+};
+
+static void lspProtocolCommandFree(struct lspProtocolCommand *command) {
+	if (command == NULL) {
+		return;
+	}
+	free(command->storage);
+	free(command->argv);
+	memset(command, 0, sizeof(*command));
+}
+
+static int lspProtocolCommandSplit(const char *input, struct lspProtocolCommand *command) {
+	memset(command, 0, sizeof(*command));
+	if (input == NULL) {
+		return 0;
+	}
+	size_t len = strlen(input);
+	command->storage = malloc(len + 1);
+	command->argv = calloc(len + 1, sizeof(*command->argv));
+	if (command->storage == NULL || command->argv == NULL) {
+		lspProtocolCommandFree(command);
+		return 0;
+	}
+
+	const char *read = input;
+	char *write = command->storage;
+	while (*read != '\0') {
+		while (isspace((unsigned char)*read)) {
+			read++;
+		}
+		if (*read == '\0') {
+			break;
+		}
+
+		command->argv[command->argc++] = write;
+		int in_quotes = 0;
+		while (*read != '\0') {
+			if (*read == '"') {
+				in_quotes = !in_quotes;
+				read++;
+				continue;
+			}
+			if (!in_quotes && isspace((unsigned char)*read)) {
+				break;
+			}
+			*write++ = *read++;
+		}
+		if (in_quotes) {
+			lspProtocolCommandFree(command);
+			return 0;
+		}
+		*write++ = '\0';
+	}
+	return 1;
+}
+
+static int lspProtocolAppendExecutableFields(struct editorJsonString *json, const char *executable,
+                                             const char *const *args, int arg_count) {
+	int built = editorLspStringAppend(json, "\"executable\":");
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(json, executable, strlen(executable));
+	}
+	if (built) {
+		built = editorLspStringAppend(json, ",\"args\":[");
+	}
+	for (int i = 0; built && i < arg_count; i++) {
+		if (i > 0) {
+			built = editorLspStringAppend(json, ",");
+		}
+		if (built) {
+			built = editorLspStringAppendJsonEscaped(json, args[i], strlen(args[i]));
+		}
+	}
+	if (built) {
+		built = editorLspStringAppend(json, "]");
+	}
+	return built;
+}
+
+static int lspProtocolAppendCommandOption(struct editorJsonString *json, const char *option,
+                                          const char *executable, const char *const *args,
+                                          int arg_count, int *first_in_out) {
+	int built = *first_in_out || editorLspStringAppend(json, ",");
+	if (built) {
+		built = editorLspStringAppendf(json, "\"%s\":{", option);
+	}
+	if (built) {
+		built = lspProtocolAppendExecutableFields(json, executable, args, arg_count);
+	}
+	if (built) {
+		built = editorLspStringAppend(json, "}");
+	}
+	if (built) {
+		*first_in_out = 0;
+	}
+	return built;
+}
+
+static int lspProtocolAppendBooleanOption(struct editorJsonString *json, const char *option,
+                                          int value, int *first_in_out) {
+	int built = *first_in_out || editorLspStringAppend(json, ",");
+	if (built) {
+		built = editorLspStringAppendf(json, "\"%s\":%s", option, value ? "true" : "false");
+	}
+	if (built) {
+		*first_in_out = 0;
+	}
+	return built;
+}
+
+static int lspProtocolAppendStringOption(struct editorJsonString *json, const char *option,
+                                         const char *value, int *first_in_out) {
+	int built = *first_in_out || editorLspStringAppend(json, ",");
+	if (built) {
+		built = editorLspStringAppendf(json, "\"%s\":", option);
+	}
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(json, value, strlen(value));
+	}
+	if (built) {
+		*first_in_out = 0;
+	}
+	return built;
+}
+
+static int lspProtocolAppendTexlabForwardSearch(struct editorJsonString *json, int *first_in_out) {
+	static const char *const okular_args[] = {"--unique", "file:%p#src:%l%f"};
+	static const char *const evince_args[] = {"-f", "%l", "%p",
+	                                          "texlab inverse-search -i %f --line1 %l"};
+	static const char *const zathura_args[] = {"--synctex-forward", "%l:1:%f", "%p"};
+
+	struct lspProtocolCommand command = {0};
+	const char *executable = NULL;
+	const char *const *args = NULL;
+	int arg_count = 0;
+	if (E.lsp_config.texlab_forward_search_command[0] != '\0') {
+		if (!lspProtocolCommandSplit(E.lsp_config.texlab_forward_search_command,
+		                             &command) ||
+		    command.argc == 0) {
+			lspProtocolCommandFree(&command);
+			return 0;
+		}
+		executable = command.argv[0];
+		args = command.argv + 1;
+		arg_count = command.argc - 1;
+	} else if (strcmp(E.lsp_config.texlab_pdf_viewer, "okular") == 0) {
+		executable = "okular";
+		args = okular_args;
+		arg_count = (int)(sizeof(okular_args) / sizeof(okular_args[0]));
+	} else if (strcmp(E.lsp_config.texlab_pdf_viewer, "evince") == 0) {
+		executable = "evince-synctex";
+		args = evince_args;
+		arg_count = (int)(sizeof(evince_args) / sizeof(evince_args[0]));
+	} else if (strcmp(E.lsp_config.texlab_pdf_viewer, "zathura") == 0) {
+		executable = "zathura";
+		args = zathura_args;
+		arg_count = (int)(sizeof(zathura_args) / sizeof(zathura_args[0]));
+	}
+
+	int built = 1;
+	if (executable != NULL) {
+		built = lspProtocolAppendCommandOption(json, "forwardSearch", executable, args,
+		                                       arg_count, first_in_out);
+	}
+	lspProtocolCommandFree(&command);
+	return built;
+}
+
+static int lspProtocolAppendTexlabBuild(struct editorJsonString *json, int *first_in_out) {
+	int has_command = E.lsp_config.texlab_build_command[0] != '\0';
+	if (!has_command && !E.lsp_config.texlab_build_on_save &&
+	    !E.lsp_config.texlab_forward_search_after_build &&
+	    E.lsp_config.texlab_pdf_directory[0] == '\0') {
+		return 1;
+	}
+
+	struct lspProtocolCommand command = {0};
+	if (has_command && (!lspProtocolCommandSplit(E.lsp_config.texlab_build_command, &command) ||
+	                    command.argc == 0)) {
+		lspProtocolCommandFree(&command);
+		return 0;
+	}
+
+	int built = *first_in_out || editorLspStringAppend(json, ",");
+	if (built) {
+		built = editorLspStringAppend(json, "\"build\":{");
+	}
+	int first_build = 1;
+	if (built && has_command) {
+		built = lspProtocolAppendExecutableFields(json, command.argv[0], command.argv + 1,
+		                                          command.argc - 1);
+		first_build = 0;
+	}
+	if (built) {
+		built = lspProtocolAppendBooleanOption(
+		        json, "onSave", E.lsp_config.texlab_build_on_save, &first_build);
+	}
+	if (built) {
+		built = lspProtocolAppendBooleanOption(
+		        json, "forwardSearchAfter", E.lsp_config.texlab_forward_search_after_build,
+		        &first_build);
+	}
+	if (built && E.lsp_config.texlab_pdf_directory[0] != '\0') {
+		built = lspProtocolAppendStringOption(
+		        json, "pdfDirectory", E.lsp_config.texlab_pdf_directory, &first_build);
+	}
+	if (built) {
+		built = editorLspStringAppend(json, "}");
+	}
+	if (built) {
+		*first_in_out = 0;
+	}
+	lspProtocolCommandFree(&command);
+	return built;
+}
+
+static int lspProtocolAppendTexlabOptionsObject(struct editorJsonString *json) {
+	int built = editorLspStringAppend(json, "{");
+	int first = 1;
+	if (built) {
+		built = lspProtocolAppendTexlabForwardSearch(json, &first);
+	}
+	if (built) {
+		built = lspProtocolAppendTexlabBuild(json, &first);
+	}
+	if (built && E.lsp_config.texlab_aux_directory[0] != '\0') {
+		built = lspProtocolAppendStringOption(json, "auxDirectory",
+		                                      E.lsp_config.texlab_aux_directory, &first);
+	}
+	if (built) {
+		built = editorLspStringAppend(json, "}");
+	}
+	return built;
+}
+static int lspProtocolAppendTexlabInitializationOptions(struct editorJsonString *json) {
+	int built = editorLspStringAppend(json, ",\"initializationOptions\":");
+	if (built) {
+		built = lspProtocolAppendTexlabOptionsObject(json);
+	}
+	return built;
+}
+
+static char *lspProtocolBuildTexlabConfigurationResultJson(void) {
+	struct editorJsonString result = {0};
+	int built = editorLspStringAppend(&result, "[");
+	if (built) {
+		built = lspProtocolAppendTexlabOptionsObject(&result);
+	}
+	if (built) {
+		built = editorLspStringAppend(&result, "]");
+	}
+	if (!built) {
+		free(result.buf);
+		return NULL;
+	}
+	return result.buf;
+}
+
+char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id,
+                                          enum editorLspServerKind server_kind) {
 	if (root_uri == NULL || root_uri[0] == '\0') {
 		return NULL;
 	}
@@ -44,19 +308,62 @@ char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, 
 		        &init,
 		        ",\"capabilities\":{\"general\":{\"positionEncodings\":[\"utf-8\",\"utf-"
 		        "16\"]},"
-		        "\"workspace\":{\"applyEdit\":true},"
+		        "\"workspace\":{\"applyEdit\":true,\"configuration\":true},"
+		        "\"window\":{\"showDocument\":{\"support\":true}},"
 		        "\"textDocument\":{\"codeAction\":{\"codeActionLiteralSupport\":{"
 		        "\"codeActionKind\":{\"valueSet\":[\"quickfix\",\"source.fixAll\","
 		        "\"source.fixAll.eslint\"]}}},"
 		        "\"completion\":{\"completionItem\":{\"snippetSupport\":false,"
 		        "\"insertReplaceSupport\":false}},"
-		        "\"documentSymbol\":{\"hierarchicalDocumentSymbolSupport\":true}}}}}");
+		        "\"documentSymbol\":{\"hierarchicalDocumentSymbolSupport\":true}}}");
+	}
+	if (built && server_kind == EDITOR_LSP_SERVER_TEXLAB) {
+		built = lspProtocolAppendTexlabInitializationOptions(&init);
+	}
+	if (built) {
+		built = editorLspStringAppend(&init, "}}");
 	}
 	if (!built) {
 		free(init.buf);
 		return NULL;
 	}
 	return init.buf;
+}
+
+char *editorLspBuildTextDocumentRequestJson(int request_id, const char *method, const char *uri,
+                                            int line, int character, int include_position) {
+	if (method == NULL || method[0] == '\0' || uri == NULL || uri[0] == '\0' ||
+	    (include_position && (line < 0 || character < 0))) {
+		return NULL;
+	}
+
+	struct editorJsonString request = {0};
+	int built = editorLspStringAppendf(
+	        &request, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":", request_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&request, method, strlen(method));
+	}
+	if (built) {
+		built = editorLspStringAppend(&request, ",\"params\":{\"textDocument\":{\"uri\":");
+	}
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&request, uri, strlen(uri));
+	}
+	if (built) {
+		built = editorLspStringAppend(&request, "}");
+	}
+	if (built && include_position) {
+		built = editorLspStringAppendf(
+		        &request, ",\"position\":{\"line\":%d,\"character\":%d}", line, character);
+	}
+	if (built) {
+		built = editorLspStringAppend(&request, "}}");
+	}
+	if (!built) {
+		free(request.buf);
+		return NULL;
+	}
+	return request.buf;
 }
 
 int editorLspBuildFileUri(const char *path, char **uri_out) {
@@ -595,6 +902,90 @@ static int lspProtocolRespondToRequest(struct editorLspClient *client, int reque
 	return sent;
 }
 
+static int lspProtocolFindObjectField(const char *object_start, const char *object_end,
+                                      const char *quoted_key, const char **field_out,
+                                      const char **field_end_out) {
+	const char *key = editorLspFindTopLevelKey(object_start, object_end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= object_end) {
+		return 0;
+	}
+	const char *field = editorLspSkipWs(colon + 1);
+	if (field == NULL || field >= object_end || field[0] != '{') {
+		return 0;
+	}
+	const char *field_end = editorLspFindJsonObjectEnd(field);
+	if (field_end == NULL || field_end > object_end) {
+		return 0;
+	}
+	*field_out = field;
+	*field_end_out = field_end;
+	return 1;
+}
+
+static int lspProtocolParseShowDocument(const char *message, char **path_out, int *line_out,
+                                        int *character_out) {
+	*path_out = NULL;
+	*line_out = 0;
+	*character_out = 0;
+
+	const char *message_end = editorLspFindJsonObjectEnd(message);
+	const char *params = NULL;
+	const char *params_end = NULL;
+	if (message_end == NULL ||
+	    !lspProtocolFindObjectField(message, message_end, "\"params\"", &params, &params_end)) {
+		return 0;
+	}
+
+	const char *external_key = editorLspFindTopLevelKey(params, params_end, "\"external\"");
+	if (external_key != NULL) {
+		const char *colon = strchr(external_key, ':');
+		const char *value = colon != NULL ? editorLspSkipWs(colon + 1) : NULL;
+		if (colon == NULL || colon >= params_end || value == NULL || value >= params_end) {
+			return 0;
+		}
+		if (strncmp(value, "true", 4) == 0) {
+			return 0;
+		}
+		if (strncmp(value, "false", 5) != 0) {
+			return 0;
+		}
+	}
+
+	const char *uri_key = editorLspFindTopLevelKey(params, params_end, "\"uri\"");
+	if (uri_key == NULL) {
+		return 0;
+	}
+	const char *uri_colon = strchr(uri_key, ':');
+	const char *uri_value = uri_colon != NULL ? editorLspSkipWs(uri_colon + 1) : NULL;
+	char *uri = NULL;
+	if (uri_colon == NULL || uri_colon >= params_end || uri_value == NULL ||
+	    uri_value >= params_end || !editorLspParseJsonString(uri_value, &uri, NULL)) {
+		return 0;
+	}
+	char *path = editorLspDecodeFileUri(uri);
+	free(uri);
+	if (path == NULL) {
+		return 0;
+	}
+
+	const char *selection = NULL;
+	const char *selection_end = NULL;
+	if (lspProtocolFindObjectField(params, params_end, "\"selection\"", &selection,
+	                               &selection_end) &&
+	    !editorLspParsePositionFromKey(selection, "start", selection_end, line_out,
+	                                   character_out)) {
+		free(path);
+		return 0;
+	}
+
+	*path_out = path;
+	return 1;
+}
+
 int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *message) {
 	if (message == NULL || message[0] == '\0') {
 		return 1;
@@ -623,10 +1014,19 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 	int has_request_id = editorLspExtractResponseId(message, &request_id);
 	if (strcmp(method, "workspace/configuration") == 0) {
 		free(method);
-		if (has_request_id) {
-			return lspProtocolRespondToRequest(client, request_id, "[{}]");
+		if (!has_request_id) {
+			return 1;
 		}
-		return 1;
+		if (client != NULL && client->server_kind == EDITOR_LSP_SERVER_TEXLAB) {
+			char *result = lspProtocolBuildTexlabConfigurationResultJson();
+			if (result == NULL) {
+				return 0;
+			}
+			int responded = lspProtocolRespondToRequest(client, request_id, result);
+			free(result);
+			return responded;
+		}
+		return lspProtocolRespondToRequest(client, request_id, "[{}]");
 	}
 	if (strcmp(method, "client/registerCapability") == 0) {
 		free(method);
@@ -649,6 +1049,21 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 		editorLspFreePendingEdits(edits, count);
 		return lspProtocolRespondToRequest(
 		        client, request_id, applied ? "{\"applied\":true}" : "{\"applied\":false}");
+	}
+
+	if (strcmp(method, "window/showDocument") == 0) {
+		free(method);
+		if (!has_request_id) {
+			return 1;
+		}
+		char *show_path = NULL;
+		int line = 0;
+		int character = 0;
+		int parsed = lspProtocolParseShowDocument(message, &show_path, &line, &character);
+		int jumped = parsed && editorDispatchJumpToPathLocation(show_path, line, character);
+		free(show_path);
+		return lspProtocolRespondToRequest(
+		        client, request_id, jumped ? "{\"success\":true}" : "{\"success\":false}");
 	}
 
 	free(method);

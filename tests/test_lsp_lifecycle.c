@@ -1,3 +1,5 @@
+#include "language/lsp_framing.h"
+#include "language/lsp_transport.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -745,7 +747,33 @@ static int test_editor_lsp_language_id_routing_for_javascript_extensions(void) {
 	return 0;
 }
 
+static int test_editor_lsp_transport_discards_unclaimed_build_response(void) {
+	editorLspTestSetMockEnabled(0);
+
+	int server_pipe[2];
+	ASSERT_EQ_INT(0, pipe(server_pipe));
+
+	struct editorLspClient client = {0};
+	editorLspClientResetState(&client);
+	client.from_server_fd = server_pipe[0];
+	client.server_kind = EDITOR_LSP_SERVER_TEXLAB;
+
+	ASSERT_EQ_INT(1, editorLspSendRawJsonToFd(
+	                         server_pipe[1],
+	                         "{\"jsonrpc\":\"2.0\",\"id\":27,\"result\":{\"status\":0}}"));
+	ASSERT_EQ_INT(1, editorLspTryDrainIncoming(&client, 100));
+	ASSERT_EQ_INT(0, client.completion_pending.request_id);
+	ASSERT_EQ_INT(1, client.next_request_id);
+
+	ASSERT_EQ_INT(0, close(server_pipe[1]));
+	client.from_server_fd = -1;
+	ASSERT_EQ_INT(0, close(server_pipe[0]));
+	return 0;
+}
+
 const struct editorTestCase g_lsp_lifecycle_tests[] = {
+        {"editor_lsp_transport_discards_unclaimed_build_response",
+         test_editor_lsp_transport_discards_unclaimed_build_response},
         {"editor_lsp_lifecycle_lazy_start_and_non_go_buffers",
          test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
         {"editor_lsp_lifecycle_restart_after_mock_crash",

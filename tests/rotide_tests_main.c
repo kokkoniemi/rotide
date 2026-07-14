@@ -56,6 +56,7 @@ SUITE_EXTERN(render_chrome);
 SUITE_EXTERN(render_panes);
 SUITE_EXTERN(render_terminal);
 SUITE_EXTERN(layout);
+SUITE_EXTERN(wrap);
 SUITE_EXTERN(pty);
 SUITE_EXTERN(terminal_pane);
 SUITE_EXTERN(text_invariants);
@@ -111,6 +112,7 @@ static const struct editorTestSuite k_suites[] = {
         SUITE("render_panes", "render", render_panes),
         SUITE("render_terminal", "render", render_terminal),
         SUITE("layout", "layout", layout),
+        SUITE("wrap", "render", wrap),
         SUITE("pty", "pty slow", pty),
         SUITE("terminal_pane", "pty terminal slow", terminal_pane),
         SUITE("text_invariants", "document property", text_invariants),

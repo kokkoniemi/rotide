@@ -13,6 +13,7 @@
 
 int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out);
 int editorDispatchGoToBufferPosition(const char *path, int cy, int cx);
+int editorDispatchJumpToPathLocation(const char *path, int line, int character);
 int editorDispatchJumplistBack(int count, int *effects_out);
 int editorDispatchJumplistForward(int count, int *effects_out);
 void editorDispatchHandleTextByte(int c, int *effects_out);
