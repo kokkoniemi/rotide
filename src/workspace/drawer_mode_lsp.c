@@ -86,6 +86,22 @@ static int drawerModeLspVisibleGroupCount(void) {
 	return EDITOR_DRAWER_LSP_BASE_GROUP_COUNT + (drawerModeLspUsagesActive() ? 1 : 0);
 }
 
+static int drawerModeLspGroupAtPosition(int position) {
+	if (drawerModeLspUsagesActive()) {
+		if (position == 0) {
+			return EDITOR_DRAWER_LSP_GROUP_USAGES;
+		}
+		position--;
+	}
+	if (position == 0) {
+		return EDITOR_DRAWER_LSP_GROUP_PROBLEMS;
+	}
+	if (position == 1) {
+		return EDITOR_DRAWER_LSP_GROUP_SYMBOLS;
+	}
+	return -1;
+}
+
 static unsigned int drawerModeLspAllGroupsMask(void) {
 	unsigned int mask = 0;
 	for (int i = 0; i < drawerModeLspVisibleGroupCount(); i++) {
@@ -234,7 +250,8 @@ static int drawerModeLspGroupItemCount(int group_idx) {
 int editorDrawerLspVisibleCount(void) {
 	int count = 1;
 	int group_count = drawerModeLspVisibleGroupCount();
-	for (int group_idx = 0; group_idx < group_count; group_idx++) {
+	for (int position = 0; position < group_count; position++) {
+		int group_idx = drawerModeLspGroupAtPosition(position);
 		count++;
 		if (!drawerModeLspGroupExpanded(group_idx)) {
 			continue;
@@ -265,7 +282,8 @@ static int drawerModeLspLookupByVisibleIndex(int visible_idx,
 
 	int cursor = 1;
 	int group_count = drawerModeLspVisibleGroupCount();
-	for (int group_idx = 0; group_idx < group_count; group_idx++) {
+	for (int position = 0; position < group_count; position++) {
+		int group_idx = drawerModeLspGroupAtPosition(position);
 		int group_visible_idx = cursor;
 		int item_count = drawerModeLspGroupItemCount(group_idx);
 		if (visible_idx == group_visible_idx) {
@@ -402,8 +420,10 @@ int editorDrawerLspVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->depth = 1;
 			view_out->is_dir = 1;
 			view_out->is_expanded = drawerModeLspGroupExpanded(lookup.group_idx);
+			/* Symbols is always the last group in both orderings (Usages is
+			 * anchored first when present). */
 			view_out->is_last_sibling =
-			        lookup.group_idx == drawerModeLspVisibleGroupCount() - 1;
+			        lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS;
 			return 1;
 		case EDITOR_DRAWER_LSP_ENTRY_PROBLEM: {
 			const char *path = lookup.problem.path != NULL ? lookup.problem.path : "";
@@ -676,7 +696,8 @@ static int drawerModeLspUsagesPopulate(const struct editorLspLocation *locations
 static int drawerModeLspUsagesGroupVisibleIndex(void) {
 	int cursor = 1;
 	int group_count = drawerModeLspVisibleGroupCount();
-	for (int group_idx = 0; group_idx < group_count; group_idx++) {
+	for (int position = 0; position < group_count; position++) {
+		int group_idx = drawerModeLspGroupAtPosition(position);
 		if (group_idx == EDITOR_DRAWER_LSP_GROUP_USAGES) {
 			return cursor;
 		}

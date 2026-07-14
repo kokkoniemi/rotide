@@ -1458,6 +1458,83 @@ static int test_editor_lsp_drawer_usages_group_navigation_and_location(void) {
 	return 0;
 }
 
+static int test_editor_lsp_drawer_usages_navigation_stable_across_files(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char dir_template[] = "/tmp/rotide-test-go-usages-stable-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	/* Names chosen so a_usage.go sorts before b_usage.go. */
+	char origin_path[512];
+	char other_path[512];
+	ASSERT_TRUE(path_join(origin_path, sizeof(origin_path), dir_path, "a_usage.go"));
+	ASSERT_TRUE(path_join(other_path, sizeof(other_path), dir_path, "b_usage.go"));
+	ASSERT_TRUE(write_text_file(
+	        origin_path, "package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
+	ASSERT_TRUE(write_text_file(other_path, "package other\n\nvar helper = 0\n"));
+
+	editorOpen(origin_path);
+	E.window_rows = 40;
+	E.cy = 3;
+	E.cx = 13; /* on the helper() call */
+
+	/* The origin file reports a large symbol list; the other file has none.
+	 * Previewing a usage in the other file swaps the active buffer and shrinks
+	 * the Symbols group, which used to drift the selection when Symbols sat
+	 * above the usage rows. */
+	struct editorLspSymbol many[25];
+	memset(many, 0, sizeof(many));
+	for (int i = 0; i < 25; i++) {
+		many[i].name = "sym";
+		many[i].kind = 12;
+		many[i].line = 100 + i;
+		many[i].character = 99;
+		many[i].parent_index = -1;
+		many[i].is_last_sibling = i == 24;
+	}
+	editorLspTestSetMockDocumentSymbolResponse(1, many, 25);
+
+	struct editorLspLocation targets[2] = {
+	        {.path = origin_path, .line = 2, .character = 5},
+	        {.path = other_path, .line = 1, .character = 1},
+	};
+	editorLspTestSetMockReferencesResponse(1, targets, 2);
+
+	editorVimReset();
+	(void)lsp_nav_vim_key('g');
+	(void)lsp_nav_vim_key('r');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(2, E.drawer_usages_count);
+
+	/* Selection begins on the first usage (origin file). */
+	const char *path = NULL;
+	int line = 0;
+	int character = 0;
+	ASSERT_TRUE(editorDrawerSelectedLspLocation(&path, &line, &character));
+	ASSERT_EQ_STR(origin_path, path);
+	ASSERT_EQ_INT(2, line);
+	ASSERT_EQ_INT(5, character);
+
+	/* Arrow down previews the second usage (other file), swapping the Symbols
+	 * group out from under the list. The selection must still land on that
+	 * usage, not a symbol row. */
+	const char arrow_down[] = "\x1b[B";
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(arrow_down, strlen(arrow_down)) == 0);
+	ASSERT_TRUE(editorDrawerSelectedLspLocation(&path, &line, &character));
+	ASSERT_EQ_STR(other_path, path);
+	ASSERT_EQ_INT(1, line);
+	ASSERT_EQ_INT(1, character);
+
+	ASSERT_TRUE(unlink(origin_path) == 0);
+	ASSERT_TRUE(unlink(other_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_drawer_usages_scrolls_focus_into_view(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_config.gopls_enabled = 1;
@@ -1634,6 +1711,8 @@ const struct editorTestCase g_lsp_navigation_tests[] = {
          test_editor_vim_gr_goto_references_multiple_populate_drawer},
         {"editor_lsp_drawer_usages_group_navigation_and_location",
          test_editor_lsp_drawer_usages_group_navigation_and_location},
+        {"editor_lsp_drawer_usages_navigation_stable_across_files",
+         test_editor_lsp_drawer_usages_navigation_stable_across_files},
         {"editor_lsp_drawer_usages_scrolls_focus_into_view",
          test_editor_lsp_drawer_usages_scrolls_focus_into_view},
         {"editor_identifier_at_offset_detects_word", test_editor_identifier_at_offset_detects_word},
