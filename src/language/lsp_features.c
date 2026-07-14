@@ -826,3 +826,94 @@ void editorLspRefreshActiveDocumentSymbols(void) {
 	E.lsp_symbols = symbols;
 	E.lsp_symbol_count = count;
 }
+
+static char *lspFeaturesBuildTexlabRequest(struct editorLspClient *client, int request_id,
+                                           const char *method, const char *filename, int line,
+                                           int character, int include_position) {
+	char *uri = NULL;
+	if (!editorLspBuildFileUri(filename, &uri)) {
+		return NULL;
+	}
+	int protocol_character =
+	        include_position
+	                ? editorLspClientProtocolCharacterFromBufferColumn(client, line, character)
+	                : 0;
+	char *request = editorLspBuildTextDocumentRequestJson(request_id, method, uri, line,
+	                                                      protocol_character, include_position);
+	free(uri);
+	return request;
+}
+
+int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguage language,
+                                  int line, int character) {
+	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0) {
+		return -1;
+	}
+	if (!editorLspFileEnabled(filename, language) ||
+	    editorLspServerKindForFile(filename, language) != EDITOR_LSP_SERVER_TEXLAB) {
+		return 0;
+	}
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return -1;
+		}
+		g_lsp_mock.stats.forward_search_count++;
+		return g_lsp_mock.forward_search_result_code;
+	}
+
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL || client->server_kind != EDITOR_LSP_SERVER_TEXLAB) {
+		return -1;
+	}
+	int request_id = client->next_request_id++;
+	char *request = lspFeaturesBuildTexlabRequest(
+	        client, request_id, "textDocument/forwardSearch", filename, line, character, 1);
+	if (request == NULL) {
+		return -1;
+	}
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, request)) {
+		free(request);
+		editorLspClientCleanup(client, 0);
+		return -1;
+	}
+	free(request);
+
+	return 1;
+}
+
+int editorLspRequestBuild(const char *filename, enum editorSyntaxLanguage language) {
+	if (filename == NULL || filename[0] == '\0') {
+		return -1;
+	}
+	if (!editorLspFileEnabled(filename, language) ||
+	    editorLspServerKindForFile(filename, language) != EDITOR_LSP_SERVER_TEXLAB) {
+		return 0;
+	}
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return -1;
+		}
+		g_lsp_mock.stats.build_count++;
+		return g_lsp_mock.build_result_code;
+	}
+
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL || client->server_kind != EDITOR_LSP_SERVER_TEXLAB) {
+		return -1;
+	}
+	int request_id = client->next_request_id++;
+	char *request = lspFeaturesBuildTexlabRequest(client, request_id, "textDocument/build",
+	                                              filename, 0, 0, 0);
+	if (request == NULL) {
+		return -1;
+	}
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, request)) {
+		free(request);
+		editorLspClientCleanup(client, 0);
+		return -1;
+	}
+	free(request);
+	return 1;
+}

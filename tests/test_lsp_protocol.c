@@ -1,6 +1,12 @@
+#include "language/lsp_protocol.h"
+#include "language/lsp_transport.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
+
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 static int test_editor_lsp_config_defaults_and_precedence(void) {
 	struct editorLspConfig config = {0};
@@ -31,6 +37,13 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_INT(1, config.texlab_enabled);
 	ASSERT_EQ_STR("~/.local/bin/texlab", config.texlab_command);
 	ASSERT_EQ_STR("", config.texlab_install_command);
+	ASSERT_EQ_STR("", config.texlab_pdf_viewer);
+	ASSERT_EQ_STR("", config.texlab_forward_search_command);
+	ASSERT_EQ_STR("", config.texlab_build_command);
+	ASSERT_EQ_STR("", config.texlab_aux_directory);
+	ASSERT_EQ_STR("", config.texlab_pdf_directory);
+	ASSERT_EQ_INT(0, config.texlab_build_on_save);
+	ASSERT_EQ_INT(0, config.texlab_forward_search_after_build);
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -59,54 +72,76 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	                     "eslint_command = \"eslint-global --stdio\"\n"
 	                     "texlab_command = \"texlab-global\"\n"
 	                     "texlab_install_command = \"texlab-global-install\"\n"
+	                     "texlab_pdf_viewer = \"okular\"\n"
+	                     "texlab_forward_search_command = \"viewer-global --line %l %p\"\n"
+	                     "texlab_build_command = \"build-global %f\"\n"
+	                     "texlab_build_on_save = true\n"
+	                     "texlab_forward_search_after_build = false\n"
+	                     "texlab_aux_directory = \"global-aux\"\n"
+	                     "texlab_pdf_directory = \"global-pdf\"\n"
 	                     "gopls_install_command = \"global-install\"\n"
 	                     "vscode_langservers_install_command = \"global-vscode-install\"\n"));
 	ASSERT_TRUE(write_text_file(
-	        project_path, "[lsp]\n"
-	                      "gopls_enabled = true\n"
-	                      "clangd_enabled = false\n"
-	                      "html_enabled = true\n"
-	                      "css_enabled = true\n"
-	                      "json_enabled = false\n"
-	                      "javascript_enabled = true\n"
-	                      "eslint_enabled = true\n"
-	                      "gopls_command = \"gopls-project\"\n"
-	                      "clangd_command = \"clangd-project\"\n"
-	                      "html_command = \"html-project --stdio\"\n"
-	                      "css_command = \"css-project --stdio\"\n"
-	                      "json_command = \"json-project --stdio\"\n"
-	                      "javascript_command = \"javascript-project --stdio\"\n"
-	                      "javascript_install_command = \"javascript-project-install\"\n"
-	                      "eslint_command = \"eslint-project --stdio\"\n"
-	                      "texlab_command = \"texlab-project\"\n"
-	                      "texlab_install_command = \"texlab-project-install\"\n"
-	                      "gopls_install_command = \"project-install\"\n"
-	                      "vscode_langservers_install_command = \"project-vscode-install\"\n"));
+	        project_path,
+	        "[lsp]\n"
+	        "gopls_enabled = true\n"
+	        "clangd_enabled = false\n"
+	        "html_enabled = true\n"
+	        "css_enabled = true\n"
+	        "json_enabled = false\n"
+	        "javascript_enabled = true\n"
+	        "eslint_enabled = true\n"
+	        "gopls_command = \"gopls-project\"\n"
+	        "clangd_command = \"clangd-project\"\n"
+	        "html_command = \"html-project --stdio\"\n"
+	        "css_command = \"css-project --stdio\"\n"
+	        "json_command = \"json-project --stdio\"\n"
+	        "javascript_command = \"javascript-project --stdio\"\n"
+	        "javascript_install_command = \"javascript-project-install\"\n"
+	        "eslint_command = \"eslint-project --stdio\"\n"
+	        "texlab_command = \"texlab-project\"\n"
+	        "texlab_install_command = \"texlab-project-install\"\n"
+	        "texlab_pdf_viewer = \"zathura\"\n"
+	        "texlab_forward_search_command = \"viewer-project \\\"two words\\\" %p\"\n"
+	        "texlab_build_command = \"\"\n"
+	        "texlab_build_on_save = false\n"
+	        "texlab_forward_search_after_build = true\n"
+	        "texlab_aux_directory = \"project-aux\"\n"
+	        "texlab_pdf_directory = \"\"\n"
+	        "gopls_install_command = \"project-install\"\n"
+	        "vscode_langservers_install_command = \"project-vscode-install\"\n"));
 
 	enum editorLspConfigLoadStatus status =
 	        editorLspConfigLoadFromPaths(&config, global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
-	ASSERT_EQ_INT(1, config.gopls_enabled);
+	ASSERT_EQ_INT(0, config.gopls_enabled);
 	ASSERT_EQ_INT(0, config.clangd_enabled);
-	ASSERT_EQ_INT(1, config.html_enabled);
-	ASSERT_EQ_INT(1, config.css_enabled);
+	ASSERT_EQ_INT(0, config.html_enabled);
+	ASSERT_EQ_INT(0, config.css_enabled);
 	ASSERT_EQ_INT(0, config.json_enabled);
-	ASSERT_EQ_INT(1, config.javascript_enabled);
-	ASSERT_EQ_INT(1, config.eslint_enabled);
-	ASSERT_EQ_STR("gopls-project", config.gopls_command);
+	ASSERT_EQ_INT(0, config.javascript_enabled);
+	ASSERT_EQ_INT(0, config.eslint_enabled);
+	ASSERT_EQ_STR("gopls-global", config.gopls_command);
 	ASSERT_EQ_STR("global-install", config.gopls_install_command);
-	ASSERT_EQ_STR("clangd-project", config.clangd_command);
-	ASSERT_EQ_STR("html-project --stdio", config.html_command);
-	ASSERT_EQ_STR("css-project --stdio", config.css_command);
-	ASSERT_EQ_STR("json-project --stdio", config.json_command);
-	ASSERT_EQ_STR("javascript-project --stdio", config.javascript_command);
+	ASSERT_EQ_STR("clangd-global", config.clangd_command);
+	ASSERT_EQ_STR("html-global --stdio", config.html_command);
+	ASSERT_EQ_STR("css-global --stdio", config.css_command);
+	ASSERT_EQ_STR("json-global --stdio", config.json_command);
+	ASSERT_EQ_STR("javascript-global --stdio", config.javascript_command);
 	ASSERT_EQ_STR("javascript-global-install", config.javascript_install_command);
-	ASSERT_EQ_STR("eslint-project --stdio", config.eslint_command);
+	ASSERT_EQ_STR("eslint-global --stdio", config.eslint_command);
 	ASSERT_EQ_STR("global-vscode-install", config.vscode_langservers_install_command);
-	ASSERT_EQ_STR("texlab-project", config.texlab_command);
+	ASSERT_EQ_STR("texlab-global", config.texlab_command);
 	/* Install command is global-only: the project value must not override it. */
 	ASSERT_EQ_STR("texlab-global-install", config.texlab_install_command);
 
+	ASSERT_EQ_STR("zathura", config.texlab_pdf_viewer);
+	ASSERT_EQ_STR("viewer-global --line %l %p", config.texlab_forward_search_command);
+	ASSERT_EQ_STR("build-global %f", config.texlab_build_command);
+	ASSERT_EQ_STR("project-aux", config.texlab_aux_directory);
+	ASSERT_EQ_STR("", config.texlab_pdf_directory);
+	ASSERT_EQ_INT(1, config.texlab_build_on_save);
+	ASSERT_EQ_INT(1, config.texlab_forward_search_after_build);
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -152,11 +187,17 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	              config.vscode_langservers_install_command);
 
 	ASSERT_TRUE(write_text_file(global_path, "[lsp]\n"
+	                                         "texlab_pdf_viewer = \"sumatra\"\n"));
+	status = editorLspConfigLoadFromPaths(&config, global_path, NULL);
+	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
+	ASSERT_EQ_STR("", config.texlab_pdf_viewer);
+
+	ASSERT_TRUE(write_text_file(global_path, "[lsp]\n"
 	                                         "clangd_enabled = false\n"
 	                                         "html_enabled = false\n"
 	                                         "css_enabled = false\n"));
 	ASSERT_TRUE(write_text_file(project_path, "[lsp]\n"
-	                                          "html_command = \"\"\n"));
+	                                          "texlab_pdf_viewer = \"sumatra\"\n"));
 	status = editorLspConfigLoadFromPaths(&config, global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
 	ASSERT_EQ_INT(1, config.gopls_enabled);
@@ -221,7 +262,8 @@ static int test_editor_lsp_parse_definition_response_handles_clangd_field_order(
 }
 
 static int test_editor_lsp_build_initialize_request_json_is_complete(void) {
-	char *request = editorLspTestBuildInitializeRequestJson(7, "file:///tmp/project", 1234);
+	char *request = editorLspTestBuildInitializeRequestJson(7, "file:///tmp/project", 1234,
+	                                                        EDITOR_LSP_SERVER_GOPLS);
 	ASSERT_TRUE(request != NULL);
 	ASSERT_TRUE(strstr(request, "\"id\":7") != NULL);
 	ASSERT_TRUE(strstr(request, "\"processId\":1234") != NULL);
@@ -230,8 +272,135 @@ static int test_editor_lsp_build_initialize_request_json_is_complete(void) {
 	ASSERT_TRUE(strstr(request, "\"hierarchicalDocumentSymbolSupport\":true") != NULL);
 	ASSERT_TRUE(strstr(request, "\"completion\"") != NULL);
 	ASSERT_TRUE(strstr(request, "\"snippetSupport\":false") != NULL);
-	ASSERT_EQ_INT('}', request[strlen(request) - 1]);
+	ASSERT_TRUE(strstr(request, "\"showDocument\":{\"support\":true}") != NULL);
+	ASSERT_TRUE(strstr(request, "\"workspace\":{\"applyEdit\":true,\"configuration\":true}") !=
+	            NULL);
+	ASSERT_EQ_STR("true}}}}}", request + strlen(request) - 9);
+	ASSERT_TRUE(strstr(request, "\"initializationOptions\"") == NULL);
 	free(request);
+	return 0;
+}
+
+static int test_editor_lsp_build_text_document_requests(void) {
+	char *forward = editorLspBuildTextDocumentRequestJson(11, "textDocument/forwardSearch",
+	                                                      "file:///tmp/main.tex", 4, 7, 1);
+	ASSERT_TRUE(forward != NULL);
+	ASSERT_EQ_STR("{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"textDocument/forwardSearch\","
+	              "\"params\":{\"textDocument\":{\"uri\":\"file:///tmp/main.tex\"},"
+	              "\"position\":{\"line\":4,\"character\":7}}}",
+	              forward);
+	free(forward);
+
+	char *build = editorLspBuildTextDocumentRequestJson(12, "textDocument/build",
+	                                                    "file:///tmp/main.tex", 0, 0, 0);
+	ASSERT_TRUE(build != NULL);
+	ASSERT_EQ_STR("{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"textDocument/build\","
+	              "\"params\":{\"textDocument\":{\"uri\":\"file:///tmp/main.tex\"}}}",
+	              build);
+	free(build);
+	return 0;
+}
+
+static int test_editor_lsp_texlab_initialize_options(void) {
+	editorLspConfigInitDefaults(&E.lsp_config);
+
+	char *request = editorLspTestBuildInitializeRequestJson(8, "file:///tmp/latex-project",
+	                                                        1234, EDITOR_LSP_SERVER_TEXLAB);
+	ASSERT_TRUE(request != NULL);
+	ASSERT_TRUE(strstr(request, "\"initializationOptions\":{}") != NULL);
+	ASSERT_TRUE(strstr(request, "\"forwardSearch\"") == NULL);
+	ASSERT_TRUE(strstr(request, "\"build\"") == NULL);
+	free(request);
+
+	(void)snprintf(E.lsp_config.texlab_pdf_viewer, sizeof(E.lsp_config.texlab_pdf_viewer), "%s",
+	               "okular");
+	(void)snprintf(E.lsp_config.texlab_build_command, sizeof(E.lsp_config.texlab_build_command),
+	               "%s", "distrobox enter latex -- latexmk \"-jobname=paper draft\" %f");
+	(void)snprintf(E.lsp_config.texlab_aux_directory, sizeof(E.lsp_config.texlab_aux_directory),
+	               "%s", "build");
+	(void)snprintf(E.lsp_config.texlab_pdf_directory, sizeof(E.lsp_config.texlab_pdf_directory),
+	               "%s", "out dir");
+	E.lsp_config.texlab_build_on_save = 0;
+	E.lsp_config.texlab_forward_search_after_build = 1;
+
+	request = editorLspTestBuildInitializeRequestJson(9, "file:///tmp/latex-project", 1234,
+	                                                  EDITOR_LSP_SERVER_TEXLAB);
+	ASSERT_TRUE(request != NULL);
+	ASSERT_TRUE(strstr(request, "\"hierarchicalDocumentSymbolSupport\":true}}},"
+	                            "\"initializationOptions\":") != NULL);
+	ASSERT_TRUE(strstr(request, "\"forwardSearch\":{\"executable\":\"okular\","
+	                            "\"args\":[\"--unique\",\"file:%p#src:%l%f\"]}") != NULL);
+	ASSERT_TRUE(strstr(request, "\"build\":{\"executable\":\"distrobox\","
+	                            "\"args\":[\"enter\",\"latex\",\"--\",\"latexmk\","
+	                            "\"-jobname=paper draft\",\"%f\"]") != NULL);
+	ASSERT_TRUE(strstr(request, "\"onSave\":false") != NULL);
+	ASSERT_TRUE(strstr(request, "\"forwardSearchAfter\":true") != NULL);
+	ASSERT_TRUE(strstr(request, "\"auxDirectory\":\"build\"") != NULL);
+	ASSERT_TRUE(strstr(request,
+	                   "\"forwardSearchAfter\":true,"
+	                   "\"pdfDirectory\":\"out dir\"},\"auxDirectory\":\"build\"") != NULL);
+	free(request);
+
+	(void)snprintf(E.lsp_config.texlab_forward_search_command,
+	               sizeof(E.lsp_config.texlab_forward_search_command), "%s",
+	               "\"my viewer\" --source \"%l %f\" %p");
+	E.lsp_config.texlab_build_command[0] = '\0';
+	E.lsp_config.texlab_aux_directory[0] = '\0';
+	E.lsp_config.texlab_pdf_directory[0] = '\0';
+	E.lsp_config.texlab_build_on_save = 0;
+	E.lsp_config.texlab_forward_search_after_build = 0;
+
+	request = editorLspTestBuildInitializeRequestJson(10, "file:///tmp/latex-project", 1234,
+	                                                  EDITOR_LSP_SERVER_TEXLAB);
+	ASSERT_TRUE(request != NULL);
+	ASSERT_TRUE(strstr(request, "\"forwardSearch\":{\"executable\":\"my viewer\","
+	                            "\"args\":[\"--source\",\"%l %f\",\"%p\"]}") != NULL);
+	ASSERT_TRUE(strstr(request, "\"executable\":\"okular\"") == NULL);
+	free(request);
+	return 0;
+}
+
+static int test_editor_lsp_texlab_workspace_configuration_response(void) {
+	editorLspConfigInitDefaults(&E.lsp_config);
+	(void)snprintf(E.lsp_config.texlab_pdf_viewer, sizeof(E.lsp_config.texlab_pdf_viewer), "%s",
+	               "okular");
+	(void)snprintf(E.lsp_config.texlab_build_command, sizeof(E.lsp_config.texlab_build_command),
+	               "%s", "distrobox enter latex -- make build");
+	(void)snprintf(E.lsp_config.texlab_aux_directory, sizeof(E.lsp_config.texlab_aux_directory),
+	               "%s", "aux");
+	(void)snprintf(E.lsp_config.texlab_pdf_directory, sizeof(E.lsp_config.texlab_pdf_directory),
+	               "%s", "pdf");
+	E.lsp_config.texlab_build_on_save = 1;
+	E.lsp_config.texlab_forward_search_after_build = 1;
+
+	int fds[2];
+	ASSERT_EQ_INT(0, pipe(fds));
+	struct editorLspClient client = {
+	        .to_server_fd = fds[1],
+	        .from_server_fd = -1,
+	        .server_kind = EDITOR_LSP_SERVER_TEXLAB,
+	};
+	const char *message =
+	        "{\"jsonrpc\":\"2.0\",\"id\":17,\"method\":\"workspace/configuration\","
+	        "\"params\":{\"items\":[{\"section\":\"texlab\"}]}}";
+	ASSERT_TRUE(editorLspProcessIncomingMessage(&client, message));
+	close(fds[1]);
+
+	char response[8192];
+	ssize_t nread = read(fds[0], response, sizeof(response) - 1);
+	close(fds[0]);
+	ASSERT_TRUE(nread > 0);
+	response[nread] = '\0';
+	ASSERT_TRUE(strstr(response, "\"id\":17") != NULL);
+	ASSERT_TRUE(strstr(response, "\"result\":[{\"forwardSearch\":{\"executable\":\"okular\"") !=
+	            NULL);
+	ASSERT_TRUE(strstr(response,
+	                   "\"build\":{\"executable\":\"distrobox\","
+	                   "\"args\":[\"enter\",\"latex\",\"--\",\"make\",\"build\"]") != NULL);
+	ASSERT_TRUE(strstr(response, "\"onSave\":true") != NULL);
+	ASSERT_TRUE(strstr(response, "\"forwardSearchAfter\":true") != NULL);
+	ASSERT_TRUE(strstr(response, "\"pdfDirectory\":\"pdf\"") != NULL);
+	ASSERT_TRUE(strstr(response, "\"auxDirectory\":\"aux\"") != NULL);
 	return 0;
 }
 
@@ -517,6 +686,10 @@ const struct editorTestCase g_lsp_protocol_tests[] = {
          test_editor_lsp_parse_definition_response_handles_clangd_field_order},
         {"editor_lsp_build_initialize_request_json_is_complete",
          test_editor_lsp_build_initialize_request_json_is_complete},
+        {"editor_lsp_build_text_document_requests", test_editor_lsp_build_text_document_requests},
+        {"editor_lsp_texlab_initialize_options", test_editor_lsp_texlab_initialize_options},
+        {"editor_lsp_texlab_workspace_configuration_response",
+         test_editor_lsp_texlab_workspace_configuration_response},
         {"editor_lsp_parse_completion_provider_extracts_trigger_chars",
          test_editor_lsp_parse_completion_provider_extracts_trigger_chars},
         {"editor_lsp_parse_completion_provider_handles_missing",

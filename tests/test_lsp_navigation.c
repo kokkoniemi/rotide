@@ -1,11 +1,17 @@
 #include "editing/document_position.h"
+#include "editing/jumplist.h"
 #include "input/mouse.h"
 #include "input/system_vim.h"
+#include "language/lsp_protocol.h"
+#include "language/lsp_transport.h"
 #include "render/popup.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
+
+#include <sys/types.h>
+#include <unistd.h>
 
 static int find_drawer_entry_containing(const char *needle, int *idx_out,
                                         struct editorDrawerEntryView *view_out) {
@@ -1704,7 +1710,95 @@ static int test_editor_vim_k_hover_empty_reports_not_found(void) {
 	return 0;
 }
 
+static int process_incoming_request_and_read_response(const char *message, char *response,
+                                                      size_t response_size) {
+	if (response == NULL || response_size < 2) {
+		return 0;
+	}
+	int fds[2];
+	if (pipe(fds) != 0) {
+		return 0;
+	}
+	struct editorLspClient client = {
+	        .to_server_fd = fds[1],
+	        .from_server_fd = -1,
+	        .server_kind = EDITOR_LSP_SERVER_TEXLAB,
+	};
+	int processed = editorLspProcessIncomingMessage(&client, message);
+	close(fds[1]);
+	ssize_t nread = read(fds[0], response, response_size - 1);
+	close(fds[0]);
+	if (!processed || nread <= 0) {
+		return 0;
+	}
+	response[nread] = '\0';
+	return 1;
+}
+
+static int test_editor_lsp_show_document_jumps_and_rejects_external_uris(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char source_path[64];
+	char target_path[64];
+	ASSERT_TRUE(write_temp_file_with_suffix(source_path, sizeof(source_path),
+	                                        "rotide-test-show-document-source-", ".tex",
+	                                        "alpha\norigin\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(target_path, sizeof(target_path),
+	                                        "rotide-test-show-document-target-", ".tex",
+	                                        "zero\none\nsecond target\n"));
+	editorOpen(source_path);
+	E.cy = 1;
+	E.cx = 2;
+	editorJumplistResetActive();
+
+	char *target_uri = NULL;
+	ASSERT_TRUE(editorLspBuildFileUri(target_path, &target_uri));
+	char message[1024];
+	int written = snprintf(message, sizeof(message),
+	                       "{\"jsonrpc\":\"2.0\",\"id\":41,\"method\":\"window/showDocument\","
+	                       "\"params\":{\"uri\":\"%s\",\"selection\":{\"start\":{\"line\":2,"
+	                       "\"character\":6},\"end\":{\"line\":2,\"character\":6}}}}",
+	                       target_uri);
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(message));
+
+	char response[512];
+	ASSERT_TRUE(
+	        process_incoming_request_and_read_response(message, response, sizeof(response)));
+	ASSERT_EQ_STR(target_path, E.filename);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(6, E.cx);
+	ASSERT_EQ_INT(1, editorJumplistActiveCount());
+	ASSERT_TRUE(strstr(response, "\"id\":41") != NULL);
+	ASSERT_TRUE(strstr(response, "{\"success\":true}") != NULL);
+
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(source_path));
+	written = snprintf(message, sizeof(message),
+	                   "{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"window/showDocument\","
+	                   "\"params\":{\"uri\":\"%s\",\"external\":true}}",
+	                   target_uri);
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(message));
+	ASSERT_TRUE(
+	        process_incoming_request_and_read_response(message, response, sizeof(response)));
+	ASSERT_EQ_STR(source_path, E.filename);
+	ASSERT_TRUE(strstr(response, "{\"success\":false}") != NULL);
+
+	const char *bogus_message =
+	        "{\"jsonrpc\":\"2.0\",\"id\":43,\"method\":\"window/showDocument\","
+	        "\"params\":{\"uri\":\"https://example.com/manual.pdf\"}}";
+	ASSERT_TRUE(process_incoming_request_and_read_response(bogus_message, response,
+	                                                       sizeof(response)));
+	ASSERT_EQ_STR(source_path, E.filename);
+	ASSERT_TRUE(strstr(response, "{\"success\":false}") != NULL);
+
+	free(target_uri);
+	ASSERT_TRUE(unlink(target_path) == 0);
+	ASSERT_TRUE(unlink(source_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_lsp_navigation_tests[] = {
+        {"editor_lsp_show_document_jumps_and_rejects_external_uris",
+         test_editor_lsp_show_document_jumps_and_rejects_external_uris},
         {"editor_vim_gr_goto_references_single_opens_drawer",
          test_editor_vim_gr_goto_references_single_opens_drawer},
         {"editor_vim_gr_goto_references_multiple_populate_drawer",

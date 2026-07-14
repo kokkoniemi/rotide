@@ -53,6 +53,8 @@ struct editorLspMockState {
 	struct editorLspCompletionItem *completion_items;
 	int completion_item_count;
 	int completion_pending_request_id;
+	int forward_search_result_code;
+	int build_result_code;
 };
 
 extern struct editorLspMockState g_lsp_mock;

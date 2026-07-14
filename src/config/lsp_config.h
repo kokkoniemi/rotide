@@ -30,6 +30,13 @@ struct editorLspConfig {
 	char eslint_command[PATH_MAX];
 	char texlab_command[PATH_MAX];
 	char texlab_install_command[PATH_MAX];
+	char texlab_pdf_viewer[32];
+	char texlab_forward_search_command[PATH_MAX];
+	char texlab_build_command[PATH_MAX];
+	char texlab_aux_directory[PATH_MAX];
+	char texlab_pdf_directory[PATH_MAX];
+	int texlab_build_on_save;
+	int texlab_forward_search_after_build;
 	char vscode_langservers_install_command[PATH_MAX];
 	int autocomplete_enabled;
 	int autocomplete_max_items;

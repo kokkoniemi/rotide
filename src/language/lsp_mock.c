@@ -75,6 +75,8 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.completion_items = NULL;
 	g_lsp_mock.completion_item_count = 0;
 	g_lsp_mock.completion_pending_request_id = 0;
+	g_lsp_mock.forward_search_result_code = 1;
+	g_lsp_mock.build_result_code = 1;
 	g_lsp_mock.primary_server_alive = 0;
 	g_lsp_mock.primary_server_kind = EDITOR_LSP_SERVER_NONE;
 	g_lsp_mock.eslint_server_alive = 0;
@@ -186,6 +188,14 @@ void editorLspTestSetMockDocumentSymbolResponse(int result_code,
 	}
 	(void)editorLspCopySymbols(&g_lsp_mock.document_symbols, &g_lsp_mock.document_symbol_count,
 	                           symbols, count);
+}
+
+void editorLspTestSetMockForwardSearchResult(int result_code) {
+	g_lsp_mock.forward_search_result_code = result_code;
+}
+
+void editorLspTestSetMockBuildResult(int result_code) {
+	g_lsp_mock.build_result_code = result_code;
 }
 
 void editorLspTestSetMockDiagnostics(const char *path,
@@ -314,7 +324,7 @@ void editorLspTestDeliverPendingCompletion(void) {
 	free(filename);
 }
 
-char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,
-                                              int process_id) {
-	return editorLspBuildInitializeRequestJson(request_id, root_uri, process_id);
+char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id,
+                                              enum editorLspServerKind server_kind) {
+	return editorLspBuildInitializeRequestJson(request_id, root_uri, process_id, server_kind);
 }

@@ -182,6 +182,7 @@ static struct vimLeaderBinding g_vim_leader_map[] = {
         {"lsp_drawer", EDITOR_ACTION_LSP_DRAWER, 'l', 'l'},
         {"dap_drawer", EDITOR_ACTION_DAP_DRAWER, 'd', 'd'},
         {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
+        {"latex_forward_search", EDITOR_ACTION_LATEX_FORWARD_SEARCH, -1, -1},
 };
 
 #define VIM_LEADER_MAP_COUNT (sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]))
@@ -218,8 +219,8 @@ static const struct vimExCommand g_vim_ex_commands[] = {
 static const size_t g_vim_ex_command_count =
         sizeof(g_vim_ex_commands) / sizeof(g_vim_ex_commands[0]);
 
-static const char *const g_vim_ex_builtin_commands[] = {"w", "q",    "q!",  "wq",  "x",
-                                                        "e", "edit", "git", "lsp", "jumps"};
+static const char *const g_vim_ex_builtin_commands[] = {"w",    "q",   "q!",  "wq",    "x",    "e",
+                                                        "edit", "git", "lsp", "latex", "jumps"};
 
 static const size_t g_vim_ex_builtin_command_count =
         sizeof(g_vim_ex_builtin_commands) / sizeof(g_vim_ex_builtin_commands[0]);
@@ -3374,6 +3375,24 @@ static void vimSystemExGit(const char *args, int *effects_out) {
 	editorSetStatusMsg("Unknown :git subcommand: %s", args);
 }
 
+static void vimSystemExLatex(const char *args, int *effects_out) {
+	static const struct vimExCommand k_latex_subcommands[] = {
+	        {"view", EDITOR_ACTION_LATEX_FORWARD_SEARCH},
+	        {"build", EDITOR_ACTION_LATEX_BUILD},
+	};
+	if (args == NULL || args[0] == '\0') {
+		editorSetStatusMsg("Usage: :latex view|build");
+		return;
+	}
+	for (size_t i = 0; i < sizeof(k_latex_subcommands) / sizeof(k_latex_subcommands[0]); i++) {
+		if (strcmp(k_latex_subcommands[i].name, args) == 0) {
+			vimSystemExDispatch(k_latex_subcommands[i].action, effects_out);
+			return;
+		}
+	}
+	editorSetStatusMsg("Unknown :latex subcommand: %s", args);
+}
+
 /*
  * `:lsp [subcommand]` — no args opens the LSP drawer. `install-server [name]`
  * installs a language server; with no name it targets the current buffer's
@@ -3518,6 +3537,10 @@ static void vimSystemRunExCommand(char *line, int *effects_out) {
 	}
 	if (strcmp(cmd, "lsp") == 0) {
 		vimSystemExLsp(args, effects_out);
+		return;
+	}
+	if (strcmp(cmd, "latex") == 0) {
+		vimSystemExLatex(args, effects_out);
 		return;
 	}
 	if (strcmp(cmd, "jumps") == 0) {

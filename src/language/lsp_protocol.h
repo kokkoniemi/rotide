@@ -17,7 +17,10 @@ struct editorLspPendingEdit {
 
 int editorLspBuildFileUri(const char *path, char **uri_out);
 char *editorLspDecodeFileUri(const char *uri);
-char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id);
+char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id,
+                                          enum editorLspServerKind server_kind);
+char *editorLspBuildTextDocumentRequestJson(int request_id, const char *method, const char *uri,
+                                            int line, int character, int include_position);
 
 int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count);
 int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,

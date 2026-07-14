@@ -460,6 +460,67 @@ static void actionsLanguageGotoDiagnostic(int forward) {
 	}
 }
 
+static int actionsLanguageLatexRequestReady(void) {
+	if (E.tab_kind != EDITOR_TAB_FILE || (E.syntax_language != EDITOR_SYNTAX_LATEX &&
+	                                      E.syntax_language != EDITOR_SYNTAX_BIBTEX)) {
+		editorSetStatusMsg("LaTeX actions require a LaTeX or BibTeX file");
+		return 0;
+	}
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		editorSetStatusMsg("Save this LaTeX buffer before using LaTeX actions");
+		return 0;
+	}
+	if (!E.lsp_config.texlab_enabled) {
+		editorSetStatusMsg("texlab is disabled in config");
+		return 0;
+	}
+	if (E.lsp_config.texlab_command[0] == '\0') {
+		editorSetStatusMsg("LSP disabled: [lsp].texlab_command is empty");
+		return 0;
+	}
+
+	editorLspEnsureActiveDocumentTracked();
+	if (!E.lsp_doc_open) {
+		if (editorLspLastStartupFailureReason() ==
+		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+			editorLanguageMaybePromptInstallServer();
+		} else if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
+			editorSetStatusMsg("LSP unavailable for this file");
+		}
+		return 0;
+	}
+	return 1;
+}
+
+static void actionsLanguageLatexForwardSearch(void) {
+	if (!actionsLanguageLatexRequestReady()) {
+		return;
+	}
+
+	if (E.lsp_config.texlab_pdf_viewer[0] == '\0' &&
+	    E.lsp_config.texlab_forward_search_command[0] == '\0') {
+		editorSetStatusMsg("Forward search viewer not configured (set texlab_pdf_viewer)");
+		return;
+	}
+	int result = editorLspRequestForwardSearch(E.filename, E.syntax_language, E.cy, E.cx);
+	if (result <= 0) {
+		editorSetStatusMsg("Forward search failed");
+		return;
+	}
+	editorSetStatusMsg("Forward search sent to viewer");
+}
+
+static void actionsLanguageLatexBuild(void) {
+	if (!actionsLanguageLatexRequestReady()) {
+		return;
+	}
+	if (editorLspRequestBuild(E.filename, E.syntax_language) <= 0) {
+		editorSetStatusMsg("LaTeX build request failed");
+		return;
+	}
+	editorSetStatusMsg("LaTeX build started (diagnostics update when done)");
+}
+
 int editorHandleLanguageMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
                                      void (*pin_active_preview_for_edit)(void),
                                      editorLanguageActionFn goto_definition,
@@ -498,6 +559,12 @@ int editorHandleLanguageMappedAction(enum editorAction action, int cursor_or_edi
 				hover();
 			}
 			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_LATEX_FORWARD_SEARCH:
+			actionsLanguageLatexForwardSearch();
+			break;
+		case EDITOR_ACTION_LATEX_BUILD:
+			actionsLanguageLatexBuild();
 			break;
 		case EDITOR_ACTION_GOTO_SYMBOL:
 			editorHistoryBreakGroup();

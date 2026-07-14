@@ -58,6 +58,8 @@ The `:` prompt accepts these Vim-style aliases:
   installs a language server (`gopls`, `clangd`, `texlab`,
   `typescript-language-server`, `vscode-langservers-extracted`), and
   `:lsp install-server` with no name targets the current buffer's language
+- `:latex build`: ask Texlab to build the current project's main document
+- `:latex view`: forward-search from the cursor to the configured PDF viewer
 
 Press Tab in the `:` prompt to complete and cycle command names. File-path
 arguments are not completed yet. `:q` keeps RotIDE's quit-app behavior.

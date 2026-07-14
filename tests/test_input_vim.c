@@ -1,8 +1,13 @@
+#include "config/lsp_config.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/jumplist.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/system_vim.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
 #include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
@@ -2832,7 +2837,66 @@ static int test_input_vim_mark_jumps_across_files(void) {
 	return 0;
 }
 
+static int test_input_vim_latex_view_and_build_commands(void) {
+	editorLspTestResetMock();
+	editorLspConfigInitDefaults(&E.lsp_config);
+	editorLspTestSetMockEnabled(1);
+	ASSERT_TRUE(editorTabsInit());
+
+	char tex_path[64];
+	char text_path[64];
+	ASSERT_TRUE(write_temp_file_with_suffix(
+	        tex_path, sizeof(tex_path), "rotide-test-latex-command-", ".tex",
+	        "\\documentclass{article}\n\\begin{document}\nHello\n\\end{document}\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(text_path, sizeof(text_path),
+	                                        "rotide-test-latex-command-", ".txt", "plain\n"));
+	editorOpen(tex_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LATEX, editorSyntaxLanguageActive());
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 2;
+	E.cx = 2;
+	(void)snprintf(E.lsp_config.texlab_pdf_viewer, sizeof(E.lsp_config.texlab_pdf_viewer),
+	               "okular");
+
+	editorLspTestSetMockForwardSearchResult(1);
+	ASSERT_TRUE(vim_test_ex_command("latex view") == 0);
+	ASSERT_EQ_STR("Forward search sent to viewer", E.statusmsg);
+
+	editorLspTestSetMockForwardSearchResult(-1);
+	ASSERT_TRUE(vim_test_ex_command("latex view") == 0);
+	ASSERT_EQ_STR("Forward search failed", E.statusmsg);
+
+	E.lsp_config.texlab_pdf_viewer[0] = '\0';
+	ASSERT_TRUE(vim_test_ex_command("latex view") == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "texlab_pdf_viewer") != NULL);
+
+	editorLspTestSetMockBuildResult(1);
+	ASSERT_TRUE(vim_test_ex_command("latex build") == 0);
+	ASSERT_EQ_STR("LaTeX build started (diagnostics update when done)", E.statusmsg);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.forward_search_count);
+	ASSERT_EQ_INT(1, stats.build_count);
+
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(text_path));
+	ASSERT_TRUE(vim_test_ex_command("latex view") == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "LaTeX or BibTeX file") != NULL);
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.forward_search_count);
+
+	ASSERT_TRUE(vim_test_ex_command("latex") == 0);
+	ASSERT_EQ_STR("Usage: :latex view|build", E.statusmsg);
+	ASSERT_TRUE(vim_test_ex_command("latex unknown") == 0);
+	ASSERT_EQ_STR("Unknown :latex subcommand: unknown", E.statusmsg);
+
+	ASSERT_TRUE(unlink(text_path) == 0);
+	ASSERT_TRUE(unlink(tex_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
+        {"input_vim_latex_view_and_build_commands", test_input_vim_latex_view_and_build_commands},
         {"input_vim_jumplist_g_then_ctrl_o_returns_to_origin",
          test_input_vim_jumplist_g_then_ctrl_o_returns_to_origin},
         {"input_vim_jumplist_records_and_walks_back",

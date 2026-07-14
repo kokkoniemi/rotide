@@ -91,6 +91,28 @@ javascript_command = "~/.local/bin/typescript-language-server --stdio"
 eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
 texlab_command = "~/.local/bin/texlab"
 
+# SyncTeX settings are opt-in and sent when texlab starts. Restart texlab after
+# changing them. Use :latex build and :latex view for manual requests, or enable
+# build-on-save below. A project .rotide.toml can safely override pdf_viewer,
+# aux_directory, pdf_directory, and forward_search_after_build. Commands and
+# build_on_save remain global-only.
+# Viewer presets: "okular", "evince", or "zathura".
+texlab_pdf_viewer = ""
+texlab_forward_search_command = ""
+texlab_build_command = ""
+texlab_build_on_save = false
+texlab_forward_search_after_build = false
+texlab_aux_directory = ""
+texlab_pdf_directory = ""
+
+# Example: Okular plus latexmk inside the "latex" distrobox.
+# texlab_pdf_viewer = "okular"
+# texlab_build_command = "distrobox enter latex -- latexmk -pdf -interaction=nonstopmode -synctex=1 %f"
+# texlab_build_on_save = true
+# texlab_forward_search_after_build = true
+# A custom command overrides texlab_pdf_viewer; double quotes group arguments.
+# texlab_forward_search_command = "okular --unique \"file:%p#src:%l%f\""
+
 # --- [dap] --------------------------------------------------------------------
 # Adapter commands are global-only. Project launch configs live in ./.rotide.toml
 # under [dap.launch.<id>]. The DAP drawer can copy one of these defaults into the

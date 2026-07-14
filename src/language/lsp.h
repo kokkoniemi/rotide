@@ -53,6 +53,8 @@ struct editorLspTestStats {
 	int document_symbol_count;
 	int code_action_count;
 	int completion_count;
+	int forward_search_count;
+	int build_count;
 };
 
 struct editorLspTestLastChange {
@@ -127,6 +129,9 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
                                     struct editorLspSymbol **symbols_out, int *count_out,
                                     int *timed_out_out);
 void editorLspFreeSymbols(struct editorLspSymbol *symbols, int count);
+int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguage language,
+                                  int line, int character);
+int editorLspRequestBuild(const char *filename, enum editorSyntaxLanguage language);
 
 int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLanguage language,
                                     int line, int character, int document_version,
@@ -208,6 +213,8 @@ void editorLspTestSetMockReferencesResponse(int result_code,
 void editorLspTestSetMockHoverResponse(int result_code, const char *text);
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
                                                 const struct editorLspSymbol *symbols, int count);
+void editorLspTestSetMockForwardSearchResult(int result_code);
+void editorLspTestSetMockBuildResult(int result_code);
 void editorLspTestSetMockDiagnostics(const char *path,
                                      const struct editorLspDiagnostic *diagnostics, int count);
 void editorLspTestSetMockCodeActionResult(int result_code, const struct editorLspDiagnostic *edits,
@@ -221,7 +228,8 @@ int editorLspTestParseDocumentSymbolResponse(const char *response_json,
 int editorLspTestParseCompletionResponse(const char *response_json,
                                          struct editorLspCompletionItem **items_out,
                                          int *count_out);
-char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id);
+char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id,
+                                              enum editorLspServerKind server_kind);
 void editorLspTestDeliverPendingCompletion(void);
 
 #endif

@@ -56,6 +56,13 @@ void editorLspConfigInitDefaults(struct editorLspConfig *config) {
 	 * verbatim.
 	 */
 	config->texlab_install_command[0] = '\0';
+	config->texlab_pdf_viewer[0] = '\0';
+	config->texlab_forward_search_command[0] = '\0';
+	config->texlab_build_command[0] = '\0';
+	config->texlab_aux_directory[0] = '\0';
+	config->texlab_pdf_directory[0] = '\0';
+	config->texlab_build_on_save = 0;
+	config->texlab_forward_search_after_build = 0;
 	(void)snprintf(config->vscode_langservers_install_command,
 	               sizeof(config->vscode_langservers_install_command), "%s",
 	               "npm install --global --prefix ~/.local vscode-langservers-extracted");
@@ -79,6 +86,7 @@ static int lspConfigParseBooleanValue(const char *value, int *out) {
 struct lspConfigApplyContext {
 	struct editorLspConfig *config;
 	int allow_install_command_override;
+	int project_file;
 };
 
 static int lspConfigOnSection(void *ctx, const char *table) {
@@ -90,9 +98,29 @@ static int lspConfigParseCommandValue(char *value, char *dst, size_t dst_size) {
 	return editorConfigParseQuotedValue(value, dst, dst_size) && dst[0] != '\0';
 }
 
+static int lspConfigParseTexlabViewerValue(char *value, char *dst, size_t dst_size) {
+	if (!editorConfigParseQuotedValue(value, dst, dst_size)) {
+		return 0;
+	}
+	return dst[0] == '\0' || strcmp(dst, "okular") == 0 || strcmp(dst, "evince") == 0 ||
+	       strcmp(dst, "zathura") == 0;
+}
+
+static int lspConfigProjectKeyAllowed(const char *key) {
+	return strcmp(key, "texlab_pdf_viewer") == 0 || strcmp(key, "texlab_aux_directory") == 0 ||
+	       strcmp(key, "texlab_pdf_directory") == 0 ||
+	       strcmp(key, "texlab_forward_search_after_build") == 0;
+}
+
 static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 	struct lspConfigApplyContext *apply = ctx;
 	struct editorLspConfig *config = apply->config;
+
+	/* Project files are untrusted; never let them introduce commands or
+	 * silently enable build-on-save. */
+	if (apply->project_file && !lspConfigProjectKeyAllowed(key)) {
+		return 1;
+	}
 
 	if (strcmp(key, "enabled") == 0) {
 		int enabled = 0;
@@ -132,6 +160,13 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 	}
 	if (strcmp(key, "texlab_enabled") == 0) {
 		return lspConfigParseBooleanValue(value, &config->texlab_enabled);
+	}
+	if (strcmp(key, "texlab_build_on_save") == 0) {
+		return lspConfigParseBooleanValue(value, &config->texlab_build_on_save);
+	}
+	if (strcmp(key, "texlab_forward_search_after_build") == 0) {
+		return lspConfigParseBooleanValue(value,
+		                                  &config->texlab_forward_search_after_build);
 	}
 	if (strcmp(key, "autocomplete") == 0) {
 		return lspConfigParseBooleanValue(value, &config->autocomplete_enabled);
@@ -189,6 +224,26 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 		return editorConfigParseQuotedValue(value, config->texlab_install_command,
 		                                    sizeof(config->texlab_install_command));
 	}
+	if (strcmp(key, "texlab_pdf_viewer") == 0) {
+		return lspConfigParseTexlabViewerValue(value, config->texlab_pdf_viewer,
+		                                       sizeof(config->texlab_pdf_viewer));
+	}
+	if (strcmp(key, "texlab_forward_search_command") == 0) {
+		return editorConfigParseQuotedValue(value, config->texlab_forward_search_command,
+		                                    sizeof(config->texlab_forward_search_command));
+	}
+	if (strcmp(key, "texlab_build_command") == 0) {
+		return editorConfigParseQuotedValue(value, config->texlab_build_command,
+		                                    sizeof(config->texlab_build_command));
+	}
+	if (strcmp(key, "texlab_aux_directory") == 0) {
+		return editorConfigParseQuotedValue(value, config->texlab_aux_directory,
+		                                    sizeof(config->texlab_aux_directory));
+	}
+	if (strcmp(key, "texlab_pdf_directory") == 0) {
+		return editorConfigParseQuotedValue(value, config->texlab_pdf_directory,
+		                                    sizeof(config->texlab_pdf_directory));
+	}
 	if (strcmp(key, "javascript_command") == 0) {
 		return lspConfigParseCommandValue(value, config->javascript_command,
 		                                  sizeof(config->javascript_command));
@@ -213,7 +268,7 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 
 static enum lspConfigFileStatus lspConfigApplyFile(struct editorLspConfig *config,
                                                    int allow_install_command_override,
-                                                   const char *path) {
+                                                   int project_file, const char *path) {
 	if (config == NULL) {
 		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
@@ -227,6 +282,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(struct editorLspConfig *confi
 	struct lspConfigApplyContext apply = {
 	        .config = parsed,
 	        .allow_install_command_override = allow_install_command_override,
+	        .project_file = project_file,
 	};
 	struct editorConfigScanner scanner = {lspConfigOnSection, lspConfigOnEntry};
 
@@ -259,7 +315,8 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(struct editorLspConf
 	enum editorLspConfigLoadStatus status = EDITOR_LSP_CONFIG_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum lspConfigFileStatus global_status = lspConfigApplyFile(config, 1, global_path);
+		enum lspConfigFileStatus global_status =
+		        lspConfigApplyFile(config, 1, 0, global_path);
 		if (global_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(config);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
@@ -273,7 +330,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(struct editorLspConf
 
 	if (project_path != NULL) {
 		enum lspConfigFileStatus project_status =
-		        lspConfigApplyFile(config, 0, project_path);
+		        lspConfigApplyFile(config, 0, 1, project_path);
 		if (project_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(config);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
@@ -298,6 +355,12 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(struct editorLspCon
 		return editorLspConfigLoadFromPaths(config, NULL, NULL);
 	}
 
+	char project_path[PATH_MAX];
+	if (!editorConfigBuildProjectConfigPath(NULL, project_path, sizeof(project_path))) {
+		editorLspConfigInitDefaults(config);
+		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+
 	char *global_path = editorConfigBuildGlobalConfigPath();
 	if (global_path == NULL) {
 		editorLspConfigInitDefaults(config);
@@ -305,7 +368,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(struct editorLspCon
 	}
 
 	enum editorLspConfigLoadStatus status =
-	        editorLspConfigLoadFromPaths(config, global_path, NULL);
+	        editorLspConfigLoadFromPaths(config, global_path, project_path);
 	free(global_path);
 	return status;
 }
