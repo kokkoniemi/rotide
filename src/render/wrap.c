@@ -164,6 +164,8 @@ static int wrapCacheReserve(struct editorRow *row, int needed_capacity) {
 	return 1;
 }
 
+/* Rescanning from byte zero for every segment makes long rows quadratic. The
+ * rewind is bounded to one window, keeping visits per codepoint O(1) amortized. */
 static void wrapEnsureCache(struct editorRow *row, int body_cols) {
 	if (row == NULL) {
 		return;
@@ -193,24 +195,86 @@ static void wrapEnsureCache(struct editorRow *row, int body_cols) {
 	int indent_cols = editorWrapContinuationIndentCols(row, body_cols);
 	row->wrap_cache_indent_cols = indent_cols;
 
-	int start_col = 0;
 	int count = 1;
-	while (start_col < total_cols) {
-		int current_indent = count == 1 ? 0 : indent_cols;
-		int available_cols = body_cols - current_indent;
-		if (available_cols < 1) {
-			available_cols = 1;
+	int start_col = 0;
+	int available_cols = body_cols;
+	int target_col = start_col + available_cols;
+
+	/* Match editorWrapNextStartCol's priority while retaining the byte offsets
+	 * needed to resume at the chosen boundary. */
+	int best_break_col = -1, best_break_byte = -1;
+	int best_fit_col = -1, best_fit_byte = -1;
+	int first_advance_col = -1, first_advance_byte = -1;
+
+	int rx = 0;
+	int i = 0;
+	while (i < row->rsize) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&row->render[i], row->rsize - i, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
 		}
-		int next_start = editorWrapNextStartCol(row, start_col, available_cols, total_cols);
-		if (next_start >= total_cols || next_start <= start_col) {
-			break;
+		if (src_len > row->rsize - i) {
+			src_len = row->rsize - i;
 		}
-		if (!wrapCacheReserve(row, count + 1)) {
-			break;
+		int width = editorCharDisplayWidth(&row->render[i], row->rsize - i);
+		int next_rx = rx + width;
+		int next_byte = i + src_len;
+
+		if (next_rx > start_col && first_advance_col == -1) {
+			first_advance_col = next_rx;
+			first_advance_byte = next_byte;
 		}
-		row->wrap_cache_segments[count] = next_start;
-		count++;
-		start_col = next_start;
+		if (next_rx > start_col && next_rx <= target_col) {
+			best_fit_col = next_rx;
+			best_fit_byte = next_byte;
+			if (wrapBreaksAfterCodepoint(cp)) {
+				best_break_col = next_rx;
+				best_break_byte = next_byte;
+			}
+		}
+
+		if (next_rx > target_col) {
+			int chosen_col, chosen_byte;
+			if (best_break_col > start_col) {
+				chosen_col = best_break_col;
+				chosen_byte = best_break_byte;
+			} else if (best_fit_col > start_col) {
+				chosen_col = best_fit_col;
+				chosen_byte = best_fit_byte;
+			} else if (first_advance_col > start_col) {
+				chosen_col = first_advance_col;
+				chosen_byte = first_advance_byte;
+			} else {
+				break;
+			}
+			if (chosen_col >= total_cols || chosen_col <= start_col) {
+				break;
+			}
+			if (!wrapCacheReserve(row, count + 1)) {
+				break;
+			}
+			row->wrap_cache_segments[count] = chosen_col;
+			count++;
+
+			start_col = chosen_col;
+			available_cols = body_cols - indent_cols;
+			if (available_cols < 1) {
+				available_cols = 1;
+			}
+			target_col = start_col + available_cols;
+			if (target_col >= total_cols) {
+				break;
+			}
+			best_break_col = best_fit_col = first_advance_col = -1;
+			best_break_byte = best_fit_byte = first_advance_byte = -1;
+			/* The overflow scan may have passed the chosen break, so resume there. */
+			rx = chosen_col;
+			i = chosen_byte;
+			continue;
+		}
+		rx = next_rx;
+		i = next_byte;
 	}
 	row->wrap_cache_segment_count = count;
 }
