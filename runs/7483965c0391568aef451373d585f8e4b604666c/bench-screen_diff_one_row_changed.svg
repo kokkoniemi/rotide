@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="12">
+<rect width="720" height="320" fill="#ffffff"/>
+<text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">screen_diff_one_row_changed — min / p50 / p95</text>
+<line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">405.6k</text>
+<line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">269.7k</text>
+<line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">133.7k</text>
+<text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">ns</text>
+<line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-06-15</text>
+<line x1="179.6" y1="268" x2="179.6" y2="272" stroke="#444" stroke-width="1"/>
+<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-06-20</text>
+<line x1="287.2" y1="268" x2="287.2" y2="272" stroke="#444" stroke-width="1"/>
+<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-06-25</text>
+<line x1="394.8" y1="268" x2="394.8" y2="272" stroke="#444" stroke-width="1"/>
+<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-06-30</text>
+<line x1="502.3" y1="268" x2="502.3" y2="272" stroke="#444" stroke-width="1"/>
+<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-07-05</text>
+<line x1="609.9" y1="268" x2="609.9" y2="272" stroke="#444" stroke-width="1"/>
+<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-07-10</text>
+<line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-14</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,174.4 93.5,212.5 115.0,213.1 136.6,213.9 158.1,211.8 179.6,213.7 201.1,173.8 222.6,209.7 244.1,207.9 265.7,247.1 287.2,209.5 308.7,207.6 330.2,208.5 351.7,174.1 373.2,208.8 394.8,207.1 416.3,207.7 437.8,215.9 459.3,247.3 480.8,208.0 502.3,204.8 523.9,205.8 545.4,206.9 566.9,206.5 588.4,166.5 609.9,205.9 631.4,216.6 653.0,208.1 674.5,214.0 696.0,213.7"/>
+<circle cx="696.0" cy="213.7" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,172.8 93.5,209.7 115.0,211.2 136.6,211.0 158.1,206.0 179.6,206.7 201.1,170.0 222.6,207.2 244.1,205.6 265.7,245.6 287.2,62.7 308.7,202.7 330.2,206.2 351.7,171.1 373.2,206.0 394.8,205.8 416.3,205.8 437.8,214.0 459.3,246.6 480.8,201.6 502.3,203.4 523.9,204.9 545.4,204.5 566.9,195.9 588.4,165.0 609.9,203.8 631.4,214.9 653.0,204.4 674.5,211.0 696.0,212.0"/>
+<circle cx="696.0" cy="212.0" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,175.7 93.5,215.3 115.0,216.3 136.6,216.5 158.1,214.9 179.6,216.8 201.1,174.7 222.6,212.3 244.1,210.7 265.7,249.2 287.2,223.2 308.7,208.1 330.2,210.9 351.7,175.2 373.2,211.5 394.8,210.5 416.3,210.0 437.8,219.0 459.3,249.3 480.8,210.5 502.3,207.8 523.9,209.3 545.4,209.4 566.9,208.3 588.4,167.3 609.9,208.7 631.4,219.6 653.0,209.9 674.5,216.7 696.0,216.1"/>
+<circle cx="696.0" cy="216.1" r="3" fill="#2ca02c"/>
+<line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
+<text x="610" y="50" dominant-baseline="middle" fill="#222">p50</text>
+<line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
+<text x="610" y="66" dominant-baseline="middle" fill="#222">p95</text>
+<line x1="586" y1="82" x2="604" y2="82" stroke="#2ca02c" stroke-width="2"/>
+<text x="610" y="82" dominant-baseline="middle" fill="#222">min</text>
+</svg>
