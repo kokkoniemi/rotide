@@ -30,6 +30,7 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event);
 int editorHandleMouseLeftRelease(const struct editorMouseEvent *event);
 int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_context_offset,
                                   size_t context_offset);
+int editorIdentifierAtOffset(size_t offset);
 int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
                                     int *effects_out);
 int editorOpenTabContextMenuAt(int screen_row, int screen_col, struct editorPaneNode *leaf,

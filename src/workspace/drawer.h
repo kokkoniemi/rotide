@@ -3,6 +3,8 @@
 
 #include "rotide.h"
 
+struct editorLspLocation;
+
 int editorDrawerInitForStartup(int argc, char *argv[], int restored_session);
 void editorDrawerShutdown(void);
 int editorDrawerIsCollapsed(void);
@@ -11,6 +13,9 @@ int editorDrawerToggleCollapsed(void);
 int editorDrawerMainMenuToggle(void);
 int editorDrawerGitToggle(void);
 int editorDrawerLspToggle(void);
+int editorDrawerLspShowUsages(const struct editorLspLocation *locations, int count,
+                              const char *symbol);
+void editorDrawerLspUsagesFree(void);
 int editorDrawerDapToggle(void);
 int editorDrawerSelectedMenuAction(enum editorAction *action_out);
 int editorDrawerGitSelectedFile(int *entry_idx_out, int *staged_group_out);
