@@ -6,6 +6,7 @@
 #include "editing/edit_pipeline.h"
 #include "editing/history.h"
 #include "editing/selection.h"
+#include "input/system_vim.h"
 #include "language/syntax.h"
 #include "rotide.h"
 #include "support/alloc.h"
@@ -17,19 +18,17 @@
 
 void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
                                    editorEditActionFn align_cursor_with_row_end) {
-	if (E.selection_mode_active) {
+	if (E.selection_mode_active || E.column_select_active) {
 		if (clear_selection_mode != NULL) {
 			clear_selection_mode();
 		}
 		return;
 	}
 
-	editorColumnSelectionClear();
 	if (align_cursor_with_row_end != NULL) {
 		align_cursor_with_row_end();
 	}
-	E.selection_mode_active = 1;
-	E.selection_anchor_offset = E.cursor_offset;
+	editorVimBeginSelection(E.cursor_offset);
 }
 
 int editorEditSelectAll(void) {
@@ -44,12 +43,10 @@ int editorEditSelectAll(void) {
 		return 0;
 	}
 
-	editorColumnSelectionClear();
-	E.selection_anchor_offset = 0;
 	E.cy = last_row;
 	E.cx = last_len;
 	E.cursor_offset = end_offset;
-	E.selection_mode_active = 1;
+	editorVimBeginSelection(0);
 	return 1;
 }
 

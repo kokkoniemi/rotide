@@ -602,6 +602,49 @@ static void vimSystemBeginVisual(enum vimSystemMode mode) {
 	vimSystemSyncVisualSelectionFlags();
 }
 
+void editorVimBeginSelection(size_t anchor_offset) {
+	editorColumnSelectionClear();
+	E.selection_mode_active = 1;
+	E.selection_anchor_offset = anchor_offset;
+	vimSystemSetMode(VIM_SYSTEM_MODE_VISUAL);
+	vimSystemSetVisualHalfOpen(1);
+}
+
+void editorVimBeginLineSelection(size_t anchor_offset) {
+	editorColumnSelectionClear();
+	E.selection_mode_active = 1;
+	E.selection_anchor_offset = anchor_offset;
+	vimSystemSetMode(VIM_SYSTEM_MODE_VISUAL_LINE);
+	vimSystemSyncVisualSelectionFlags();
+}
+
+void editorVimBeginColumnSelection(void) {
+	int anchor_cx = 0;
+	struct editorLineView line = {0};
+
+	if (E.column_select_anchor_cy >= 0 && E.column_select_anchor_cy < E.numrows &&
+	    editorDocumentLineView(E.document, E.column_select_anchor_cy, &line)) {
+		anchor_cx = editorBytesRxToCx(line.data, line.size, E.column_select_anchor_rx);
+		editorLineViewRelease(&line);
+	}
+	E.selection_mode_active = 0;
+	E.selection_anchor_offset = 0;
+	E.column_select_active = 1;
+	vimSystemSetMode(VIM_SYSTEM_MODE_VISUAL_BLOCK);
+	E.input_vim_block_anchor_cx = anchor_cx;
+	vimSystemSyncVisualSelectionFlags();
+}
+
+void editorVimCancelSelection(void) {
+	enum vimSystemMode mode = vimSystemMode();
+
+	editorClearSelectionState();
+	if (mode == VIM_SYSTEM_MODE_VISUAL || mode == VIM_SYSTEM_MODE_VISUAL_LINE ||
+	    mode == VIM_SYSTEM_MODE_VISUAL_BLOCK) {
+		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+	}
+}
+
 static int vimSystemRxAt(int cy, int cx) {
 	struct editorLineView line = {0};
 	int rx = 0;
@@ -1527,7 +1570,7 @@ static int vimSystemTryMotionKey(int c, int count, int *effects_out) {
 	return 2;
 }
 
-static int vimSystemYankRange(const struct editorSelectionRange *range, int linewise) {
+static int vimSystemYankRange(const struct editorSelectionRange *range, int linewise, int report) {
 	char *text = NULL;
 	size_t len = 0;
 	int extracted = editorExtractRangeText(range, &text, &len);
@@ -1539,11 +1582,14 @@ static int vimSystemYankRange(const struct editorSelectionRange *range, int line
 		free(text);
 		return -1;
 	}
+	if (report) {
+		editorSetStatusMsg("Copied %zu bytes", len);
+	}
 	free(text);
 	return 1;
 }
 
-static int vimSystemYankLines(int start_cy, int end_cy) {
+static int vimSystemYankLines(int start_cy, int end_cy, int report) {
 	size_t total = 0;
 	char *text = NULL;
 	size_t pos = 0;
@@ -1593,6 +1639,9 @@ static int vimSystemYankLines(int start_cy, int end_cy) {
 		free(text);
 		return -1;
 	}
+	if (report) {
+		editorSetStatusMsg("Copied %zu bytes", pos);
+	}
 	free(text);
 	return 1;
 }
@@ -1610,7 +1659,7 @@ static int vimSystemChangeLineRange(int start_cy, int end_cy, int *effects_out) 
 		start_cy = end_cy;
 		end_cy = tmp;
 	}
-	if (!vimSystemYankLines(start_cy, end_cy)) {
+	if (!vimSystemYankLines(start_cy, end_cy, 0)) {
 		return 0;
 	}
 	range.start_cy = start_cy;
@@ -1897,18 +1946,18 @@ static int vimSystemApplyOperatorToRange(enum vimSystemOperator op,
 	}
 	if (op == VIM_SYSTEM_OPERATOR_YANK) {
 		if (linewise) {
-			return vimSystemYankLines(range->start_cy,
-			                          vimSystemLineRangeLastRow(range)) > 0;
+			return vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range),
+			                          1) > 0;
 		}
-		return vimSystemYankRange(range, 0) > 0;
+		return vimSystemYankRange(range, 0, 1) > 0;
 	}
 	if (vimSystemRejectReadOnlyMutation()) {
 		return 0;
 	}
-	if (linewise && !vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range))) {
+	if (linewise && !vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range), 0)) {
 		return 0;
 	}
-	if (!linewise && !vimSystemYankRange(range, 0)) {
+	if (!linewise && !vimSystemYankRange(range, 0, 0)) {
 		return 0;
 	}
 
@@ -1957,7 +2006,7 @@ static int vimSystemApplyLineOperator(enum vimSystemOperator op, int count, int 
 		return vimSystemChangeLineRange(E.cy, end_cy, effects_out);
 	}
 	if (op == VIM_SYSTEM_OPERATOR_YANK) {
-		return vimSystemYankLines(E.cy, end_cy) > 0;
+		return vimSystemYankLines(E.cy, end_cy, 1) > 0;
 	}
 	if (!vimSystemLineRange(E.cy, end_cy, &range)) {
 		return 0;
@@ -2957,12 +3006,15 @@ static int vimSystemInsertDeleteBackTo(int target_cx, int *effects_out) {
 static int vimSystemHandleInsertKey(int c, int *effects_out) {
 	c = vimSystemRemapKey(VIM_SYSTEM_MODE_INSERT, c, NULL);
 	if (c == '\x1b') {
+		/* End a block insert: drop the width-zero multi-cursor column. */
+		editorColumnSelectionClear();
 		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
 	}
 	if (vimSystemIsControlKey(c)) {
 		switch (c) {
 			case CTRL_KEY('c'):
+				editorColumnSelectionClear();
 				vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 				return 0;
 			case CTRL_KEY('h'): {
@@ -3993,7 +4045,7 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			(void)vimSystemDeleteToLineEnd(VIM_SYSTEM_OPERATOR_CHANGE, effects_out);
 			return 0;
 		case 'Y':
-			(void)vimSystemYankLines(E.cy, E.cy);
+			(void)vimSystemYankLines(E.cy, E.cy, 1);
 			vimSystemResetPending();
 			return 0;
 		case 'r':
@@ -4356,6 +4408,42 @@ static void vimSystemBlockCursorToTopLeft(const struct editorColumnSelectionRect
 	(void)vimSystemSetCursor(rect->top_cy, cx, effects_out);
 }
 
+/* Collapse the block to a width-zero column at `rx` spanning the same rows and
+ * enter Insert; typed characters then replicate on every row through the
+ * column-selection insert path (dispatchInsertTextByte). */
+static void vimSystemBlockEnterInsert(const struct editorColumnSelectionRect *rect, int rx,
+                                      int *effects_out) {
+	struct editorLineView line = {0};
+	int cx = 0;
+
+	if (rect->top_cy < E.numrows && editorDocumentLineView(E.document, rect->top_cy, &line)) {
+		cx = editorBytesRxToCx(line.data, line.size, rx);
+		editorLineViewRelease(&line);
+	}
+	(void)vimSystemSetCursor(rect->top_cy, cx, effects_out);
+	E.column_select_active = 1;
+	E.column_select_anchor_cy = rect->bottom_cy;
+	E.column_select_anchor_rx = rx;
+	E.column_select_cursor_rx = rx;
+	editorHistoryBreakGroup();
+	vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+}
+
+static int vimSystemBlockInsertStart(int c, int *effects_out) {
+	struct editorColumnSelectionRect rect;
+
+	if (!editorColumnSelectionGetRect(&rect)) {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	if (vimSystemRejectReadOnlyMutation()) {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	vimSystemBlockEnterInsert(&rect, c == 'A' ? rect.right_rx : rect.left_rx, effects_out);
+	return 0;
+}
+
 static int vimSystemBlockOperate(int c, int *effects_out) {
 	struct editorColumnSelectionRect rect;
 
@@ -4367,7 +4455,9 @@ static int vimSystemBlockOperate(int c, int *effects_out) {
 		char *text = NULL;
 		size_t len = 0;
 		if (editorColumnSelectionExtractText(&text, &len) > 0) {
-			(void)vimSystemRegisterStore(text, len, 0);
+			if (vimSystemRegisterStore(text, len, 0)) {
+				editorSetStatusMsg("Copied %zu bytes", len);
+			}
 			free(text);
 		}
 		vimSystemBlockCursorToTopLeft(&rect, effects_out);
@@ -4387,10 +4477,10 @@ static int vimSystemBlockOperate(int c, int *effects_out) {
 	if (deleted > 0) {
 		vimSystemAddEditEffect(effects_out);
 	}
-	vimSystemBlockCursorToTopLeft(&rect, effects_out);
 	if (c == 'c') {
-		vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+		vimSystemBlockEnterInsert(&rect, rect.left_rx, effects_out);
 	} else {
+		vimSystemBlockCursorToTopLeft(&rect, effects_out);
 		vimSystemExitVisualBlock();
 	}
 	return 0;
@@ -4434,6 +4524,9 @@ static int vimSystemHandleVisualBlockKey(int c, int *effects_out) {
 	if (c == '"') {
 		E.input_vim_pending_register = 1;
 		return 0;
+	}
+	if (c == 'I' || c == 'A') {
+		return vimSystemBlockInsertStart(c, effects_out);
 	}
 
 	motion_count = vimSystemEffectiveCount();

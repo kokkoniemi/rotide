@@ -468,6 +468,7 @@ static int test_input_vim_operator_motion_delete_yank_and_change(void) {
 	ASSERT_TRUE(vim_test_key('$') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
 	ASSERT_EQ_INT(0, vim_test_clipboard_eq("beta gamma"));
+	ASSERT_EQ_STR("Copied 10 bytes", E.statusmsg);
 
 	E.cx = 6;
 	ASSERT_TRUE(vim_test_key('c') == 0);
@@ -493,6 +494,7 @@ static int test_input_vim_linewise_operators_and_paste(void) {
 	ASSERT_TRUE(vim_test_key('y') == 0);
 	ASSERT_EQ_INT(0, vim_test_clipboard_eq("two\n"));
 	ASSERT_EQ_INT(dirty_before_yank, E.dirty);
+	ASSERT_EQ_STR("Copied 4 bytes", E.statusmsg);
 
 	ASSERT_TRUE(vim_test_key('p') == 0);
 	ASSERT_EQ_INT(4, E.numrows);
@@ -2542,6 +2544,7 @@ static int test_input_vim_visual_block_yank(void) {
 	ASSERT_EQ_INT(0, vim_test_clipboard_eq("el\nor"));
 	ASSERT_ROW_TEXT_EQ(0, "hello");
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_STR("Copied 5 bytes", E.statusmsg);
 	return 0;
 }
 
@@ -2594,6 +2597,74 @@ static int test_input_vim_visual_block_escape_clears(void) {
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_EQ_INT(0, E.column_select_active);
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	return 0;
+}
+
+static int test_input_vim_visual_block_insert_types_on_all_rows(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('I') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "hxyello");
+	ASSERT_ROW_TEXT_EQ(1, "wxyorld");
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.column_select_active);
+
+	/* The multi-cursor column must not leak into a later plain insert. */
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key('z') == 0);
+	ASSERT_ROW_TEXT_EQ(1, "wxyorld");
+	return 0;
+}
+
+static int test_input_vim_visual_block_append_after_block(void) {
+	add_row("hello");
+	add_row("hi");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 4;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('A') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key('_') == 0);
+	/* Rows shorter than the block's right edge clamp to their line end. */
+	ASSERT_ROW_TEXT_EQ(0, "hello_");
+	ASSERT_ROW_TEXT_EQ(1, "hi_");
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	return 0;
+}
+
+static int test_input_vim_visual_block_change_types_on_all_rows(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('c') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_TRUE(vim_test_key('X') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "hXllo");
+	ASSERT_ROW_TEXT_EQ(1, "wXrld");
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('c')) == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.column_select_active);
 	return 0;
 }
 
@@ -2919,6 +2990,12 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_visual_block_change_enters_insert",
          test_input_vim_visual_block_change_enters_insert},
         {"input_vim_visual_block_escape_clears", test_input_vim_visual_block_escape_clears},
+        {"input_vim_visual_block_insert_types_on_all_rows",
+         test_input_vim_visual_block_insert_types_on_all_rows},
+        {"input_vim_visual_block_append_after_block",
+         test_input_vim_visual_block_append_after_block},
+        {"input_vim_visual_block_change_types_on_all_rows",
+         test_input_vim_visual_block_change_types_on_all_rows},
         {"input_vim_normal_u_undoes_and_ctrl_r_redoes",
          test_input_vim_normal_u_undoes_and_ctrl_r_redoes},
         {"input_vim_undo_is_not_dot_repeatable", test_input_vim_undo_is_not_dot_repeatable},

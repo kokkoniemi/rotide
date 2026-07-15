@@ -8,6 +8,7 @@
 #include "editing/selection.h"
 #include "input/actions_workspace.h"
 #include "input/dispatch.h"
+#include "input/system_vim.h"
 #include "language/lsp.h"
 #include "render/popup.h"
 #include "render/screen.h"
@@ -789,6 +790,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 			}
 		}
 		E.column_select_cursor_rx = E.column_select_anchor_rx;
+		editorVimBeginColumnSelection();
 		apply_mouse_state = 1;
 		left_button_down = 1;
 		drag_started = 0;
@@ -1586,9 +1588,7 @@ static int mouseIsWordByte(unsigned char b) {
 }
 
 static void mouseClearSelectionMode(void) {
-	E.selection_mode_active = 0;
-	E.selection_anchor_offset = 0;
-	editorColumnSelectionClear();
+	editorVimCancelSelection();
 }
 
 static void mouseSelectWordAtCursor(void) {
@@ -1637,14 +1637,12 @@ static void mouseSelectWordAtCursor(void) {
 	if (!editorBufferPosToOffset(E.cy, start, &anchor_offset)) {
 		return;
 	}
-	editorColumnSelectionClear();
-	E.selection_mode_active = 1;
-	E.selection_anchor_offset = anchor_offset;
 	E.cx = end;
 	size_t cursor_offset = 0;
 	if (editorBufferPosToOffset(E.cy, end, &cursor_offset)) {
 		E.cursor_offset = cursor_offset;
 	}
+	editorVimBeginSelection(anchor_offset);
 }
 
 static void mouseSelectLineAtCursor(void) {
@@ -1655,22 +1653,7 @@ static void mouseSelectLineAtCursor(void) {
 	if (!editorBufferPosToOffset(E.cy, 0, &anchor_offset)) {
 		return;
 	}
-	editorColumnSelectionClear();
-	E.selection_mode_active = 1;
-	E.selection_anchor_offset = anchor_offset;
-
-	int end_cy = E.cy;
-	int end_cx = (int)editorDocumentLineLength(E.document, E.cy);
-	if (E.cy + 1 < E.numrows) {
-		end_cy = E.cy + 1;
-		end_cx = 0;
-	}
-	E.cy = end_cy;
-	E.cx = end_cx;
-	size_t cursor_offset = 0;
-	if (editorBufferPosToOffset(end_cy, end_cx, &cursor_offset)) {
-		E.cursor_offset = cursor_offset;
-	}
+	editorVimBeginLineSelection(anchor_offset);
 }
 
 static int mouseComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out) {
@@ -1933,9 +1916,7 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	if (!E.mouse_drag_started) {
 		/* A new drag always starts a fresh selection anchored at the initial press point.
 		 */
-		editorColumnSelectionClear();
-		E.selection_mode_active = 1;
-		E.selection_anchor_offset = E.mouse_drag_anchor_offset;
+		editorVimBeginSelection(E.mouse_drag_anchor_offset);
 		E.mouse_drag_started = 1;
 	}
 	return 1;

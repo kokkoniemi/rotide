@@ -90,6 +90,27 @@ const char *editorLspFindTopLevelKey(const char *object_start, const char *objec
 	return editorJsonFindTopLevelKey(object_start, object_end, quoted_key);
 }
 
+int editorLspParseStringFieldFromObject(const char *object_start, const char *object_end,
+                                        const char *quoted_key, char **value_out) {
+	if (value_out == NULL) {
+		return 0;
+	}
+	*value_out = NULL;
+	const char *key = editorLspFindTopLevelKey(object_start, object_end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= object_end) {
+		return 0;
+	}
+	const char *value = editorLspSkipWs(colon + 1);
+	if (value == NULL || value >= object_end || value[0] != '"') {
+		return 0;
+	}
+	return editorLspParseJsonString(value, value_out, NULL);
+}
+
 int editorLspParsePositionFromKey(const char *range_json, const char *key_name, const char *limit,
                                   int *line_out, int *character_out) {
 	char key_pattern[32];

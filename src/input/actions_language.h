@@ -20,6 +20,7 @@ const char *editorLanguageGoToServerName(void);
 const char *editorLanguageGoToCommand(void);
 const char *editorLanguageGoToCommandSettingName(void);
 void editorLanguageMaybePromptInstallServer(void);
+void editorLanguageReportLspUnavailable(void);
 void editorLanguagePromptInstallSharedVscodeServers(void);
 
 /*

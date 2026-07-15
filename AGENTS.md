@@ -1,4 +1,4 @@
-# AGENTS.md instructions for /home/mk/Development/rotide
+# AGENTS.md instructions for RotIDE
 
 ## Project
 
