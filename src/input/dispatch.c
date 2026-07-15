@@ -179,9 +179,7 @@ static int dispatchSearchMatchPosition(int *row_out, int *col_out) {
 }
 
 static void dispatchClearSelectionMode(void) {
-	E.selection_mode_active = 0;
-	E.selection_anchor_offset = 0;
-	editorColumnSelectionClear();
+	editorVimCancelSelection();
 }
 
 /* Anchors a linear selection at the cursor when none is active so that a
@@ -190,9 +188,7 @@ static void dispatchClearSelectionMode(void) {
 static void dispatchBeginOrContinueSelection(void) {
 	if (!E.selection_mode_active) {
 		dispatchAlignCursorWithRowEnd();
-		editorColumnSelectionClear();
-		E.selection_mode_active = 1;
-		E.selection_anchor_offset = E.cursor_offset;
+		editorVimBeginSelection(E.cursor_offset);
 	}
 }
 
@@ -2568,15 +2564,13 @@ static int dispatchColumnSelectionCurrentRx(void) {
 }
 
 static void dispatchColumnSelectionEnsureActive(void) {
-	if (E.column_select_active) {
-		return;
+	if (!E.column_select_active) {
+		E.column_select_active = 1;
+		E.column_select_anchor_cy = E.cy;
+		E.column_select_anchor_rx = dispatchColumnSelectionCurrentRx();
+		E.column_select_cursor_rx = E.column_select_anchor_rx;
 	}
-	E.selection_mode_active = 0;
-	E.selection_anchor_offset = 0;
-	E.column_select_active = 1;
-	E.column_select_anchor_cy = E.cy;
-	E.column_select_anchor_rx = dispatchColumnSelectionCurrentRx();
-	E.column_select_cursor_rx = E.column_select_anchor_rx;
+	editorVimBeginColumnSelection();
 }
 
 static void dispatchColumnSelectionApplyCursorRx(void) {

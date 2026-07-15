@@ -1,5 +1,6 @@
 #include "alloc_test_hooks.h"
 #include "editing/selection.h"
+#include "editor_test_api.h"
 #include "input/dispatch.h"
 #include "input/prompt.h"
 #include "rotide.h"
@@ -112,6 +113,7 @@ static int test_editor_process_keypress_ctrl_a_selects_whole_buffer(void) {
 	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_ALL) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	/* Cursor lands at the end of the buffer, anchor at the start. */
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
 	ASSERT_EQ_INT(2, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 
@@ -142,6 +144,7 @@ static int test_editor_selection_range_tracks_shift_arrow_movement(void) {
 	E.cx = 1;
 
 	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_RIGHT) == 0);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
 
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
@@ -167,9 +170,11 @@ static int test_editor_plain_arrow_collapses_shift_selection(void) {
 
 	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_SELECT_RIGHT) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
 
 	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_MOVE_RIGHT) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
@@ -205,6 +210,27 @@ static int test_editor_shift_home_end_extend_selection(void) {
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(0, range.start_cx);
 	ASSERT_EQ_INT(6, range.end_cx);
+	return 0;
+}
+
+static int test_editor_column_selection_actions_enter_visual_block_and_yank(void) {
+	add_row("abc");
+	add_row("def");
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_COLUMN_SELECT_RIGHT) == 0);
+	ASSERT_TRUE(input_selection_dispatch(EDITOR_ACTION_COLUMN_SELECT_DOWN) == 0);
+	ASSERT_EQ_STR("VISUAL BLOCK", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.column_select_active);
+
+	ASSERT_TRUE(editor_process_single_key('y') == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.column_select_active);
+	size_t clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_EQ_INT(3, (int)clip_len);
+	ASSERT_MEM_EQ("a\nd", clip, clip_len);
 	return 0;
 }
 
@@ -718,6 +744,8 @@ const struct editorTestCase g_input_selection_tests[] = {
          test_editor_plain_arrow_collapses_shift_selection},
         {"editor_ctrl_shift_arrow_selects_by_word", test_editor_ctrl_shift_arrow_selects_by_word},
         {"editor_shift_home_end_extend_selection", test_editor_shift_home_end_extend_selection},
+        {"editor_column_selection_actions_enter_visual_block_and_yank",
+         test_editor_column_selection_actions_enter_visual_block_and_yank},
         {"editor_process_keypress_ctrl_c_copies_single_line_selection",
          test_editor_process_keypress_ctrl_c_copies_single_line_selection},
         {"editor_process_keypress_ctrl_c_copies_multiline_selection",

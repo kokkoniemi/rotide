@@ -468,6 +468,7 @@ static int test_input_vim_operator_motion_delete_yank_and_change(void) {
 	ASSERT_TRUE(vim_test_key('$') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
 	ASSERT_EQ_INT(0, vim_test_clipboard_eq("beta gamma"));
+	ASSERT_EQ_STR("Copied 10 bytes", E.statusmsg);
 
 	E.cx = 6;
 	ASSERT_TRUE(vim_test_key('c') == 0);
@@ -493,6 +494,7 @@ static int test_input_vim_linewise_operators_and_paste(void) {
 	ASSERT_TRUE(vim_test_key('y') == 0);
 	ASSERT_EQ_INT(0, vim_test_clipboard_eq("two\n"));
 	ASSERT_EQ_INT(dirty_before_yank, E.dirty);
+	ASSERT_EQ_STR("Copied 4 bytes", E.statusmsg);
 
 	ASSERT_TRUE(vim_test_key('p') == 0);
 	ASSERT_EQ_INT(4, E.numrows);
@@ -2542,6 +2544,7 @@ static int test_input_vim_visual_block_yank(void) {
 	ASSERT_EQ_INT(0, vim_test_clipboard_eq("el\nor"));
 	ASSERT_ROW_TEXT_EQ(0, "hello");
 	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_STR("Copied 5 bytes", E.statusmsg);
 	return 0;
 }
 

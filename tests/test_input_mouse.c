@@ -88,6 +88,7 @@ static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void
 	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
 	ASSERT_EQ_INT(1, E.column_select_active);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_STR("VISUAL BLOCK", editorVimModeLabel());
 
 	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 	struct editorColumnSelectionRect rect;
@@ -2084,7 +2085,8 @@ static int test_editor_process_keypress_mouse_click_clears_existing_selection(vo
 	E.window_cols = 20;
 	E.cy = 0;
 	E.cx = 1;
-	begin_selection();
+	ASSERT_TRUE(editor_process_single_key('v') == 0);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
 
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click[32];
@@ -2092,6 +2094,7 @@ static int test_editor_process_keypress_mouse_click_clears_existing_selection(vo
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_EQ_INT(0, E.selection_anchor_offset);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	ASSERT_EQ_INT(4, E.cx);
 
 	struct editorSelectionRange range;
@@ -2099,7 +2102,41 @@ static int test_editor_process_keypress_mouse_click_clears_existing_selection(vo
 	return 0;
 }
 
-static int test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b(void) {
+static int test_editor_process_keypress_mouse_multi_click_enters_matching_visual_modes(void) {
+	add_row("alpha beta");
+	E.window_rows = 3;
+	E.window_cols = 24;
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	struct editorMouseEvent event = {
+	        .kind = EDITOR_MOUSE_EVENT_LEFT_PRESS,
+	        .x = text_start + 8,
+	        .y = 2,
+	        .modifiers = EDITOR_MOUSE_MOD_NONE,
+	};
+
+	ASSERT_TRUE(editorHandleMouseTextLeftPress(&event, 100, 400, NULL, NULL));
+	ASSERT_TRUE(editorHandleMouseLeftRelease(&event) == 0);
+	ASSERT_TRUE(editorHandleMouseTextLeftPress(&event, 200, 400, NULL, NULL));
+	ASSERT_TRUE(editorHandleMouseLeftRelease(&event) == 0);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(6, range.start_cx);
+	ASSERT_EQ_INT(10, range.end_cx);
+
+	ASSERT_TRUE(editorHandleMouseTextLeftPress(&event, 300, 400, NULL, NULL));
+	ASSERT_TRUE(editorHandleMouseLeftRelease(&event) == 0);
+	ASSERT_EQ_STR("VISUAL LINE", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(0, range.end_cy);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_enters_visual_mode_and_yanks(void) {
 	add_row("abcdef");
 	E.window_rows = 3;
 	E.window_cols = 20;
@@ -2109,12 +2146,15 @@ static int test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char drag[32];
+	char release[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 2, 2, 'M'));
 	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 6, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, text_start + 6, 2, 'm'));
 	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
 	ASSERT_EQ_INT(0, assert_selection_anchor(0, 1));
 
 	struct editorSelectionRange range;
@@ -2123,6 +2163,16 @@ static int test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl
 	ASSERT_EQ_INT(1, range.start_cx);
 	ASSERT_EQ_INT(0, range.end_cy);
 	ASSERT_EQ_INT(5, range.end_cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+	ASSERT_TRUE(editor_process_single_key('y') == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	size_t clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_TRUE(clip != NULL);
+	ASSERT_EQ_INT(4, (int)clip_len);
+	ASSERT_TRUE(memcmp(clip, "bcde", clip_len) == 0);
 	return 0;
 }
 
@@ -3306,8 +3356,10 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused},
         {"editor_process_keypress_mouse_click_clears_existing_selection",
          test_editor_process_keypress_mouse_click_clears_existing_selection},
-        {"editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b",
-         test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b},
+        {"editor_process_keypress_mouse_multi_click_enters_matching_visual_modes",
+         test_editor_process_keypress_mouse_multi_click_enters_matching_visual_modes},
+        {"editor_process_keypress_mouse_drag_enters_visual_mode_and_yanks",
+         test_editor_process_keypress_mouse_drag_enters_visual_mode_and_yanks},
         {"editor_process_keypress_mouse_press_without_drag_keeps_click_behavior",
          test_editor_process_keypress_mouse_press_without_drag_keeps_click_behavior},
         {"editor_process_keypress_mouse_drag_resets_existing_selection_anchor",
