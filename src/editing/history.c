@@ -88,29 +88,49 @@ static int historyDupSlice(const char *text, size_t len, char **dst_out) {
 	return 1;
 }
 
-static int historyAppendText(char **text_in_out, size_t *len_in_out, const char *append,
-                             size_t append_len) {
-	size_t old_len = 0;
-	size_t new_len = 0;
-	size_t cap = 0;
-	char *grown = NULL;
-
-	if (text_in_out == NULL || len_in_out == NULL) {
-		return 0;
+/* Ensure the merged insert buffer holds at least `needed` bytes, growing its
+ * capacity geometrically. */
+static int historyReserveInserted(char **text_in_out, size_t *cap_in_out, size_t needed) {
+	if (needed <= *cap_in_out) {
+		return 1;
 	}
-	old_len = *len_in_out;
-	if (!editorSizeAdd(old_len, append_len, &new_len) || !editorSizeAdd(new_len, 1, &cap)) {
-		return 0;
+	size_t new_cap = *cap_in_out > 0 ? *cap_in_out : 64;
+	while (new_cap < needed) {
+		if (new_cap > ((size_t)-1) / 2) {
+			new_cap = needed;
+			break;
+		}
+		new_cap *= 2;
 	}
-	grown = editorRealloc(*text_in_out, cap);
+	char *grown = editorRealloc(*text_in_out, new_cap);
 	if (grown == NULL) {
 		return 0;
 	}
-	if (append_len > 0 && append != NULL) {
-		memcpy(grown + old_len, append, append_len);
-	}
-	grown[new_len] = '\0';
 	*text_in_out = grown;
+	*cap_in_out = new_cap;
+	return 1;
+}
+
+static int historyAppendText(char **text_in_out, size_t *len_in_out, size_t *cap_in_out,
+                             const char *append, size_t append_len) {
+	size_t old_len = 0;
+	size_t new_len = 0;
+	size_t needed = 0;
+
+	if (text_in_out == NULL || len_in_out == NULL || cap_in_out == NULL) {
+		return 0;
+	}
+	old_len = *len_in_out;
+	if (!editorSizeAdd(old_len, append_len, &new_len) || !editorSizeAdd(new_len, 1, &needed)) {
+		return 0;
+	}
+	if (!historyReserveInserted(text_in_out, cap_in_out, needed)) {
+		return 0;
+	}
+	if (append_len > 0 && append != NULL) {
+		memcpy(*text_in_out + old_len, append, append_len);
+	}
+	(*text_in_out)[new_len] = '\0';
 	*len_in_out = new_len;
 	return 1;
 }
@@ -140,23 +160,23 @@ static int historyTryMergeInsert(struct editorHistory *history,
 
 	if (append_at_end) {
 		if (!historyAppendText(&latest->inserted_text, &latest->inserted_len,
-		                       entry->inserted_text, entry->inserted_len)) {
+		                       &latest->inserted_cap, entry->inserted_text,
+		                       entry->inserted_len)) {
 			return 0;
 		}
 	} else {
 		size_t prefix_len = latest->inserted_len - 1;
 		size_t merged_len = 0;
-		size_t cap = 0;
+		size_t needed = 0;
 		if (!editorSizeAdd(prefix_len, entry->inserted_len, &merged_len) ||
 		    !editorSizeAdd(merged_len, 1, &merged_len) ||
-		    !editorSizeAdd(merged_len, 1, &cap)) {
+		    !editorSizeAdd(merged_len, 1, &needed)) {
 			return 0;
 		}
-		char *grown = editorRealloc(latest->inserted_text, cap);
-		if (grown == NULL) {
+		if (!historyReserveInserted(&latest->inserted_text, &latest->inserted_cap,
+		                            needed)) {
 			return 0;
 		}
-		latest->inserted_text = grown;
 		memmove(latest->inserted_text + prefix_len + entry->inserted_len,
 		        latest->inserted_text + prefix_len, 2);
 		if (entry->inserted_len > 0 && entry->inserted_text != NULL) {
@@ -195,6 +215,9 @@ int editorHistoryRecordPendingEditFromOperation(enum editorEditKind kind,
 		editorHistoryEntryFree(&entry);
 		return 0;
 	}
+	/* historyDupSlice allocates exactly new_len + 1 (NULL when new_len == 0);
+	 * keep inserted_cap in step so later merge-appends grow from the truth. */
+	entry.inserted_cap = edit->new_len > 0 ? edit->new_len + 1 : 0;
 
 	editorHistoryEntryFree(&E.edit_pending_entry);
 	E.edit_pending_entry = entry;

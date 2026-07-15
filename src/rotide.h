@@ -456,6 +456,7 @@ struct editorHistoryEntry {
 	size_t removed_len;
 	char *inserted_text;
 	size_t inserted_len;
+	size_t inserted_cap;
 	size_t before_cursor_offset;
 	size_t after_cursor_offset;
 	int before_dirty;
