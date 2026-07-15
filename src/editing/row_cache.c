@@ -21,16 +21,10 @@ void editorFreeRowArray(struct editorRow *rows, int numrows) {
 	free(rows);
 }
 
-static int rowCacheAppendRestoredRow(struct editorRow **rows, int *numrows, const char *s,
-                                     size_t len) {
+static int rowCacheInitRestoredRow(struct editorRow *row, const char *s, size_t len) {
 	int row_size = 0;
-	size_t numrows_size = 0;
-	size_t new_numrows = 0;
-	size_t row_bytes = 0;
 
-	if (!editorSizeToInt(len, &row_size) || !editorIntToSize(*numrows, &numrows_size) ||
-	    !editorSizeAdd(numrows_size, 1, &new_numrows) ||
-	    !editorSizeMul(sizeof(struct editorRow), new_numrows, &row_bytes)) {
+	if (!editorSizeToInt(len, &row_size)) {
 		return 0;
 	}
 
@@ -41,22 +35,14 @@ static int rowCacheAppendRestoredRow(struct editorRow **rows, int *numrows, cons
 		return 0;
 	}
 
-	struct editorRow *new_rows = editorRealloc(*rows, row_bytes);
-	if (new_rows == NULL) {
-		free(row_render);
-		return 0;
-	}
-
-	*rows = new_rows;
-	(*rows)[*numrows].rsize = row_rsize;
-	(*rows)[*numrows].render_display_cols = row_display_cols;
-	(*rows)[*numrows].render = row_render;
-	(*rows)[*numrows].wrap_cache_body_cols = 0;
-	(*rows)[*numrows].wrap_cache_segment_count = 0;
-	(*rows)[*numrows].wrap_cache_indent_cols = 0;
-	(*rows)[*numrows].wrap_cache_capacity = 0;
-	(*rows)[*numrows].wrap_cache_segments = NULL;
-	(*numrows)++;
+	row->rsize = row_rsize;
+	row->render_display_cols = row_display_cols;
+	row->render = row_render;
+	row->wrap_cache_body_cols = 0;
+	row->wrap_cache_segment_count = 0;
+	row->wrap_cache_indent_cols = 0;
+	row->wrap_cache_capacity = 0;
+	row->wrap_cache_segments = NULL;
 	return 1;
 }
 
@@ -75,18 +61,33 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document, int 
 	if (end_row_exclusive > line_count) {
 		return 0;
 	}
+	/* One upfront allocation: growing the array one row per line degrades
+	 * full rebuilds to O(lines^2) copying under allocators that cannot
+	 * extend in place (e.g. Fil-C's GC heap). */
+	if (end_row_exclusive > start_row) {
+		size_t row_bytes = 0;
+		if (!editorSizeMul(sizeof(struct editorRow),
+		                   (size_t)(end_row_exclusive - start_row), &row_bytes)) {
+			return 0;
+		}
+		rows = editorMalloc(row_bytes);
+		if (rows == NULL) {
+			return 0;
+		}
+	}
 	for (int line_idx = start_row; line_idx < end_row_exclusive; line_idx++) {
 		struct editorLineView line = {0};
 		if (!editorDocumentLineView(document, line_idx, &line)) {
 			editorFreeRowArray(rows, numrows);
 			return 0;
 		}
-		int ok = rowCacheAppendRestoredRow(&rows, &numrows, line.data, (size_t)line.size);
+		int ok = rowCacheInitRestoredRow(&rows[numrows], line.data, (size_t)line.size);
 		editorLineViewRelease(&line);
 		if (!ok) {
 			editorFreeRowArray(rows, numrows);
 			return 0;
 		}
+		numrows++;
 	}
 
 	*rows_out = rows;

@@ -136,6 +136,10 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	buffer->git_view_commit_amend = 0;
 	editorSyntaxStateDestroy(buffer->syntax_state);
 	buffer->syntax_state = NULL;
+	free(buffer->syntax_pending_edits);
+	buffer->syntax_pending_edits = NULL;
+	buffer->syntax_pending_edit_count = 0;
+	buffer->syntax_pending_edit_cap = 0;
 	buffer->syntax_language = EDITOR_SYNTAX_NONE;
 	free(buffer->search_query);
 	buffer->search_query = NULL;
@@ -396,10 +400,15 @@ static void tabsLoadActiveTab(int tab_idx) {
 		return;
 	}
 	tabsStateLoadActive(&E.tabs[tab_idx]);
+	E.syntax_background_pending = 0;
 	if (editorActiveTabIsReadOnly() && E.tab_kind != EDITOR_TAB_GIT_DIFF) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
 		editorSyntaxStateDestroy(E.syntax_state);
 		E.syntax_state = NULL;
+		free(E.syntax_pending_edits);
+		E.syntax_pending_edits = NULL;
+		E.syntax_pending_edit_count = 0;
+		E.syntax_pending_edit_cap = 0;
 		E.syntax_parse_failures = 0;
 		E.lsp_doc_open = 0;
 		E.lsp_doc_version = 0;
@@ -1492,6 +1501,10 @@ static int tabsRebuildGeneratedTabRows(struct editorTabState *tab) {
 	tab->disk_conflict = 0;
 	editorSyntaxStateDestroy(tab->syntax_state);
 	tab->syntax_state = NULL;
+	free(tab->syntax_pending_edits);
+	tab->syntax_pending_edits = NULL;
+	tab->syntax_pending_edit_count = 0;
+	tab->syntax_pending_edit_cap = 0;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
@@ -1744,6 +1757,10 @@ static int tabsTaskPrepareLogTab(const char *title, const char *text) {
 	E.filename = NULL;
 	editorSyntaxStateDestroy(E.syntax_state);
 	E.syntax_state = NULL;
+	free(E.syntax_pending_edits);
+	E.syntax_pending_edits = NULL;
+	E.syntax_pending_edit_count = 0;
+	E.syntax_pending_edit_cap = 0;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;

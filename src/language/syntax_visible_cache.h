@@ -5,6 +5,7 @@
 #include "language/syntax_worker.h"
 
 int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count);
+int editorSyntaxVisibleCacheScheduleBackgroundFull(int first_row, int row_count);
 int editorSyntaxVisibleCacheStoreBackgroundResult(const struct editorSyntaxWorkerResult *result);
 int editorSyntaxVisibleCacheInvalidateChangedRowsFromState(void);
 void editorSyntaxVisibleCacheInvalidateRowsForEdit(const struct editorSyntaxEdit *edit);

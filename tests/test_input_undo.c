@@ -49,6 +49,36 @@ static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run(void) 
 	return 0;
 }
 
+/* A continuous typing run merges into a single undo entry, appending one byte
+ * per keystroke. The merged buffer must grow its capacity geometrically, not
+ * reallocate to the exact length each keystroke (O(run^2) copying under
+ * allocators that always copy, e.g. Fil-C's GC heap). */
+static int test_editor_process_keypress_typed_run_undo_entry_grows_geometrically(void) {
+	const int run_len = 100;
+	ASSERT_TRUE(editor_process_single_key('i') == 0);
+	for (int i = 0; i < run_len; i++) {
+		ASSERT_TRUE(editor_process_single_key('a') == 0);
+	}
+
+	/* The whole run merges into one undo entry. */
+	ASSERT_EQ_INT(1, E.undo_history.len);
+	int newest = (E.undo_history.start + E.undo_history.len - 1) % ROTIDE_UNDO_HISTORY_LIMIT;
+	const struct editorHistoryEntry *entry = &E.undo_history.entries[newest];
+	ASSERT_TRUE((int)entry->inserted_len >= run_len);
+	/* Capacity carries headroom past the merged run — exact-per-keystroke
+	 * growth (the quadratic under Fil-C) would leave cap == inserted_len + 1. */
+	ASSERT_TRUE(entry->inserted_cap >= entry->inserted_len + 1);
+	ASSERT_TRUE(entry->inserted_cap > entry->inserted_len + 1);
+
+	ASSERT_TRUE(input_undo_dispatch(EDITOR_ACTION_UNDO) == 0);
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_TRUE(input_undo_dispatch(EDITOR_ACTION_REDO) == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	char *restored = editor_test_row_text(0);
+	ASSERT_TRUE(restored != NULL && (int)strlen(restored) == run_len);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_z_group_break_on_navigation(void) {
 	ASSERT_TRUE(editor_process_single_key('i') == 0);
 	ASSERT_TRUE(editor_process_single_key('a') == 0);
@@ -193,6 +223,8 @@ const struct editorTestCase g_input_undo_tests[] = {
          test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut},
         {"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run",
          test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run},
+        {"editor_process_keypress_typed_run_undo_entry_grows_geometrically",
+         test_editor_process_keypress_typed_run_undo_entry_grows_geometrically},
         {"editor_process_keypress_ctrl_z_group_break_on_navigation",
          test_editor_process_keypress_ctrl_z_group_break_on_navigation},
         {"editor_process_keypress_ctrl_z_for_delete_and_newline_steps",

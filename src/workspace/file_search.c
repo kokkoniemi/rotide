@@ -18,6 +18,15 @@
 #include <strings.h>
 #include <sys/stat.h>
 
+/* Precomputed sort key */
+struct fileSearchRanked {
+	int path_idx;
+	int recent_rank;
+};
+
+static struct fileSearchRanked *g_file_search_ranked;
+static int g_file_search_ranked_capacity;
+
 static const char *fileSearchRoot(void) {
 	const char *root = editorDrawerRootPath();
 	return root != NULL && root[0] != '\0' ? root : ".";
@@ -46,6 +55,10 @@ static void fileSearchFreePathList(void) {
 	E.drawer_search_filtered_indices = NULL;
 	E.drawer_search_filtered_count = 0;
 	E.drawer_search_filtered_capacity = 0;
+
+	free(g_file_search_ranked);
+	g_file_search_ranked = NULL;
+	g_file_search_ranked_capacity = 0;
 }
 
 void editorFileSearchFree(void) {
@@ -185,10 +198,12 @@ static int fileSearchRecentRankForSort(const char *path) {
 }
 
 static int fileSearchFilteredIndexCmp(const void *a, const void *b) {
-	int left_idx = *(const int *)a;
-	int right_idx = *(const int *)b;
-	int left_recent = fileSearchRecentRankForSort(E.drawer_search_paths[left_idx]);
-	int right_recent = fileSearchRecentRankForSort(E.drawer_search_paths[right_idx]);
+	const struct fileSearchRanked *la = a;
+	const struct fileSearchRanked *rb = b;
+	int left_idx = la->path_idx;
+	int right_idx = rb->path_idx;
+	int left_recent = la->recent_rank;
+	int right_recent = rb->recent_rank;
 	if (left_recent >= 0 || right_recent >= 0) {
 		if (left_recent < 0) {
 			return 1;
@@ -265,24 +280,60 @@ static int fileSearchAsciiCaseContains(const char *haystack, const char *needle)
 	return 0;
 }
 
+static int fileSearchEnsureRankedCapacity(int needed) {
+	if (needed <= g_file_search_ranked_capacity) {
+		return 1;
+	}
+	int new_capacity =
+	        g_file_search_ranked_capacity > 0 ? g_file_search_ranked_capacity * 2 : 64;
+	while (new_capacity < needed) {
+		if (new_capacity > INT_MAX / 2) {
+			new_capacity = needed;
+			break;
+		}
+		new_capacity *= 2;
+	}
+	size_t bytes = 0;
+	if (!editorSizeMul(sizeof(*g_file_search_ranked), (size_t)new_capacity, &bytes)) {
+		return 0;
+	}
+	struct fileSearchRanked *grown = editorRealloc(g_file_search_ranked, bytes);
+	if (grown == NULL) {
+		return 0;
+	}
+	g_file_search_ranked = grown;
+	g_file_search_ranked_capacity = new_capacity;
+	return 1;
+}
+
 static int fileSearchRefreshFilter(void) {
 	E.drawer_search_filtered_count = 0;
+	int ranked_count = 0;
 	for (int i = 0; i < E.drawer_search_path_count; i++) {
 		const char *display_path = fileSearchDisplayPath(E.drawer_search_paths[i]);
 		if (!fileSearchAsciiCaseContains(display_path, editorFileSearchQuery())) {
 			continue;
 		}
-		if (!fileSearchEnsureFilteredCapacity(E.drawer_search_filtered_count + 1)) {
+		if (!fileSearchEnsureRankedCapacity(ranked_count + 1) ||
+		    !fileSearchEnsureFilteredCapacity(ranked_count + 1)) {
 			return 0;
 		}
-		E.drawer_search_filtered_indices[E.drawer_search_filtered_count] = i;
-		E.drawer_search_filtered_count++;
+		/* Rank once here rather than per comparison (each rank stats twice). */
+		g_file_search_ranked[ranked_count].path_idx = i;
+		g_file_search_ranked[ranked_count].recent_rank =
+		        fileSearchRecentRankForSort(E.drawer_search_paths[i]);
+		ranked_count++;
 	}
 
-	if (E.drawer_search_filtered_count > 1) {
-		qsort(E.drawer_search_filtered_indices, (size_t)E.drawer_search_filtered_count,
-		      sizeof(*E.drawer_search_filtered_indices), fileSearchFilteredIndexCmp);
+	if (ranked_count > 1) {
+		qsort(g_file_search_ranked, (size_t)ranked_count, sizeof(*g_file_search_ranked),
+		      fileSearchFilteredIndexCmp);
 	}
+	for (int i = 0; i < ranked_count; i++) {
+		E.drawer_search_filtered_indices[i] = g_file_search_ranked[i].path_idx;
+	}
+	E.drawer_search_filtered_count = ranked_count;
+
 	if (E.drawer_selected_index < 1 ||
 	    E.drawer_selected_index >= editorFileSearchVisibleCount()) {
 		E.drawer_selected_index = 1;

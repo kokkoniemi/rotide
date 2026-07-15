@@ -7,10 +7,23 @@ STRIPFLAGS ?= --strip-unneeded
 CLANG_FORMAT ?= clang-format
 CLANG_TIDY ?= clang-tidy
 
+# Fil-C (https://fil-c.org) memory-safe toolchain. Point FILC_ROOT at a pizfix
+# binary release; the ~/.fil-c convention is a symlink to the versioned install
+# (re-run its setup.sh after moving it — library rpaths are baked in).
+FILC_ROOT ?= $(HOME)/.fil-c
+FILC_CC ?= $(FILC_ROOT)/build/bin/clang
+# Fil-C's pointer-capability checks are only elided by the optimizer; -O0
+# builds are orders of magnitude slower, so always inject an -O level.
+FILC_CFLAGS ?= -O2 -g
+FILC_RELEASE_CFLAGS ?= $(FILC_CFLAGS) $(filter-out -Os,$(RELEASE_CFLAGS))
+
 # ============================================================================
 # Project layout
 # ============================================================================
 BUILD_DIR := build
+# Separate object tree so native and fil-c builds never need a clean in
+# between; nested under BUILD_DIR so `make clean` covers it.
+FILC_BUILD_DIR ?= $(BUILD_DIR)/filc
 SRC_DIR := src
 VENDOR_DIR := vendor
 LIBVTERM_DIR := $(VENDOR_DIR)/libvterm
@@ -63,7 +76,8 @@ VENDOR_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedant
 TREE_SITTER_CPPFLAGS = $(CPPFLAGS)
 TREE_SITTER_CFLAGS = $(VENDOR_CFLAGS) \
 	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
-	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-unused-label \
+	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-unused-function \
+	-Wno-unused-label \
 	-Wno-comment -Wno-empty-body
 
 LIBVTERM_CPPFLAGS = $(CPPFLAGS) \
@@ -695,9 +709,40 @@ test-tsan:
 		$(TSAN_LAUNCHER) ./$(TEST_BIN) --tag $$tag $(TEST_FLAGS) || exit $$?; \
 	done
 
+# Fil-C targets recurse with a separate object tree (FILC_BUILD_DIR), so
+# switching between native and fil-c dev builds never requires a clean.
+REQUIRE_FILC = @test -x "$(FILC_CC)" || { \
+	echo "fil-c compiler not found at $(FILC_CC)." >&2; \
+	echo "Install it (https://fil-c.org/install_pizfix), symlink the install to $(FILC_ROOT)," >&2; \
+	echo "or set FILC_ROOT=/path/to/install." >&2; \
+	exit 1; \
+}
+
+filc:
+	$(REQUIRE_FILC)
+	$(call LOG,MAKE,filc)$(MAKE) BUILD_DIR=$(FILC_BUILD_DIR) CC=$(FILC_CC) \
+		CFLAGS="$(CFLAGS) $(FILC_RELEASE_CFLAGS)" rotide
+
+test-filc:
+	$(REQUIRE_FILC)
+	$(call LOG,MAKE,test-filc)$(MAKE) BUILD_DIR=$(FILC_BUILD_DIR) CC=$(FILC_CC) \
+		CFLAGS="$(CFLAGS) $(FILC_RELEASE_CFLAGS)" test
+
+# Production build: fil-c for memory safety, -static (static-pie) so the
+# binary is self-contained instead of depending on the pizfix loader path.
+# The result still lands at $(BUILD_DIR)/rotide like it always has.
 release:
+	$(REQUIRE_FILC)
 	$(call LOG,CLEAN,build)$(MAKE) clean
-	$(call LOG,MAKE,release)$(MAKE) CFLAGS="$(CFLAGS) $(RELEASE_CFLAGS)" \
+	$(call LOG,MAKE,release)$(MAKE) BUILD_DIR=$(FILC_BUILD_DIR) CC=$(FILC_CC) \
+		CFLAGS="$(CFLAGS) $(FILC_RELEASE_CFLAGS)" \
+		LDFLAGS="$(LDFLAGS) $(RELEASE_LDFLAGS) -static" rotide
+	$(call LOG,STRIP,$(FILC_BUILD_DIR)/rotide)$(STRIP) $(STRIPFLAGS) $(FILC_BUILD_DIR)/rotide
+	$(call LOG,CP,$(BUILD_DIR)/rotide)cp $(FILC_BUILD_DIR)/rotide $(BUILD_DIR)/rotide
+
+release-native:
+	$(call LOG,CLEAN,build)$(MAKE) clean
+	$(call LOG,MAKE,release-native)$(MAKE) CFLAGS="$(CFLAGS) $(RELEASE_CFLAGS)" \
 		LDFLAGS="$(LDFLAGS) $(RELEASE_LDFLAGS)" rotide
 	$(call LOG,STRIP,$(BUILD_DIR)/rotide)$(STRIP) $(STRIPFLAGS) $(BUILD_DIR)/rotide
 
@@ -718,7 +763,7 @@ loc:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-tree-sitter-sizes tree-sitter-sizes release docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-tree-sitter-sizes tree-sitter-sizes release release-native filc test-filc docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,$(BUILD_DIR))rm -rf $(BUILD_DIR)

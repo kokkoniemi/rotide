@@ -1,9 +1,9 @@
 # Concurrency
 
-RotIDE is single-threaded except for one worker thread that parses
-Tree-sitter for the focused tab. Everything else (language servers, DAP
-adapters, terminal panes, project search) runs in separate processes
-and is drained from the main thread.
+RotIDE is single-threaded except for one worker thread that prepares visible
+Tree-sitter spans for the focused tab and performs full parses when no reusable
+tree exists. Everything else (language servers, DAP adapters, terminal panes,
+project search) runs in separate processes and is drained from the main thread.
 
 ## Snapshot / revision protocol
 
@@ -11,10 +11,12 @@ and is drained from the main thread.
 
 Each tab carries a *revision* (bumped on any edit) and a *generation*
 (bumped when the language changes). The main thread hands the worker a
-self-contained snapshot: language, revision, generation, an owned byte
-copy, and the visible row window. The worker parses on private memory
-and publishes a result tagged with the snapshot's `(language, revision,
-generation)`.
+self-contained snapshot: language, revision, generation, an owned byte copy,
+the visible row window, and, when available, a shallow Tree-sitter tree copy plus
+the edits since that tree was accepted. The worker applies the pending edits,
+parses once incrementally, collects spans on private state, and publishes a
+result tagged with the snapshot's `(language, revision, generation)`. Initial
+parses and missing-tree fallbacks parse the snapshot from scratch.
 
 On publish, the main thread compares the tags against current tab
 state. Mismatch → drop. That is the entire safety property: stale
@@ -36,9 +38,8 @@ formal safety.
 
 ## What is not parallel
 
-- Incremental Tree-sitter edits and small-document parses still run on
-  the main thread. The worker is an optimization for large documents,
-  not the primary parser.
+- The main thread records Tree-sitter edit deltas and owns revision checks; tree
+  edits, parsing, and span collection run on the worker.
 - LSP, DAP, terminal-pane, and project-search I/O is poll-driven on the
   main thread. There are no I/O threads.
 - Inline git blame runs `git blame --incremental` synchronously on the main

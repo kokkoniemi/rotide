@@ -4,6 +4,7 @@
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "vterm.h"
 #include "workspace/layout.h"
@@ -835,20 +836,51 @@ static int test_terminal_pane_label_reflects_foreground_program(void) {
 		return 1;
 	}
 	int resolved = 0;
+	long checked_ms = 0;
 	int waited = 0;
 	while (waited < 2000) {
 		(void)editorTerminalPanePump(t);
 		const char *program = editorTerminalPaneForegroundProgram(t);
 		if (program != NULL && strcmp(program, "sleep") == 0) {
 			resolved = 1;
+			checked_ms = t->foreground_program_checked_ms;
 			break;
 		}
 		struct timespec ts = {0, 20 * 1000 * 1000};
 		nanosleep(&ts, NULL);
 		waited += 20;
 	}
+	if (resolved) {
+		(void)editorTerminalPaneForegroundProgram(t);
+		resolved = t->foreground_program_checked_ms == checked_ms;
+	}
 	editorTerminalPaneFree(t);
 	return resolved ? 0 : 1;
+}
+
+static int test_terminal_pane_output_does_not_outrank_stdin(void) {
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorTerminalPane *t =
+	        editorTerminalPaneCreate("printf 'ready\\n'; sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	int tab_idx = editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, t, editorTerminalPaneFree);
+	if (tab_idx < 0) {
+		editorTerminalPaneFree(t);
+		return 1;
+	}
+	struct pollfd pfd = {.fd = t->child.master_fd, .events = POLLIN, .revents = 0};
+	if (poll(&pfd, 1, 2000) <= 0) {
+		(void)editorTabCloseAt(tab_idx);
+		return 1;
+	}
+	int key = 0;
+	int failed = editor_read_key_with_input("x", 1, &key) != 0 || key != 'x';
+	(void)editorTabCloseAt(tab_idx);
+	return failed;
 }
 
 static int test_terminal_pane_resize_all_matches_layout_rect(void) {
@@ -1250,6 +1282,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_open_split_creates_labeled_terminal_tab},
         {"terminal_pane_label_reflects_foreground_program",
          test_terminal_pane_label_reflects_foreground_program},
+        {"terminal_pane_output_does_not_outrank_stdin",
+         test_terminal_pane_output_does_not_outrank_stdin},
         {"terminal_pane_create_rejects_null_command",
          test_terminal_pane_create_rejects_null_command},
         {"terminal_pane_pump_captures_child_output", test_terminal_pane_pump_captures_child_output},

@@ -27,6 +27,8 @@ static void syntaxWorkerJobFree(struct editorSyntaxWorkerJob *job) {
 		return;
 	}
 	free(job->text);
+	editorSyntaxStateDestroy(job->state);
+	free(job->edits);
 	memset(job, 0, sizeof(*job));
 }
 
@@ -259,15 +261,26 @@ editorSyntaxWorkerRunJob(struct editorSyntaxWorkerJob *job) {
 	result->first_row = job->first_row;
 	result->row_count = job->row_count;
 
-	result->state = editorSyntaxStateCreate(job->language);
-	if (result->state == NULL) {
-		return result;
-	}
-	editorSyntaxStateSetBackgroundParse(result->state, 1);
-
 	struct editorTextSource source = {0};
 	editorTextSourceInitString(&source, job->text, job->text_len);
-	result->parsed = editorSyntaxStateParseFull(result->state, &source);
+	if (job->state != NULL) {
+		result->state = job->state;
+		job->state = NULL;
+		if (job->edit_count > 0) {
+			editorSyntaxStateSetBackgroundParse(result->state, 1);
+			result->parsed = editorSyntaxStateApplyEditsAndParse(
+			        result->state, job->edits, job->edit_count, &source);
+		} else {
+			result->parsed = editorSyntaxStateHasTree(result->state);
+		}
+	} else {
+		result->state = editorSyntaxStateCreate(job->language);
+		if (result->state == NULL) {
+			return result;
+		}
+		editorSyntaxStateSetBackgroundParse(result->state, 1);
+		result->parsed = editorSyntaxStateParseFull(result->state, &source);
+	}
 	if (result->parsed && !syntaxWorkerBuildSpans(result, job->text, job->text_len)) {
 		result->parsed = 0;
 	}

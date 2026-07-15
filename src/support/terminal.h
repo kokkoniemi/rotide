@@ -15,6 +15,7 @@ void editorPanic(const char *s);
 void editorSetDefaultMode(void);
 void editorSetRawMode(void);
 int editorReadKey(void);
+int editorInputPending(void);
 int editorReadCursorPosition(int *rows, int *cols);
 int editorReadWindowSize(int *rows, int *cols);
 /* Call after a full-screen refresh completes. The input loop uses this to

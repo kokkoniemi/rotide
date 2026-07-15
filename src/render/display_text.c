@@ -324,6 +324,7 @@ char *editorSanitizeTextRangeDup(const char *text, int text_len, int *cols_out) 
 	}
 
 	size_t out_len = 0;
+	size_t out_cap = 1;
 	int total_cols = 0;
 	for (int idx = 0; idx < text_len;) {
 		char escaped[4];
@@ -344,12 +345,26 @@ char *editorSanitizeTextRangeDup(const char *text, int text_len, int *cols_out) 
 			return NULL;
 		}
 
-		char *grown = editorRealloc(out, alloc_len);
-		if (grown == NULL) {
-			free(out);
-			return NULL;
+		/* Grow geometrically: an exact realloc per token is O(tokens^2) under
+		 * allocators that always copy (Fil-C's GC heap), and this builds tab
+		 * labels and status segments every frame. */
+		if (alloc_len > out_cap) {
+			size_t new_cap = out_cap;
+			while (new_cap < alloc_len) {
+				if (new_cap > ROTIDE_MAX_TEXT_BYTES / 2) {
+					new_cap = alloc_len;
+					break;
+				}
+				new_cap *= 2;
+			}
+			char *grown = editorRealloc(out, new_cap);
+			if (grown == NULL) {
+				free(out);
+				return NULL;
+			}
+			out = grown;
+			out_cap = new_cap;
 		}
-		out = grown;
 		memcpy(&out[out_len], token, token_len_sz);
 		out_len = new_len;
 		out[out_len] = '\0';

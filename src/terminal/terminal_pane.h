@@ -65,8 +65,8 @@ struct editorTerminalPane {
 	int pending_ctrl_w;
 	int pending_leader;
 
-	pid_t foreground_pgrp;
 	char foreground_program[64];
+	long foreground_program_checked_ms;
 };
 
 /* Spawn command in PTY + vterm. Caller owns returned pane. */

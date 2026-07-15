@@ -38,6 +38,23 @@ make
 ./build/rotide
 ```
 
+### Fil-C builds
+
+Production builds use [Fil-C](https://fil-c.org), a memory-safe C compiler.
+Install a [pizfix binary release](https://fil-c.org/install_pizfix) and symlink
+it to `~/.fil-c` (or set `FILC_ROOT=/path/to/install`):
+
+```bash
+make filc        # memory-safe dev build at build/filc/rotide
+make test-filc   # full test suite under Fil-C
+make release     # production: Fil-C, static-pie, stripped, at build/rotide
+```
+
+`make release-native` keeps the previous non-Fil-C release path. Fil-C uses
+`-O2` for development, tests, and releases; it costs more CPU and RSS in
+exchange for guaranteed memory safety. The default `make` remains a plain
+native build.
+
 ## Documentation
 
 - [User guide](docs/user/README.md) — features, keybindings, configuration,

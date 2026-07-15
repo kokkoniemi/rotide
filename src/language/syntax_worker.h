@@ -15,6 +15,9 @@ struct editorSyntaxWorkerJob {
 	int row_count;
 	char *text;
 	size_t text_len;
+	struct editorSyntaxState *state;
+	struct editorSyntaxEdit *edits;
+	int edit_count;
 };
 
 struct editorSyntaxWorkerResult {

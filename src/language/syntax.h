@@ -168,6 +168,7 @@ editorSyntaxDetectLanguageFromFilenameAndFirstLine(const char *filename, const c
  * syntax can read document bytes without owning canonical text.
  */
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language);
+struct editorSyntaxState *editorSyntaxStateClone(const struct editorSyntaxState *state);
 void editorSyntaxStateDestroy(struct editorSyntaxState *state);
 
 void editorTextSourceInitString(struct editorTextSource *source, const char *text, size_t len);
@@ -182,6 +183,9 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state,
 int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
                                        const struct editorSyntaxEdit *edit,
                                        const struct editorTextSource *source);
+int editorSyntaxStateApplyEditsAndParse(struct editorSyntaxState *state,
+                                        const struct editorSyntaxEdit *edits, int edit_count,
+                                        const struct editorTextSource *source);
 int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, size_t source_len);
 int editorSyntaxLengthFitsHighlight(size_t len);
 /* When enabled, the state's full parse ignores the interactive parse-time

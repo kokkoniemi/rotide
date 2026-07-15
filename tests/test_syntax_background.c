@@ -209,6 +209,59 @@ static int test_editor_syntax_background_pending_edit_keeps_edited_row_spans(voi
 	return 0;
 }
 
+static int test_editor_syntax_background_edit_reuses_incremental_tree(void) {
+	char path[] = "/tmp/rotide-test-syntax-background-incremental-XXXXXX.c";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/visible_cache.c"));
+
+	editorSyntaxBackgroundSetEnabledForTests(1);
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.rowoff = 0;
+	E.coloff = 0;
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	ASSERT_TRUE(editorSyntaxBackgroundFlushForTests());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	/* A worker-side full parse would consume this failure and report it. */
+	editorSyntaxTestSetParseFailureCountdowns(1, 0);
+	E.cy = 1;
+	E.cx = 0;
+	editorInsertChar('x');
+	editorInsertChar('y');
+	editorInsertChar('z');
+	int flushed = editorSyntaxBackgroundFlushForTests();
+	editorSyntaxTestResetParseFailureCountdowns();
+
+	ASSERT_TRUE(flushed);
+	ASSERT_EQ_INT(0, E.syntax_parse_failures);
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
+	ASSERT_EQ_INT(0, E.syntax_background_pending);
+	ASSERT_EQ_INT(0, E.syntax_pending_edit_count);
+
+	struct editorRowSyntaxSpan worker_spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int worker_span_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(
+	        1, worker_spans, (int)(sizeof(worker_spans) / sizeof(worker_spans[0])),
+	        &worker_span_count));
+
+	editorSyntaxBackgroundSetEnabledForTests(0);
+	ASSERT_TRUE(editorSyntaxParseFullActive());
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	struct editorRowSyntaxSpan full_spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int full_span_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(1, full_spans,
+	                                       (int)(sizeof(full_spans) / sizeof(full_spans[0])),
+	                                       &full_span_count));
+	ASSERT_EQ_INT(full_span_count, worker_span_count);
+	ASSERT_MEM_EQ(full_spans, worker_spans, sizeof(full_spans[0]) * (size_t)full_span_count);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_background_drops_stale_parse_results(void) {
 	char path[] = "/tmp/rotide-test-syntax-background-stale-XXXXXX.c";
 	ASSERT_TRUE(
@@ -312,6 +365,17 @@ static int test_editor_syntax_background_highlights_large_file(void) {
 	                                       &span_count));
 	ASSERT_TRUE(span_count > 0);
 
+	/* Worker-side incremental parsing must ignore the interactive deadline and
+	 * avoid the full-parse fallback. */
+	editorSyntaxTestSetParseFailureCountdowns(1, 0);
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar('x');
+	int flushed = editorSyntaxBackgroundFlushForTests();
+	editorSyntaxTestResetParseFailureCountdowns();
+	ASSERT_TRUE(flushed);
+	ASSERT_EQ_INT(0, E.syntax_parse_failures);
+
 	editorSyntaxBackgroundSetEnabledForTests(0);
 	editorSyntaxTestResetBudgetOverrides();
 	ASSERT_TRUE(unlink(path) == 0);
@@ -338,6 +402,8 @@ const struct editorTestCase g_syntax_background_tests[] = {
          test_editor_syntax_background_viewport_schedule_preserves_cached_overlap},
         {"editor_syntax_background_pending_edit_keeps_edited_row_spans",
          test_editor_syntax_background_pending_edit_keeps_edited_row_spans},
+        {"editor_syntax_background_edit_reuses_incremental_tree",
+         test_editor_syntax_background_edit_reuses_incremental_tree},
         {"editor_syntax_background_drops_stale_parse_results",
          test_editor_syntax_background_drops_stale_parse_results},
         {"editor_syntax_background_unsupported_file_stays_plain",

@@ -16,10 +16,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define TERMINAL_SCROLLBACK_DEFAULT 10000
 #define TERMINAL_SCROLLBACK_MAX 1000000
+#define TERMINAL_PUMP_BYTE_CAP (64 * 1024)
+#define TERMINAL_FOREGROUND_REFRESH_MS 250
 
 static int g_terminal_scrollback_lines = TERMINAL_SCROLLBACK_DEFAULT;
 
@@ -313,16 +316,13 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 		 * and bursts that perfectly fill a 4 KB chunk used to cost us the
 		 * follow-up read. */
 		char buf[32 * 1024];
-		/* Per-pump cap so one runaway pane can't starve siblings or the
-		 * input loop. After this many bytes we bail; the main loop will
-		 * come back around and drain more on the next iteration. */
-		const int per_pump_cap = 1024 * 1024;
+		/* Keep a runaway pane from starving input or sibling panes. */
 		for (;;) {
 			ssize_t n = read(terminal->child.master_fd, buf, sizeof(buf));
 			if (n > 0) {
 				vterm_input_write(terminal->vt, buf, (size_t)n);
 				total += (int)n;
-				if (total >= per_pump_cap) {
+				if (total >= TERMINAL_PUMP_BYTE_CAP) {
 					break;
 				}
 				continue;
@@ -360,14 +360,22 @@ const char *editorTerminalPaneForegroundProgram(struct editorTerminalPane *termi
 	if (terminal->child.master_fd < 0) {
 		return cached;
 	}
+	struct timespec ts;
+	long now_ms = 0;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+		now_ms = (long)ts.tv_sec * 1000L + (long)(ts.tv_nsec / 1000000L);
+	}
+	if (now_ms > 0 && terminal->foreground_program_checked_ms > 0 &&
+	    now_ms - terminal->foreground_program_checked_ms < TERMINAL_FOREGROUND_REFRESH_MS) {
+		return cached;
+	}
+	terminal->foreground_program_checked_ms = now_ms;
 	pid_t pgrp = tcgetpgrp(terminal->child.master_fd);
 	if (pgrp <= 0) {
 		return cached;
 	}
-	/* Avoid reopening /proc while the same foreground job remains active. */
-	if (pgrp == terminal->foreground_pgrp && cached != NULL) {
-		return cached;
-	}
+	/* Refresh periodically because exec keeps the pgrp while changing the
+	 * program (e.g. `exec sleep 5`). */
 	char path[64];
 	(void)snprintf(path, sizeof(path), "/proc/%d/comm", (int)pgrp);
 	int fd = open(path, O_RDONLY | O_CLOEXEC);
@@ -387,7 +395,6 @@ const char *editorTerminalPaneForegroundProgram(struct editorTerminalPane *termi
 		return cached;
 	}
 	comm[n] = '\0';
-	terminal->foreground_pgrp = pgrp;
 	memcpy(terminal->foreground_program, comm, (size_t)n + 1);
 	return terminal->foreground_program;
 }
