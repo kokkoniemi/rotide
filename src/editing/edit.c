@@ -129,6 +129,7 @@ static int editReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len_o
 	ssize_t line_len = 0;
 	char *text = NULL;
 	size_t text_len = 0;
+	size_t text_cap = 0;
 
 	if (text_out == NULL || len_out == NULL || fp == NULL) {
 		return 0;
@@ -160,14 +161,28 @@ static int editReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len_o
 			break;
 		}
 
-		grown = editorRealloc(text, next_cap);
-		if (grown == NULL) {
-			free(text);
-			free(line);
-			editorSetAllocFailureStatus();
-			return 0;
+		/* Grow geometrically: a realloc per line is amortized O(1) only when
+		 * the allocator can extend in place; Fil-C's GC heap always copies,
+		 * which would make whole-file reads O(lines * bytes). */
+		if (next_cap > text_cap) {
+			size_t new_cap = text_cap > 0 ? text_cap : 4096;
+			while (new_cap < next_cap) {
+				if (new_cap > ((size_t)-1) / 2) {
+					new_cap = next_cap;
+					break;
+				}
+				new_cap *= 2;
+			}
+			grown = editorRealloc(text, new_cap);
+			if (grown == NULL) {
+				free(text);
+				free(line);
+				editorSetAllocFailureStatus();
+				return 0;
+			}
+			text = grown;
+			text_cap = new_cap;
 		}
-		text = grown;
 		if (normalized_len > 0) {
 			memcpy(text + text_len, line, normalized_len);
 		}

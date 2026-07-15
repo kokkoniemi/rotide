@@ -149,13 +149,19 @@ static int test_pty_open_without_child_round_trip(void) {
 	if (!editorPtyOpenWithoutChild(40, 8, &child, slave_path, sizeof(slave_path))) {
 		return 1;
 	}
-	/* No owned process; master is a usable non-blocking fd, slave path resolved. */
-	if (child.pid != -1 || child.master_fd < 0 || child.width != 40 || child.height != 8) {
+	/* No owned process; both PTY ends stay open until the external owner attaches. */
+	if (child.pid != -1 || child.master_fd < 0 || child.slave_fd < 0 || child.width != 40 ||
+	    child.height != 8) {
 		editorPtyClose(&child);
 		return 1;
 	}
 	int flags = fcntl(child.master_fd, F_GETFL, 0);
 	if (flags == -1 || (flags & O_NONBLOCK) == 0 || slave_path[0] != '/') {
+		editorPtyClose(&child);
+		return 1;
+	}
+	struct pollfd idle_master = {.fd = child.master_fd, .events = POLLIN, .revents = 0};
+	if (poll(&idle_master, 1, 0) != 0) {
 		editorPtyClose(&child);
 		return 1;
 	}
@@ -172,7 +178,7 @@ static int test_pty_open_without_child_round_trip(void) {
 	close(slave);
 	editorPtyClose(&child);
 	/* Closing a childless PTY must not block or fail. */
-	return (ok && child.master_fd == -1 && child.pid == -1) ? 0 : 1;
+	return (ok && child.master_fd == -1 && child.slave_fd == -1 && child.pid == -1) ? 0 : 1;
 }
 
 static int test_pty_open_without_child_rejects_invalid_args(void) {

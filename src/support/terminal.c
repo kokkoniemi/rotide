@@ -125,6 +125,19 @@ static enum terminalReadByteResult terminalReadInputByte(char *out) {
 	return TERMINAL_READ_RETRY;
 }
 
+int editorInputPending(void) {
+	struct pollfd pfd = {.fd = STDIN_FILENO, .events = POLLIN, .revents = 0};
+	int polled;
+	do {
+		polled = poll(&pfd, 1, 0);
+	} while (polled == -1 && errno == EINTR);
+	if (polled == -1) {
+		editorPanic("poll");
+		return 0;
+	}
+	return polled > 0 && (pfd.revents & (POLLIN | POLLHUP | POLLERR | POLLNVAL)) != 0;
+}
+
 static enum terminalReadByteResult terminalReadSeqByte(char *out) {
 	return terminalReadInputByte(out);
 }
@@ -943,6 +956,9 @@ static void terminalCoalesceFloodFrame(void) {
 	}
 	int remaining = (int)(TERMINAL_MIN_FRAME_INTERVAL_MS - elapsed);
 	terminalWaitForInput(remaining);
+	if (editorInputPending()) {
+		return;
+	}
 	/* Fold in anything that arrived during the wait so the upcoming refresh
 	 * captures the full burst. */
 	(void)terminalPumpAllWithPerf();
@@ -966,11 +982,14 @@ static int terminalServiceDapEvent(void) {
 }
 
 static int terminalPollPendingEvent(void) {
-	if (editorSyntaxBackgroundPoll()) {
-		return SYNTAX_EVENT;
-	}
 	if (terminalTakeResizeEvent()) {
 		return RESIZE_EVENT;
+	}
+	if (editorInputPending()) {
+		return 0;
+	}
+	if (editorSyntaxBackgroundPoll()) {
+		return SYNTAX_EVENT;
 	}
 	if (editorTaskPoll()) {
 		return TASK_EVENT;
@@ -983,6 +1002,9 @@ static int terminalPollPendingEvent(void) {
 	}
 	if (terminalPumpAllWithPerf() > 0) {
 		terminalCoalesceFloodFrame();
+		if (editorInputPending()) {
+			return 0;
+		}
 		return TERMINAL_EVENT;
 	}
 	return 0;
@@ -992,6 +1014,9 @@ static int terminalPollReadRetryEvent(void) {
 	if (terminalTakeResizeEvent()) {
 		return RESIZE_EVENT;
 	}
+	if (editorInputPending()) {
+		return 0;
+	}
 	if (editorSyntaxBackgroundPoll()) {
 		return SYNTAX_EVENT;
 	}
@@ -1006,6 +1031,9 @@ static int terminalPollReadRetryEvent(void) {
 	}
 	if (terminalPumpAllWithPerf() > 0) {
 		terminalCoalesceFloodFrame();
+		if (editorInputPending()) {
+			return 0;
+		}
 		return TERMINAL_EVENT;
 	}
 	return 0;

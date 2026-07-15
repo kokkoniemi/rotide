@@ -292,6 +292,12 @@ static int drawerFileOpsSameOpenDir(int left_fd, int right_fd) {
 	return left_st.st_dev == right_st.st_dev && left_st.st_ino == right_st.st_ino;
 }
 
+/* musl's fcntl.h omits RENAME_NOREPLACE even though the raw syscall
+ * works; it is a stable Linux ABI constant. */
+#if defined(SYS_renameat2) && !defined(RENAME_NOREPLACE)
+#define RENAME_NOREPLACE (1 << 0)
+#endif
+
 static int drawerFileOpsRenameNoReplaceAt(int src_dir_fd, const char *src_name, int dest_dir_fd,
                                           const char *dest_name) {
 #if defined(SYS_renameat2) && defined(RENAME_NOREPLACE)

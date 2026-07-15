@@ -8,7 +8,6 @@
 #include "test_helpers.h"
 
 #include <errno.h>
-#include <execinfo.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -20,6 +19,13 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
+/* glibc-only backtrace API; musl (and thus Fil-C's pizfix libc) lacks it, so
+ * crash artifacts there simply omit the backtrace section. */
+#if __has_include(<execinfo.h>)
+#include <execinfo.h>
+#define ROTIDE_TESTS_HAVE_EXECINFO 1
+#endif
 
 #define ARTIFACT_ROOT "tests/artifacts"
 #define ARTIFACT_LOGS ARTIFACT_ROOT "/logs"
@@ -114,12 +120,16 @@ static void crash_signal_handler(int signo, siginfo_t *info, void *ucontext) {
 		(void)write_all_fd(fd, "\nrepeat=", 8);
 		signal_safe_u_to_str((unsigned long long)g_crash_repeat, buf, &n);
 		(void)write_all_fd(fd, buf, (size_t)n);
+#ifdef ROTIDE_TESTS_HAVE_EXECINFO
 		(void)write_all_fd(fd, "\nbacktrace:\n", 12);
 		void *frames[64];
 		int nframes = backtrace(frames, 64);
 		/* Best-effort; backtrace_symbols_fd isn't AS-safe but works for
 		 * test SEGVs that aren't holding the malloc lock. */
 		backtrace_symbols_fd(frames, nframes, fd);
+#else
+		(void)write_all_fd(fd, "\nbacktrace: (unavailable: no execinfo.h)\n", 41);
+#endif
 		(void)close(fd);
 	}
 

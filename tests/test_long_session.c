@@ -63,6 +63,8 @@ static int write_session_fixture(char *path_template) {
  */
 #if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
 #define LONG_SESSION_DEFAULT_RSS_KIB 32768 /* 32 MiB under sanitizers */
+#elif defined(__FILC__)
+#define LONG_SESSION_DEFAULT_RSS_KIB 32768 /* 32 MiB; Fil-C's GC heap grows RSS in steps */
 #else
 #define LONG_SESSION_DEFAULT_RSS_KIB 2048 /* 2 MiB; catches ~10 KiB/iter at K=200 */
 #endif

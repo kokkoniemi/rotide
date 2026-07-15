@@ -17,6 +17,7 @@ void editorPtyChildInit(struct editorPtyChild *child) {
 		return;
 	}
 	child->master_fd = -1;
+	child->slave_fd = -1;
 	child->pid = -1;
 	child->width = 0;
 	child->height = 0;
@@ -71,40 +72,39 @@ int editorPtyOpenWithoutChild(int cols, int rows, struct editorPtyChild *out, ch
 	}
 	editorPtyChildInit(out);
 
-	int master = posix_openpt(O_RDWR | O_NOCTTY);
-	if (master < 0) {
+	struct winsize ws = {0};
+	ws.ws_col = (unsigned short)cols;
+	ws.ws_row = (unsigned short)rows;
+
+	/* openpty instead of posix_openpt+ptsname: Fil-C's musl ptsname traps on
+	 * the TIOCGPTN ioctl, and openpty hands back the slave path anyway. */
+	int master = -1;
+	int slave_fd = -1;
+	char slave[128] = {0};
+	if (openpty(&master, &slave_fd, slave, NULL, &ws) != 0) {
 		return 0;
 	}
-	if (grantpt(master) != 0 || unlockpt(master) != 0) {
-		int saved = errno;
+	if (strlen(slave) >= slave_path_size) {
+		close(slave_fd);
 		close(master);
-		errno = saved;
-		return 0;
-	}
-	const char *slave = ptsname(master);
-	if (slave == NULL || strlen(slave) >= slave_path_size) {
-		int saved = (slave == NULL) ? errno : ENAMETOOLONG;
-		close(master);
-		errno = saved;
+		errno = ENAMETOOLONG;
 		return 0;
 	}
 	memcpy(slave_path, slave, strlen(slave) + 1);
 
-	struct winsize ws = {0};
-	ws.ws_col = (unsigned short)cols;
-	ws.ws_row = (unsigned short)rows;
-	(void)ioctl(master, TIOCSWINSZ, &ws);
-
 	int flags = fcntl(master, F_GETFL, 0);
 	if (flags == -1 || fcntl(master, F_SETFL, flags | O_NONBLOCK) == -1) {
 		int saved = errno;
+		close(slave_fd);
 		close(master);
 		errno = saved;
 		return 0;
 	}
 	(void)fcntl(master, F_SETFD, FD_CLOEXEC);
+	(void)fcntl(slave_fd, F_SETFD, FD_CLOEXEC);
 
 	out->master_fd = master;
+	out->slave_fd = slave_fd;
 	out->pid = -1;
 	out->width = cols;
 	out->height = rows;
@@ -161,6 +161,10 @@ void editorPtyClose(struct editorPtyChild *child) {
 	if (child->master_fd >= 0) {
 		close(child->master_fd);
 		child->master_fd = -1;
+	}
+	if (child->slave_fd >= 0) {
+		close(child->slave_fd);
+		child->slave_fd = -1;
 	}
 	if (child->pid > 0) {
 		(void)kill(child->pid, SIGTERM);

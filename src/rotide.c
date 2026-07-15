@@ -257,6 +257,11 @@ int main(int argc, char *argv[]) {
 		editorMarkFrameRendered();
 		editorPerfEndFrame();
 		editorProcessKeypress();
+		/* Apply queued input before another expensive frame. The bound keeps
+		 * continuous key repeat from starving rendering indefinitely. */
+		for (int input_count = 1; input_count < 64 && editorInputPending(); input_count++) {
+			editorProcessKeypress();
+		}
 	}
 
 	return EXIT_SUCCESS;

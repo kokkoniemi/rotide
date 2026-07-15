@@ -20,6 +20,7 @@
  */
 struct editorPtyChild {
 	int master_fd;
+	int slave_fd;
 	pid_t pid;
 	int width;
 	int height;
@@ -37,9 +38,10 @@ int editorPtySpawn(const char *command, int cols, int rows, struct editorPtyChil
 /*
  * Allocate a PTY sized (cols, rows) WITHOUT forking a child: `out->pid` is set
  * to -1 (no owned process), the master fd is non-blocking, and the slave device
- * path is written to `slave_path`. Lets an external process (handed the slave
- * path) own the tty while rotide reads the master. Returns 1 on success, 0 on
- * failure (errno set; nothing left allocated).
+ * path is written to `slave_path`. Rotide retains an open slave fd until
+ * close so the master cannot report a hangup before the external process opens
+ * the path. Returns 1 on success, 0 on failure (errno set; nothing left
+ * allocated).
  */
 int editorPtyOpenWithoutChild(int cols, int rows, struct editorPtyChild *out, char *slave_path,
                               size_t slave_path_size);
@@ -58,8 +60,8 @@ int editorPtyResize(struct editorPtyChild *child, int cols, int rows);
 int editorPtyTryReap(struct editorPtyChild *child, int *status_out);
 
 /*
- * Close the master fd and SIGTERM the child if it is still running. Safe to
- * call repeatedly; subsequent calls are no-ops.
+ * Close the PTY fds and SIGTERM the child if it is still running. Safe to call
+ * repeatedly; subsequent calls are no-ops.
  */
 void editorPtyClose(struct editorPtyChild *child);
 
