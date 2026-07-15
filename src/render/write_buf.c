@@ -23,13 +23,28 @@ int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
 		return 0;
 	}
 
-	char *new_buf = editorRealloc(wb->b, new_len);
-	if (new_buf == NULL) {
-		return 0;
+	/* Grow the capacity geometrically. Reallocating to the exact length
+	 * makes frame composition O(appends * bytes) under allocators that
+	 * always copy on realloc (Fil-C's GC heap). Doubling keeps it amortized
+	 * O(bytes) everywhere. */
+	if (new_len > wb->cap) {
+		size_t new_cap = wb->cap > 0 ? wb->cap : 256;
+		while (new_cap < new_len) {
+			if (new_cap > ROTIDE_MAX_TEXT_BYTES / 2) {
+				new_cap = new_len;
+				break;
+			}
+			new_cap *= 2;
+		}
+		char *new_buf = editorRealloc(wb->b, new_cap);
+		if (new_buf == NULL) {
+			return 0;
+		}
+		wb->b = new_buf;
+		wb->cap = new_cap;
 	}
 
-	memcpy(&new_buf[wb->len], s, len);
-	wb->b = new_buf;
+	memcpy(&wb->b[wb->len], s, len);
 	wb->len += len;
 	return 1;
 }
@@ -39,6 +54,9 @@ void wbFree(struct writeBuf *wb) {
 		return;
 	}
 	free(wb->b);
+	wb->b = NULL;
+	wb->len = 0;
+	wb->cap = 0;
 }
 
 static int wbWriteAllFd(int fd, const char *buf, size_t len) {

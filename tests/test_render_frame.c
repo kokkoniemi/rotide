@@ -5,6 +5,7 @@
 #include "language/syntax_visible_cache.h"
 #include "render/screen.h"
 #include "render/viewport.h"
+#include "render/write_buf.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
@@ -3063,7 +3064,45 @@ static int test_editor_refresh_screen_a11y_selection_overrides_syntax(void) {
 	return 0;
 }
 
+/* wbAppend backs every frame: one call per row and per syntax/style span. It
+ * must reserve capacity geometrically so composing a frame stays amortized
+ * O(bytes), not O(appends * bytes). The latter is invisible with glibc realloc
+ * but quadratic under allocators that always copy (Fil-C's GC heap). Guard the
+ * growth strategy: reallocating to the exact length every call would bump the
+ * capacity on every append. */
+static int test_write_buf_grows_capacity_geometrically(void) {
+	struct writeBuf wb = WRITEBUF_INIT;
+	const int append_count = 100000;
+	int cap_growth_events = 0;
+	size_t last_cap = 0;
+
+	for (int i = 0; i < append_count; i++) {
+		char byte = (char)('a' + (i % 26));
+		ASSERT_TRUE(wbAppend(&wb, &byte, 1));
+		if (wb.cap != last_cap) {
+			cap_growth_events++;
+			last_cap = wb.cap;
+		}
+		ASSERT_TRUE(wb.cap >= wb.len);
+	}
+
+	ASSERT_TRUE(wb.len == (size_t)append_count);
+	/* Doubling from 256 reaches 100k in ~10 steps; realloc-per-append would be
+	 * one growth event per byte. A generous ceiling still catches a regression. */
+	ASSERT_TRUE(cap_growth_events < 64);
+	for (int i = 0; i < append_count; i++) {
+		ASSERT_TRUE(wb.b[i] == (char)('a' + (i % 26)));
+	}
+
+	wbFree(&wb);
+	ASSERT_TRUE(wb.b == NULL);
+	ASSERT_TRUE(wb.cap == 0);
+	ASSERT_TRUE(wb.len == 0);
+	return 0;
+}
+
 const struct editorTestCase g_render_frame_tests[] = {
+        {"write_buf_grows_capacity_geometrically", test_write_buf_grows_capacity_geometrically},
         {"editor_refresh_screen_contains_expected_sequences",
          test_editor_refresh_screen_contains_expected_sequences},
         {"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows",
