@@ -3007,12 +3007,15 @@ static int vimSystemInsertDeleteBackTo(int target_cx, int *effects_out) {
 static int vimSystemHandleInsertKey(int c, int *effects_out) {
 	c = vimSystemRemapKey(VIM_SYSTEM_MODE_INSERT, c, NULL);
 	if (c == '\x1b') {
+		/* End a block insert: drop the width-zero multi-cursor column. */
+		editorColumnSelectionClear();
 		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
 	}
 	if (vimSystemIsControlKey(c)) {
 		switch (c) {
 			case CTRL_KEY('c'):
+				editorColumnSelectionClear();
 				vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 				return 0;
 			case CTRL_KEY('h'): {
@@ -4406,6 +4409,42 @@ static void vimSystemBlockCursorToTopLeft(const struct editorColumnSelectionRect
 	(void)vimSystemSetCursor(rect->top_cy, cx, effects_out);
 }
 
+/* Collapse the block to a width-zero column at `rx` spanning the same rows and
+ * enter Insert; typed characters then replicate on every row through the
+ * column-selection insert path (dispatchInsertTextByte). */
+static void vimSystemBlockEnterInsert(const struct editorColumnSelectionRect *rect, int rx,
+                                      int *effects_out) {
+	struct editorLineView line = {0};
+	int cx = 0;
+
+	if (rect->top_cy < E.numrows && editorDocumentLineView(E.document, rect->top_cy, &line)) {
+		cx = editorBytesRxToCx(line.data, line.size, rx);
+		editorLineViewRelease(&line);
+	}
+	(void)vimSystemSetCursor(rect->top_cy, cx, effects_out);
+	E.column_select_active = 1;
+	E.column_select_anchor_cy = rect->bottom_cy;
+	E.column_select_anchor_rx = rx;
+	E.column_select_cursor_rx = rx;
+	editorHistoryBreakGroup();
+	vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+}
+
+static int vimSystemBlockInsertStart(int c, int *effects_out) {
+	struct editorColumnSelectionRect rect;
+
+	if (!editorColumnSelectionGetRect(&rect)) {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	if (vimSystemRejectReadOnlyMutation()) {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	vimSystemBlockEnterInsert(&rect, c == 'A' ? rect.right_rx : rect.left_rx, effects_out);
+	return 0;
+}
+
 static int vimSystemBlockOperate(int c, int *effects_out) {
 	struct editorColumnSelectionRect rect;
 
@@ -4439,10 +4478,10 @@ static int vimSystemBlockOperate(int c, int *effects_out) {
 	if (deleted > 0) {
 		vimSystemAddEditEffect(effects_out);
 	}
-	vimSystemBlockCursorToTopLeft(&rect, effects_out);
 	if (c == 'c') {
-		vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+		vimSystemBlockEnterInsert(&rect, rect.left_rx, effects_out);
 	} else {
+		vimSystemBlockCursorToTopLeft(&rect, effects_out);
 		vimSystemExitVisualBlock();
 	}
 	return 0;
@@ -4486,6 +4525,9 @@ static int vimSystemHandleVisualBlockKey(int c, int *effects_out) {
 	if (c == '"') {
 		E.input_vim_pending_register = 1;
 		return 0;
+	}
+	if (c == 'I' || c == 'A') {
+		return vimSystemBlockInsertStart(c, effects_out);
 	}
 
 	motion_count = vimSystemEffectiveCount();

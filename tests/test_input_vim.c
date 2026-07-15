@@ -2600,6 +2600,74 @@ static int test_input_vim_visual_block_escape_clears(void) {
 	return 0;
 }
 
+static int test_input_vim_visual_block_insert_types_on_all_rows(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('I') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "hxyello");
+	ASSERT_ROW_TEXT_EQ(1, "wxyorld");
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.column_select_active);
+
+	/* The multi-cursor column must not leak into a later plain insert. */
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key('z') == 0);
+	ASSERT_ROW_TEXT_EQ(1, "wxyorld");
+	return 0;
+}
+
+static int test_input_vim_visual_block_append_after_block(void) {
+	add_row("hello");
+	add_row("hi");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 4;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('A') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key('_') == 0);
+	/* Rows shorter than the block's right edge clamp to their line end. */
+	ASSERT_ROW_TEXT_EQ(0, "hello_");
+	ASSERT_ROW_TEXT_EQ(1, "hi_");
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	return 0;
+}
+
+static int test_input_vim_visual_block_change_types_on_all_rows(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('c') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_TRUE(vim_test_key('X') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "hXllo");
+	ASSERT_ROW_TEXT_EQ(1, "wXrld");
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('c')) == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.column_select_active);
+	return 0;
+}
+
 static int test_input_vim_jumplist_g_then_ctrl_o_returns_to_origin(void) {
 	add_row("one");
 	add_row("two");
@@ -2922,6 +2990,12 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_visual_block_change_enters_insert",
          test_input_vim_visual_block_change_enters_insert},
         {"input_vim_visual_block_escape_clears", test_input_vim_visual_block_escape_clears},
+        {"input_vim_visual_block_insert_types_on_all_rows",
+         test_input_vim_visual_block_insert_types_on_all_rows},
+        {"input_vim_visual_block_append_after_block",
+         test_input_vim_visual_block_append_after_block},
+        {"input_vim_visual_block_change_types_on_all_rows",
+         test_input_vim_visual_block_change_types_on_all_rows},
         {"input_vim_normal_u_undoes_and_ctrl_r_redoes",
          test_input_vim_normal_u_undoes_and_ctrl_r_redoes},
         {"input_vim_undo_is_not_dot_repeatable", test_input_vim_undo_is_not_dot_repeatable},
