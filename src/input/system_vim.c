@@ -1946,16 +1946,15 @@ static int vimSystemApplyOperatorToRange(enum vimSystemOperator op,
 	}
 	if (op == VIM_SYSTEM_OPERATOR_YANK) {
 		if (linewise) {
-			return vimSystemYankLines(range->start_cy,
-			                          vimSystemLineRangeLastRow(range), 1) > 0;
+			return vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range),
+			                          1) > 0;
 		}
 		return vimSystemYankRange(range, 0, 1) > 0;
 	}
 	if (vimSystemRejectReadOnlyMutation()) {
 		return 0;
 	}
-	if (linewise &&
-	    !vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range), 0)) {
+	if (linewise && !vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range), 0)) {
 		return 0;
 	}
 	if (!linewise && !vimSystemYankRange(range, 0, 0)) {
