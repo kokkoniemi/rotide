@@ -1782,14 +1782,7 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 	free(full_text);
 	full_text = NULL;
 	if (!ready) {
-		if (editorLspLastStartupFailureReason() ==
-		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorLanguageMaybePromptInstallServer();
-			goto cleanup;
-		}
-		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
-			editorSetStatusMsg("LSP unavailable for this file");
-		}
+		editorLanguageReportLspUnavailable();
 		goto cleanup;
 	}
 
@@ -2199,14 +2192,7 @@ static void dispatchShowHover(void) {
 	free(full_text);
 	full_text = NULL;
 	if (!ready) {
-		if (editorLspLastStartupFailureReason() ==
-		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorLanguageMaybePromptInstallServer();
-			goto cleanup;
-		}
-		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
-			editorSetStatusMsg("LSP unavailable for this file");
-		}
+		editorLanguageReportLspUnavailable();
 		goto cleanup;
 	}
 
@@ -2286,14 +2272,7 @@ static void dispatchGoToSymbol(void) {
 	                                        full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
 	if (!ready) {
-		if (editorLspLastStartupFailureReason() ==
-		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorLanguageMaybePromptInstallServer();
-			return;
-		}
-		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
-			editorSetStatusMsg("LSP unavailable for this file");
-		}
+		editorLanguageReportLspUnavailable();
 		return;
 	}
 

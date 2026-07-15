@@ -844,11 +844,15 @@ static char *lspFeaturesBuildTexlabRequest(struct editorLspClient *client, int r
 	return request;
 }
 
-int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguage language,
-                                  int line, int character) {
-	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0) {
-		return -1;
-	}
+/*
+ * Fire-and-forget texlab request skeleton shared by forward search and build:
+ * texlab acts on the request and reports through diagnostics or the viewer,
+ * so the response is deliberately discarded by the transport.
+ */
+static int lspFeaturesSendTexlabRequest(const char *filename, enum editorSyntaxLanguage language,
+                                        const char *method, int line, int character,
+                                        int include_position, int *mock_count,
+                                        const int *mock_result_code) {
 	if (!editorLspFileEnabled(filename, language) ||
 	    editorLspServerKindForFile(filename, language) != EDITOR_LSP_SERVER_TEXLAB) {
 		return 0;
@@ -858,8 +862,8 @@ int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguag
 		if (!editorLspEnsureRunningForFile(filename, language)) {
 			return -1;
 		}
-		g_lsp_mock.stats.forward_search_count++;
-		return g_lsp_mock.forward_search_result_code;
+		(*mock_count)++;
+		return *mock_result_code;
 	}
 
 	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
@@ -867,8 +871,8 @@ int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguag
 		return -1;
 	}
 	int request_id = client->next_request_id++;
-	char *request = lspFeaturesBuildTexlabRequest(
-	        client, request_id, "textDocument/forwardSearch", filename, line, character, 1);
+	char *request = lspFeaturesBuildTexlabRequest(client, request_id, method, filename, line,
+	                                              character, include_position);
 	if (request == NULL) {
 		return -1;
 	}
@@ -878,42 +882,24 @@ int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguag
 		return -1;
 	}
 	free(request);
-
 	return 1;
+}
+
+int editorLspRequestForwardSearch(const char *filename, enum editorSyntaxLanguage language,
+                                  int line, int character) {
+	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0) {
+		return -1;
+	}
+	return lspFeaturesSendTexlabRequest(filename, language, "textDocument/forwardSearch", line,
+	                                    character, 1, &g_lsp_mock.stats.forward_search_count,
+	                                    &g_lsp_mock.forward_search_result_code);
 }
 
 int editorLspRequestBuild(const char *filename, enum editorSyntaxLanguage language) {
 	if (filename == NULL || filename[0] == '\0') {
 		return -1;
 	}
-	if (!editorLspFileEnabled(filename, language) ||
-	    editorLspServerKindForFile(filename, language) != EDITOR_LSP_SERVER_TEXLAB) {
-		return 0;
-	}
-
-	if (g_lsp_mock.enabled) {
-		if (!editorLspEnsureRunningForFile(filename, language)) {
-			return -1;
-		}
-		g_lsp_mock.stats.build_count++;
-		return g_lsp_mock.build_result_code;
-	}
-
-	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
-	if (client == NULL || client->server_kind != EDITOR_LSP_SERVER_TEXLAB) {
-		return -1;
-	}
-	int request_id = client->next_request_id++;
-	char *request = lspFeaturesBuildTexlabRequest(client, request_id, "textDocument/build",
-	                                              filename, 0, 0, 0);
-	if (request == NULL) {
-		return -1;
-	}
-	if (!editorLspSendRawJsonToFd(client->to_server_fd, request)) {
-		free(request);
-		editorLspClientCleanup(client, 0);
-		return -1;
-	}
-	free(request);
-	return 1;
+	return lspFeaturesSendTexlabRequest(filename, language, "textDocument/build", 0, 0, 0,
+	                                    &g_lsp_mock.stats.build_count,
+	                                    &g_lsp_mock.build_result_code);
 }

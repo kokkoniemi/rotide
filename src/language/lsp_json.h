@@ -39,6 +39,15 @@ const char *editorLspFindTopLevelKey(const char *object_start, const char *objec
                                      const char *quoted_key);
 
 /*
+ * editorLspParseStringFieldFromObject: extract the string value of a
+ * top-level `quoted_key` (e.g. "\"uri\"") from the JSON object bounded by
+ * [object_start, object_end). Allocates *value_out on success. Returns 1 on
+ * success, 0 on absence or a non-string value.
+ */
+int editorLspParseStringFieldFromObject(const char *object_start, const char *object_end,
+                                        const char *quoted_key, char **value_out);
+
+/*
  * editorLspParsePositionFromKey: parse an LSP Position object found under
  * `key_name` (e.g. "start") inside a Range-like JSON object at `range_json`.
  * Writes line/character on success. `limit` bounds the search. Returns 1

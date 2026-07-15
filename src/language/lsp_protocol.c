@@ -955,15 +955,8 @@ static int lspProtocolParseShowDocument(const char *message, char **path_out, in
 		}
 	}
 
-	const char *uri_key = editorLspFindTopLevelKey(params, params_end, "\"uri\"");
-	if (uri_key == NULL) {
-		return 0;
-	}
-	const char *uri_colon = strchr(uri_key, ':');
-	const char *uri_value = uri_colon != NULL ? editorLspSkipWs(uri_colon + 1) : NULL;
 	char *uri = NULL;
-	if (uri_colon == NULL || uri_colon >= params_end || uri_value == NULL ||
-	    uri_value >= params_end || !editorLspParseJsonString(uri_value, &uri, NULL)) {
+	if (!editorLspParseStringFieldFromObject(params, params_end, "\"uri\"", &uri)) {
 		return 0;
 	}
 	char *path = editorLspDecodeFileUri(uri);

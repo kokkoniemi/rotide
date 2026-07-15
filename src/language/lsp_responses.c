@@ -681,27 +681,6 @@ int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_co
 	return 1;
 }
 
-static int lspResponsesParseStringFieldFromObject(const char *object_start, const char *object_end,
-                                                  const char *quoted_key, char **value_out) {
-	if (value_out == NULL) {
-		return 0;
-	}
-	*value_out = NULL;
-	const char *key = editorLspFindTopLevelKey(object_start, object_end, quoted_key);
-	if (key == NULL) {
-		return 0;
-	}
-	const char *colon = strchr(key, ':');
-	if (colon == NULL || colon >= object_end) {
-		return 0;
-	}
-	const char *value = editorLspSkipWs(colon + 1);
-	if (value == NULL || value >= object_end || value[0] != '"') {
-		return 0;
-	}
-	return editorLspParseJsonString(value, value_out, NULL);
-}
-
 static int lspResponsesAppendHoverPart(struct editorJsonString *text, char *part) {
 	if (part == NULL) {
 		return 1;
@@ -720,8 +699,7 @@ static int lspResponsesAppendHoverPart(struct editorJsonString *text, char *part
 static int lspResponsesAppendHoverObject(struct editorJsonString *text, const char *object_start,
                                          const char *object_end) {
 	char *value = NULL;
-	if (!lspResponsesParseStringFieldFromObject(object_start, object_end, "\"value\"",
-	                                            &value)) {
+	if (!editorLspParseStringFieldFromObject(object_start, object_end, "\"value\"", &value)) {
 		return 0;
 	}
 	return lspResponsesAppendHoverPart(text, value);

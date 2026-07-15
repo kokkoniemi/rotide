@@ -377,6 +377,21 @@ void editorLanguageMaybePromptInstallServer(void) {
 	actionsLanguagePromptInstallFamily(actionsLanguageGoToInstallFamilyForLanguage());
 }
 
+/*
+ * Shared failure path for actions that need a running LSP server: offer the
+ * install prompt when the server binary is missing, otherwise surface a
+ * generic message unless startup already left a more specific "LSP ..." one.
+ */
+void editorLanguageReportLspUnavailable(void) {
+	if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+		editorLanguageMaybePromptInstallServer();
+		return;
+	}
+	if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
+		editorSetStatusMsg("LSP unavailable for this file");
+	}
+}
+
 /* Buffer position (cy, byte cx) of a diagnostic's start, clamped to the buffer. */
 static void actionsLanguageDiagnosticPos(const struct editorLspDiagnostic *diag, int *cy_out,
                                          int *cx_out) {
@@ -481,12 +496,7 @@ static int actionsLanguageLatexRequestReady(void) {
 
 	editorLspEnsureActiveDocumentTracked();
 	if (!E.lsp_doc_open) {
-		if (editorLspLastStartupFailureReason() ==
-		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorLanguageMaybePromptInstallServer();
-		} else if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
-			editorSetStatusMsg("LSP unavailable for this file");
-		}
+		editorLanguageReportLspUnavailable();
 		return 0;
 	}
 	return 1;

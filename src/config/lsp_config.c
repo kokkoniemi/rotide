@@ -85,7 +85,6 @@ static int lspConfigParseBooleanValue(const char *value, int *out) {
 
 struct lspConfigApplyContext {
 	struct editorLspConfig *config;
-	int allow_install_command_override;
 	int project_file;
 };
 
@@ -186,9 +185,6 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 		                                  sizeof(config->gopls_command));
 	}
 	if (strcmp(key, "gopls_install_command") == 0) {
-		if (!apply->allow_install_command_override) {
-			return 1;
-		}
 		return lspConfigParseCommandValue(value, config->gopls_install_command,
 		                                  sizeof(config->gopls_install_command));
 	}
@@ -217,9 +213,6 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 		                                  sizeof(config->texlab_command));
 	}
 	if (strcmp(key, "texlab_install_command") == 0) {
-		if (!apply->allow_install_command_override) {
-			return 1;
-		}
 		/* Empty is allowed: it forces the runtime auto-detect path. */
 		return editorConfigParseQuotedValue(value, config->texlab_install_command,
 		                                    sizeof(config->texlab_install_command));
@@ -249,16 +242,10 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 		                                  sizeof(config->javascript_command));
 	}
 	if (strcmp(key, "javascript_install_command") == 0) {
-		if (!apply->allow_install_command_override) {
-			return 1;
-		}
 		return lspConfigParseCommandValue(value, config->javascript_install_command,
 		                                  sizeof(config->javascript_install_command));
 	}
 	if (strcmp(key, "vscode_langservers_install_command") == 0) {
-		if (!apply->allow_install_command_override) {
-			return 1;
-		}
 		return lspConfigParseCommandValue(
 		        value, config->vscode_langservers_install_command,
 		        sizeof(config->vscode_langservers_install_command));
@@ -266,9 +253,8 @@ static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
 	return 1;
 }
 
-static enum lspConfigFileStatus lspConfigApplyFile(struct editorLspConfig *config,
-                                                   int allow_install_command_override,
-                                                   int project_file, const char *path) {
+static enum lspConfigFileStatus lspConfigApplyFile(struct editorLspConfig *config, int project_file,
+                                                   const char *path) {
 	if (config == NULL) {
 		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
@@ -281,7 +267,6 @@ static enum lspConfigFileStatus lspConfigApplyFile(struct editorLspConfig *confi
 
 	struct lspConfigApplyContext apply = {
 	        .config = parsed,
-	        .allow_install_command_override = allow_install_command_override,
 	        .project_file = project_file,
 	};
 	struct editorConfigScanner scanner = {lspConfigOnSection, lspConfigOnEntry};
@@ -316,7 +301,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(struct editorLspConf
 
 	if (global_path != NULL) {
 		enum lspConfigFileStatus global_status =
-		        lspConfigApplyFile(config, 1, 0, global_path);
+		        lspConfigApplyFile(config, /*project_file=*/0, global_path);
 		if (global_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(config);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
@@ -330,7 +315,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(struct editorLspConf
 
 	if (project_path != NULL) {
 		enum lspConfigFileStatus project_status =
-		        lspConfigApplyFile(config, 0, 1, project_path);
+		        lspConfigApplyFile(config, /*project_file=*/1, project_path);
 		if (project_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(config);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
