@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="12">
 <rect width="720" height="320" fill="#ffffff"/>
-<text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">First-party lines (total)</text>
+<text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">Test flakiness (--repeat soak)</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">72.2k</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">3</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">36.1k</text>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">1.50</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
 <text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
-<text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">lines</text>
+<text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">count</text>
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-06-09</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-07-03</text>
 <line x1="176.0" y1="268" x2="176.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="176.0" y="286" text-anchor="middle" fill="#222">2026-06-12#2</text>
+<text x="176.0" y="286" text-anchor="middle" fill="#222">2026-07-05</text>
 <line x1="280.0" y1="268" x2="280.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="280.0" y="286" text-anchor="middle" fill="#222">2026-07-01</text>
+<text x="280.0" y="286" text-anchor="middle" fill="#222">2026-07-07</text>
 <line x1="384.0" y1="268" x2="384.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="384.0" y="286" text-anchor="middle" fill="#222">2026-07-05</text>
+<text x="384.0" y="286" text-anchor="middle" fill="#222">2026-07-09</text>
 <line x1="488.0" y1="268" x2="488.0" y2="272" stroke="#444" stroke-width="1"/>
 <text x="488.0" y="286" text-anchor="middle" fill="#222">2026-07-11</text>
 <line x1="592.0" y1="268" x2="592.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="592.0" y="286" text-anchor="middle" fill="#222">2026-07-12#2</text>
+<text x="592.0" y="286" text-anchor="middle" fill="#222">2026-07-13</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
 <text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-15</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 98.0,268.0 124.0,87.0 150.0,84.3 176.0,84.2 202.0,82.5 228.0,81.6 254.0,81.2 280.0,79.9 306.0,79.9 332.0,79.9 358.0,72.3 384.0,72.0 410.0,71.5 436.0,71.5 462.0,69.6 488.0,68.5 514.0,68.4 540.0,67.6 566.0,70.7 592.0,68.7 618.0,67.5 644.0,66.5 670.0,64.4 696.0,64.4"/>
-<circle cx="696.0" cy="64.4" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,118.7 124.0,118.7 176.0,268.0 228.0,193.3 280.0,268.0 332.0,193.3 384.0,193.3 436.0,268.0 488.0,268.0 540.0,268.0 592.0,268.0 644.0,268.0 696.0,268.0"/>
+<circle cx="696.0" cy="268.0" r="3" fill="#2ca02c"/>
 </svg>
