@@ -510,7 +510,10 @@ struct editorHistory {
 	X(int, syntax_background_pending)                                                          \
 	X(uint64_t, syntax_pending_revision)                                                       \
 	X(int, syntax_pending_first_row)                                                           \
-	X(int, syntax_pending_row_count)
+	X(int, syntax_pending_row_count)                                                           \
+	X(struct editorSyntaxEdit *, syntax_pending_edits)                                         \
+	X(int, syntax_pending_edit_count)                                                          \
+	X(int, syntax_pending_edit_cap)
 
 #define EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X)                                                         \
 	X(int, lsp_doc_open)                                                                       \

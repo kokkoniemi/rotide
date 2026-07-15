@@ -1,6 +1,7 @@
 #include "language/syntax.h"
 
 #include "language/syntax_internal.h"
+#include "support/size_utils.h"
 #include "tree_sitter/api.h"
 
 #include <limits.h>
@@ -330,6 +331,112 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	return state;
 }
 
+static int syntaxParsedTreeCloneInto(struct editorSyntaxParsedTree *dst,
+                                     const struct editorSyntaxParsedTree *src) {
+	if (dst == NULL || src == NULL) {
+		return 0;
+	}
+	if (src->parser != NULL && dst->parser == NULL &&
+	    !editorSyntaxParsedTreeCreateParser(dst, src->language)) {
+		return 0;
+	}
+	if (src->included_range_count > 0) {
+		size_t bytes = 0;
+		if (!editorSizeMul(sizeof(*src->included_ranges), src->included_range_count,
+		                   &bytes)) {
+			return 0;
+		}
+		dst->included_ranges = malloc(bytes);
+		if (dst->included_ranges == NULL) {
+			return 0;
+		}
+		memcpy(dst->included_ranges, src->included_ranges, bytes);
+		dst->included_range_count = src->included_range_count;
+	}
+	if (dst->parser != NULL && !ts_parser_set_included_ranges(dst->parser, dst->included_ranges,
+	                                                          dst->included_range_count)) {
+		return 0;
+	}
+	if (src->tree != NULL) {
+		dst->tree = ts_tree_copy(src->tree);
+		if (dst->tree == NULL) {
+			return 0;
+		}
+	}
+	dst->revision = src->revision;
+	dst->tree_error_reported = src->tree_error_reported;
+	return 1;
+}
+
+struct editorSyntaxState *editorSyntaxStateClone(const struct editorSyntaxState *state) {
+	if (state == NULL) {
+		return NULL;
+	}
+
+	struct editorSyntaxState *clone = editorSyntaxStateCreate(state->language);
+	if (clone == NULL) {
+		return NULL;
+	}
+	if (!syntaxParsedTreeCloneInto(&clone->host, &state->host)) {
+		editorSyntaxStateDestroy(clone);
+		return NULL;
+	}
+
+	clone->injection_count = state->injection_count;
+	for (int i = 0; i < state->injection_count; i++) {
+		const struct editorSyntaxInjectedTree *src = &state->injections[i];
+		struct editorSyntaxInjectedTree *dst = &clone->injections[i];
+		if (!syntaxParsedTreeCloneInto(&dst->parsed, &src->parsed)) {
+			editorSyntaxStateDestroy(clone);
+			return NULL;
+		}
+		dst->active = src->active;
+		dst->depth = src->depth;
+	}
+
+	if (!syntaxStateEnsureChangedRangeCapacity(clone, state->last_changed_range_count)) {
+		editorSyntaxStateDestroy(clone);
+		return NULL;
+	}
+	if (state->last_changed_range_count > 0) {
+		size_t bytes = sizeof(*state->last_changed_ranges) *
+		               (size_t)state->last_changed_range_count;
+		memcpy(clone->last_changed_ranges, state->last_changed_ranges, bytes);
+	}
+	clone->last_changed_range_count = state->last_changed_range_count;
+
+	if (state->capture_truncated_row_count > 0) {
+		size_t bytes = sizeof(*state->capture_truncated_rows) *
+		               (size_t)state->capture_truncated_row_count;
+		clone->capture_truncated_rows = malloc(bytes);
+		if (clone->capture_truncated_rows == NULL) {
+			editorSyntaxStateDestroy(clone);
+			return NULL;
+		}
+		memcpy(clone->capture_truncated_rows, state->capture_truncated_rows, bytes);
+		clone->capture_truncated_row_cap = state->capture_truncated_row_count;
+		clone->capture_truncated_row_count = state->capture_truncated_row_count;
+	}
+
+	clone->perf_disable_predicates = state->perf_disable_predicates;
+	clone->perf_disable_injections = state->perf_disable_injections;
+	clone->background_parse = state->background_parse;
+	clone->perf_mode = state->perf_mode;
+	clone->budget_parse_exceeded = state->budget_parse_exceeded;
+	clone->budget_query_exceeded = state->budget_query_exceeded;
+	clone->query_unavailable_pending = state->query_unavailable_pending;
+	clone->query_unavailable_language = state->query_unavailable_language;
+	clone->query_unavailable_kind = state->query_unavailable_kind;
+	memcpy(clone->limit_events, state->limit_events, sizeof(clone->limit_events));
+	clone->limit_event_start = state->limit_event_start;
+	clone->limit_event_count = state->limit_event_count;
+	clone->injection_depth_exceeded_reported = state->injection_depth_exceeded_reported;
+	clone->injection_slots_full_reported = state->injection_slots_full_reported;
+	clone->capture_truncated_unknown_reported = state->capture_truncated_unknown_reported;
+	clone->source_len = state->source_len;
+	return clone;
+}
+
 void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	if (state == NULL) {
 		return;
@@ -417,6 +524,53 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 		return 0;
 	}
 	if (!editorSyntaxStateParseInjections(state, source, edit)) {
+		return 0;
+	}
+	state->source_len = source->length;
+	return 1;
+}
+
+int editorSyntaxStateApplyEditsAndParse(struct editorSyntaxState *state,
+                                        const struct editorSyntaxEdit *edits, int edit_count,
+                                        const struct editorTextSource *source) {
+	if (state == NULL || edits == NULL || edit_count <= 0 || source == NULL ||
+	    source->read == NULL || !editorSyntaxLengthFitsTreeSitter(source->length) ||
+	    state->host.parser == NULL || state->host.tree == NULL) {
+		return 0;
+	}
+	if (syntaxTestConsumeParseFailure(1)) {
+		return 0;
+	}
+	state->budget_parse_exceeded = 0;
+	state->budget_query_exceeded = 0;
+	syntaxStateClearChangedRanges(state);
+	editorSyntaxStateApplyPerformanceMode(state, source->length);
+
+	size_t expected_len = state->source_len;
+	for (int i = 0; i < edit_count; i++) {
+		if (edits[i].old_end_byte < edits[i].start_byte ||
+		    edits[i].new_end_byte < edits[i].start_byte ||
+		    (size_t)edits[i].old_end_byte > expected_len) {
+			return 0;
+		}
+		expected_len -= (size_t)(edits[i].old_end_byte - edits[i].start_byte);
+		size_t inserted_len = (size_t)(edits[i].new_end_byte - edits[i].start_byte);
+		if (inserted_len > SIZE_MAX - expected_len) {
+			return 0;
+		}
+		expected_len += inserted_len;
+	}
+	if (expected_len != source->length) {
+		return 0;
+	}
+	for (int i = 0; i < edit_count; i++) {
+		editorSyntaxApplyInputEdit(state->host.tree, &edits[i]);
+		editorSyntaxStateApplyEditToInjections(state, &edits[i]);
+	}
+	if (!editorSyntaxParsedTreeParse(&state->host, state, source, 1)) {
+		return 0;
+	}
+	if (!editorSyntaxStateParseInjections(state, source, NULL)) {
 		return 0;
 	}
 	state->source_len = source->length;

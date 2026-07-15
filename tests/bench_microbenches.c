@@ -4,6 +4,7 @@
 #include "editing/history.h"
 #include "editing/row_cache.h"
 #include "language/syntax.h"
+#include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "render/viewport.h"
 #include "render/wrap.h"
@@ -333,6 +334,7 @@ struct syntaxIncrementalState {
 	char *text;
 	size_t text_len;
 	struct editorSyntaxState *syntax;
+	int clone_worker_state;
 };
 
 #define SYNTAX_BENCH_LINES 5000
@@ -456,6 +458,89 @@ static void teardown_syntax_incremental(void *state) {
 	editorSyntaxStateDestroy(s->syntax);
 	free(s->text);
 	free(s);
+}
+
+static int setup_syntax_worker_common(void **state_out, int clone_worker_state) {
+	if (!setup_syntax_incremental(state_out)) {
+		return 0;
+	}
+	struct syntaxIncrementalState *s = *state_out;
+	s->clone_worker_state = clone_worker_state;
+	if (!editorSyntaxBackgroundStart()) {
+		teardown_syntax_incremental(s);
+		*state_out = NULL;
+		return 0;
+	}
+	return 1;
+}
+
+static int setup_syntax_worker_full(void **state_out) {
+	return setup_syntax_worker_common(state_out, 0);
+}
+
+static int setup_syntax_worker_clone(void **state_out) {
+	return setup_syntax_worker_common(state_out, 1);
+}
+
+static void op_syntax_worker(void *state, int n) {
+	struct syntaxIncrementalState *s = state;
+	for (int i = 0; i < n; i++) {
+		size_t edit_byte = s->text_len / 2;
+		while (edit_byte > 0 && s->text[edit_byte] == '\n') {
+			edit_byte--;
+		}
+		char *text = malloc(s->text_len + 1);
+		if (text == NULL) {
+			continue;
+		}
+		memcpy(text, s->text, edit_byte);
+		text[edit_byte] = 'x';
+		memcpy(text + edit_byte + 1, s->text + edit_byte, s->text_len - edit_byte);
+
+		struct editorSyntaxWorkerJob job = {
+		        .language = EDITOR_SYNTAX_C,
+		        .revision = (uint64_t)i,
+		        .generation = 1,
+		        .first_row = SYNTAX_BENCH_LINES / 2,
+		        .row_count = 24,
+		        .text = text,
+		        .text_len = s->text_len + 1,
+		};
+		if (s->clone_worker_state) {
+			job.state = editorSyntaxStateClone(s->syntax);
+			job.edits = malloc(sizeof(*job.edits));
+			if (job.state == NULL || job.edits == NULL) {
+				free(text);
+				editorSyntaxStateDestroy(job.state);
+				free(job.edits);
+				continue;
+			}
+			job.edit_count = 1;
+			job.edits[0].start_byte = (uint32_t)edit_byte;
+			job.edits[0].old_end_byte = (uint32_t)edit_byte;
+			job.edits[0].new_end_byte = (uint32_t)(edit_byte + 1);
+			bytes_to_point(s->text, edit_byte, &job.edits[0].start_point);
+			job.edits[0].old_end_point = job.edits[0].start_point;
+			bytes_to_point(text, edit_byte + 1, &job.edits[0].new_end_point);
+		}
+		if (!editorSyntaxWorkerSchedule(&job)) {
+			free(job.text);
+			editorSyntaxStateDestroy(job.state);
+			free(job.edits);
+			continue;
+		}
+		editorSyntaxWorkerWaitForIdle();
+		struct editorSyntaxWorkerResult *result = editorSyntaxWorkerTakeResult();
+		if (result != NULL) {
+			__asm__ volatile("" : : "r"(result->parsed) : "memory");
+		}
+		editorSyntaxWorkerResultDestroy(result);
+	}
+}
+
+static void teardown_syntax_worker(void *state) {
+	editorSyntaxBackgroundStop();
+	teardown_syntax_incremental(state);
 }
 
 /* `editorRefreshScreen` writes to STDOUT_FILENO. The bench cares about
@@ -618,6 +703,20 @@ static const struct editorBenchCase k_cases[] = {
                 .op = op_syntax_incremental,
                 .teardown = teardown_syntax_incremental,
                 .inner_ops = 4,
+        },
+        {
+                .name = "syntax_worker_full_parse_5k_lines_c",
+                .setup = setup_syntax_worker_full,
+                .op = op_syntax_worker,
+                .teardown = teardown_syntax_worker,
+                .inner_ops = 1,
+        },
+        {
+                .name = "syntax_worker_incremental_5k_lines_c",
+                .setup = setup_syntax_worker_clone,
+                .op = op_syntax_worker,
+                .teardown = teardown_syntax_worker,
+                .inner_ops = 1,
         },
         {
                 /* All rows match the frame cache after the priming refresh, so

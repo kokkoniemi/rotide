@@ -761,6 +761,10 @@ static int recoveryPopulateActiveFromTab(const struct recoveryTab *tab) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
 		editorSyntaxStateDestroy(E.syntax_state);
 		E.syntax_state = NULL;
+		free(E.syntax_pending_edits);
+		E.syntax_pending_edits = NULL;
+		E.syntax_pending_edit_count = 0;
+		E.syntax_pending_edit_cap = 0;
 		E.lsp_doc_open = 0;
 		E.lsp_doc_version = 0;
 		E.lsp_eslint_doc_open = 0;

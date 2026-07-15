@@ -13,6 +13,7 @@
 #include "language/syntax_worker.h"
 #include "rotide.h"
 #include "support/alloc.h"
+#include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
 
@@ -35,11 +36,59 @@ void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 
 static uint64_t g_buffer_core_syntax_generation_counter = 0;
 
+#define ROTIDE_SYNTAX_PENDING_EDIT_LIMIT 4096
+
 static uint64_t bufferCoreNextSyntaxGeneration(void) {
 	if (g_buffer_core_syntax_generation_counter == UINT64_MAX) {
 		g_buffer_core_syntax_generation_counter = 1;
 	}
 	return ++g_buffer_core_syntax_generation_counter;
+}
+
+static void bufferCoreClearSyntaxPendingEdits(void) {
+	free(E.syntax_pending_edits);
+	E.syntax_pending_edits = NULL;
+	E.syntax_pending_edit_count = 0;
+	E.syntax_pending_edit_cap = 0;
+}
+
+static int bufferCoreAppendSyntaxPendingEdit(const struct editorSyntaxEdit *edit) {
+	if (edit == NULL || E.syntax_pending_edit_count >= ROTIDE_SYNTAX_PENDING_EDIT_LIMIT) {
+		return 0;
+	}
+	if (E.syntax_pending_edit_count >= E.syntax_pending_edit_cap) {
+		int new_cap = E.syntax_pending_edit_cap > 0 ? E.syntax_pending_edit_cap * 2 : 8;
+		size_t bytes = 0;
+		if (new_cap <= E.syntax_pending_edit_cap ||
+		    !editorSizeMul(sizeof(*E.syntax_pending_edits), (size_t)new_cap, &bytes)) {
+			return 0;
+		}
+		struct editorSyntaxEdit *grown = realloc(E.syntax_pending_edits, bytes);
+		if (grown == NULL) {
+			return 0;
+		}
+		E.syntax_pending_edits = grown;
+		E.syntax_pending_edit_cap = new_cap;
+	}
+	E.syntax_pending_edits[E.syntax_pending_edit_count++] = *edit;
+	return 1;
+}
+
+static int bufferCoreSyntaxEditContinuesAcceptedState(const struct editorSyntaxEdit *edit,
+                                                      size_t inserted_len) {
+	if (edit == NULL || edit->old_end_byte < edit->start_byte) {
+		return 0;
+	}
+	if (E.syntax_pending_edit_count > 0) {
+		return 1;
+	}
+	size_t current_len = editorDocumentLength(E.document);
+	size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
+	if (inserted_len > current_len || removed_len > SIZE_MAX - (current_len - inserted_len)) {
+		return 0;
+	}
+	size_t old_len = current_len - inserted_len + removed_len;
+	return editorSyntaxStateSourceLength(E.syntax_state) == old_len;
 }
 
 #define ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT 3
@@ -178,6 +227,7 @@ void editorSyntaxRuntimeReportStatusIfNeeded(void) {
 }
 
 static void bufferCoreDeactivateSyntax(void) {
+	bufferCoreClearSyntaxPendingEdits();
 	editorSyntaxStateDestroy(E.syntax_state);
 	E.syntax_state = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
@@ -236,6 +286,8 @@ int editorSyntaxBackgroundPoll(void) {
 	editorSyntaxStateDestroy(E.syntax_state);
 	E.syntax_state = result->state;
 	result->state = NULL;
+	editorSyntaxStateSetBackgroundParse(E.syntax_state, 0);
+	bufferCoreClearSyntaxPendingEdits();
 	if (!editorSyntaxVisibleCacheStoreBackgroundResult(result)) {
 		editorSetAllocFailureStatus();
 	}
@@ -290,6 +342,7 @@ static int bufferCoreReconfigureSyntaxForFilename(void) {
 			return 1;
 		}
 		editorSyntaxStateDestroy(E.syntax_state);
+		bufferCoreClearSyntaxPendingEdits();
 		E.syntax_state = NULL;
 		E.syntax_language = wanted;
 		E.syntax_generation = bufferCoreNextSyntaxGeneration();
@@ -324,8 +377,9 @@ int editorSyntaxParseFullActive(void) {
 		if (E.syntax_language == EDITOR_SYNTAX_NONE) {
 			return 1;
 		}
+		bufferCoreClearSyntaxPendingEdits();
 		E.syntax_revision++;
-		return editorSyntaxVisibleCacheScheduleBackground(E.rowoff, E.window_rows);
+		return editorSyntaxVisibleCacheScheduleBackgroundFull(E.rowoff, E.window_rows);
 	}
 	if (E.syntax_state == NULL) {
 		return 1;
@@ -408,8 +462,18 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 		if (edit != NULL) {
 			editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
 		}
+		int can_reuse = E.syntax_parse_failures == 0 && edit != NULL &&
+		                editorSyntaxStateHasTree(E.syntax_state) &&
+		                bufferCoreSyntaxEditContinuesAcceptedState(edit, inserted_len) &&
+		                bufferCoreAppendSyntaxPendingEdit(edit);
+		if (!can_reuse) {
+			bufferCoreClearSyntaxPendingEdits();
+		}
 		E.syntax_revision++;
-		return editorSyntaxVisibleCacheScheduleBackground(E.rowoff, E.window_rows);
+		if (can_reuse) {
+			return editorSyntaxVisibleCacheScheduleBackground(E.rowoff, E.window_rows);
+		}
+		return editorSyntaxVisibleCacheScheduleBackgroundFull(E.rowoff, E.window_rows);
 	}
 
 	if (E.syntax_state == NULL) {

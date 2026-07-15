@@ -337,8 +337,8 @@ static int syntaxInjectionsStateResetInactive(struct editorSyntaxState *state) {
 	return 1;
 }
 
-static void syntaxInjectionsStateApplyEdit(struct editorSyntaxState *state,
-                                           const struct editorSyntaxEdit *edit) {
+void editorSyntaxStateApplyEditToInjections(struct editorSyntaxState *state,
+                                            const struct editorSyntaxEdit *edit) {
 	if (state == NULL || edit == NULL) {
 		return;
 	}
@@ -656,7 +656,7 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		return syntaxInjectionsStateResetInactive(state);
 	}
 
-	syntaxInjectionsStateApplyEdit(state, incremental_edit);
+	editorSyntaxStateApplyEditToInjections(state, incremental_edit);
 	syntaxInjectionsStateMarkInactive(state);
 
 	struct syntaxInjectionsWork work = {0};

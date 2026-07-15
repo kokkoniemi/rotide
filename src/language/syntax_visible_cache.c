@@ -271,7 +271,8 @@ static int syntaxVisibleCacheExpandBackgroundRows(int *first_row_in_out, int *ro
 	return 1;
 }
 
-int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count) {
+static int syntaxVisibleCacheScheduleBackground(int first_row, int row_count,
+                                                int allow_state_clone) {
 	if (!editorSyntaxBackgroundEnabled()) {
 		return 0;
 	}
@@ -297,16 +298,52 @@ int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count) {
 		editorSetAllocFailureStatus();
 		return 0;
 	}
+	struct editorSyntaxState *state = NULL;
+	if (allow_state_clone && E.syntax_state != NULL &&
+	    editorSyntaxStateHasTree(E.syntax_state) &&
+	    (E.syntax_pending_edit_count > 0 ||
+	     editorSyntaxStateSourceLength(E.syntax_state) == text_len)) {
+		state = editorSyntaxStateClone(E.syntax_state);
+		if (state == NULL) {
+			free(text);
+			editorSetAllocFailureStatus();
+			return 0;
+		}
+	}
+	struct editorSyntaxEdit *edits = NULL;
+	if (state != NULL && E.syntax_pending_edit_count > 0) {
+		size_t edit_bytes = 0;
+		if (!editorSizeMul(sizeof(*edits), (size_t)E.syntax_pending_edit_count,
+		                   &edit_bytes)) {
+			free(text);
+			editorSyntaxStateDestroy(state);
+			return 0;
+		}
+		edits = malloc(edit_bytes);
+		if (edits == NULL) {
+			free(text);
+			editorSyntaxStateDestroy(state);
+			editorSetAllocFailureStatus();
+			return 0;
+		}
+		memcpy(edits, E.syntax_pending_edits, edit_bytes);
+	}
 
-	struct editorSyntaxWorkerJob job = {.language = E.syntax_language,
-	                                    .revision = E.syntax_revision,
-	                                    .generation = E.syntax_generation,
-	                                    .first_row = first_row,
-	                                    .row_count = row_count,
-	                                    .text = text,
-	                                    .text_len = text_len};
+	struct editorSyntaxWorkerJob job = {
+	        .language = E.syntax_language,
+	        .revision = E.syntax_revision,
+	        .generation = E.syntax_generation,
+	        .first_row = first_row,
+	        .row_count = row_count,
+	        .text = text,
+	        .text_len = text_len,
+	        .state = state,
+	        .edits = edits,
+	        .edit_count = state != NULL ? E.syntax_pending_edit_count : 0};
 	if (!editorSyntaxWorkerSchedule(&job)) {
 		free(text);
+		editorSyntaxStateDestroy(state);
+		free(edits);
 		return 0;
 	}
 	E.syntax_background_pending = 1;
@@ -314,6 +351,14 @@ int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count) {
 	E.syntax_pending_first_row = first_row;
 	E.syntax_pending_row_count = row_count;
 	return 1;
+}
+
+int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count) {
+	return syntaxVisibleCacheScheduleBackground(first_row, row_count, 1);
+}
+
+int editorSyntaxVisibleCacheScheduleBackgroundFull(int first_row, int row_count) {
+	return syntaxVisibleCacheScheduleBackground(first_row, row_count, 0);
 }
 
 static void syntaxVisibleCacheMarkRowsDirty(int rel_start, int rel_end_exclusive) {

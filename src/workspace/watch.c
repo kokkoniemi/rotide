@@ -278,6 +278,10 @@ static int watchReloadTabFile(struct editorBuffer *tab,
 	tab->syntax_language = new_language;
 	editorSyntaxStateDestroy(tab->syntax_state);
 	tab->syntax_state = NULL;
+	free(tab->syntax_pending_edits);
+	tab->syntax_pending_edits = NULL;
+	tab->syntax_pending_edit_count = 0;
+	tab->syntax_pending_edit_cap = 0;
 	tab->syntax_parse_failures = 0;
 	tab->syntax_revision = 0;
 	tab->syntax_generation = 0;

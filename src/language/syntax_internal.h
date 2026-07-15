@@ -234,6 +234,8 @@ void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEdit *edi
 int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
                                      const struct editorTextSource *source,
                                      const struct editorSyntaxEdit *incremental_edit);
+void editorSyntaxStateApplyEditToInjections(struct editorSyntaxState *state,
+                                            const struct editorSyntaxEdit *edit);
 
 /*
  * Parsed/injected-tree lifecycle helpers used by both the host parse
