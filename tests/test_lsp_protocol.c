@@ -231,13 +231,13 @@ static int test_editor_lsp_parse_definition_response_handles_clangd_field_order(
 	const char *location_response =
 	        "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[{\"range\":{\"start\":{\"character\":5,"
 	        "\"line\":14},\"end\":{\"character\":23,\"line\":14}},\"uri\":"
-	        "\"file:///home/mk/Development/rotide/src/editing/edit.h\"}]}";
+	        "\"file:///project/src/editing/edit.h\"}]}";
 	struct editorLspLocation *locations = NULL;
 	int count = 0;
 	ASSERT_TRUE(editorLspTestParseDefinitionResponse(location_response, &locations, &count));
 	ASSERT_EQ_INT(1, count);
 	ASSERT_TRUE(locations != NULL);
-	ASSERT_EQ_STR("/home/mk/Development/rotide/src/editing/edit.h", locations[0].path);
+	ASSERT_EQ_STR("/project/src/editing/edit.h", locations[0].path);
 	ASSERT_EQ_INT(14, locations[0].line);
 	ASSERT_EQ_INT(5, locations[0].character);
 	editorLspFreeLocations(locations, count);
@@ -245,7 +245,7 @@ static int test_editor_lsp_parse_definition_response_handles_clangd_field_order(
 	const char *location_link_response =
 	        "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{\"targetSelectionRange\":{\"start\":"
 	        "{\"character\":5,\"line\":6},\"end\":{\"character\":26,\"line\":6}},"
-	        "\"targetUri\":\"file:///home/mk/Development/rotide/src/input/dispatch.h\","
+	        "\"targetUri\":\"file:///project/src/input/dispatch.h\","
 	        "\"targetRange\":{\"start\":{\"character\":0,\"line\":6},\"end\":{\"character\":26,"
 	        "\"line\":6}}}]}";
 	locations = NULL;
@@ -254,7 +254,7 @@ static int test_editor_lsp_parse_definition_response_handles_clangd_field_order(
 	        editorLspTestParseDefinitionResponse(location_link_response, &locations, &count));
 	ASSERT_EQ_INT(1, count);
 	ASSERT_TRUE(locations != NULL);
-	ASSERT_EQ_STR("/home/mk/Development/rotide/src/input/dispatch.h", locations[0].path);
+	ASSERT_EQ_STR("/project/src/input/dispatch.h", locations[0].path);
 	ASSERT_EQ_INT(6, locations[0].line);
 	ASSERT_EQ_INT(5, locations[0].character);
 	editorLspFreeLocations(locations, count);
