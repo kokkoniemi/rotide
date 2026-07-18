@@ -3,30 +3,30 @@
 <rect width="720" height="320" fill="#ffffff"/>
 <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">Test flakiness (--repeat soak)</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">3</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">2</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">1.50</text>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">1</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
 <text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
 <text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">count</text>
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-07-04</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-07-05</text>
 <line x1="168.0" y1="268" x2="168.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="168.0" y="286" text-anchor="middle" fill="#222">2026-07-06</text>
+<text x="168.0" y="286" text-anchor="middle" fill="#222">2026-07-07</text>
 <line x1="264.0" y1="268" x2="264.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="264.0" y="286" text-anchor="middle" fill="#222">2026-07-08</text>
+<text x="264.0" y="286" text-anchor="middle" fill="#222">2026-07-09</text>
 <line x1="360.0" y1="268" x2="360.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="360.0" y="286" text-anchor="middle" fill="#222">2026-07-10</text>
+<text x="360.0" y="286" text-anchor="middle" fill="#222">2026-07-11</text>
 <line x1="456.0" y1="268" x2="456.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="456.0" y="286" text-anchor="middle" fill="#222">2026-07-12</text>
+<text x="456.0" y="286" text-anchor="middle" fill="#222">2026-07-13</text>
 <line x1="552.0" y1="268" x2="552.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="552.0" y="286" text-anchor="middle" fill="#222">2026-07-14</text>
+<text x="552.0" y="286" text-anchor="middle" fill="#222">2026-07-15</text>
 <line x1="648.0" y1="268" x2="648.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="648.0" y="286" text-anchor="middle" fill="#222">2026-07-16</text>
+<text x="648.0" y="286" text-anchor="middle" fill="#222">2026-07-17</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-17</text>
-<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,118.7 120.0,268.0 168.0,193.3 216.0,268.0 264.0,193.3 312.0,193.3 360.0,268.0 408.0,268.0 456.0,268.0 504.0,268.0 552.0,268.0 600.0,268.0 648.0,268.0 696.0,268.0"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-18</text>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 120.0,156.0 168.0,268.0 216.0,156.0 264.0,156.0 312.0,268.0 360.0,268.0 408.0,268.0 456.0,268.0 504.0,268.0 552.0,268.0 600.0,268.0 648.0,268.0 696.0,268.0"/>
 <circle cx="696.0" cy="268.0" r="3" fill="#2ca02c"/>
 </svg>
