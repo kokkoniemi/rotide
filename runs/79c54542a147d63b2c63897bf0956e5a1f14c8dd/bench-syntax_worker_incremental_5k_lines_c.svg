@@ -3,7 +3,7 @@
 <rect width="720" height="320" fill="#ffffff"/>
 <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">syntax_worker_incremental_5k_lines_c — min / p50 / p95</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">19.8M</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">19.9M</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
 <text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">19.3M</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
@@ -13,18 +13,20 @@
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
 <text x="72.0" y="286" text-anchor="middle" fill="#222">2026-07-16</text>
-<line x1="280.0" y1="268" x2="280.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="280.0" y="286" text-anchor="middle" fill="#222">2026-07-17</text>
-<line x1="488.0" y1="268" x2="488.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="488.0" y="286" text-anchor="middle" fill="#222">2026-07-18</text>
+<line x1="228.0" y1="268" x2="228.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="228.0" y="286" text-anchor="middle" fill="#222">2026-07-17</text>
+<line x1="384.0" y1="268" x2="384.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="384.0" y="286" text-anchor="middle" fill="#222">2026-07-18</text>
+<line x1="540.0" y1="268" x2="540.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="540.0" y="286" text-anchor="middle" fill="#222">2026-07-19</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-19</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,217.5 280.0,198.6 488.0,103.9 696.0,170.8"/>
-<circle cx="696.0" cy="170.8" r="3" fill="#1f77b4"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,183.7 280.0,169.8 488.0,62.7 696.0,96.9"/>
-<circle cx="696.0" cy="96.9" r="3" fill="#ff7f0e"/>
-<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,249.3 280.0,230.4 488.0,151.9 696.0,214.4"/>
-<circle cx="696.0" cy="214.4" r="3" fill="#2ca02c"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-20</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,219.9 228.0,202.4 384.0,114.7 540.0,176.6 696.0,145.3"/>
+<circle cx="696.0" cy="145.3" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,188.5 228.0,175.7 384.0,76.5 540.0,108.2 696.0,62.7"/>
+<circle cx="696.0" cy="62.7" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,249.3 228.0,231.8 384.0,159.1 540.0,217.0 696.0,206.8"/>
+<circle cx="696.0" cy="206.8" r="3" fill="#2ca02c"/>
 <line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
 <text x="610" y="50" dominant-baseline="middle" fill="#222">p50</text>
 <line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
