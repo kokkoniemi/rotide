@@ -771,7 +771,33 @@ static int test_editor_lsp_transport_discards_unclaimed_build_response(void) {
 	return 0;
 }
 
+static int test_editor_lsp_spawn_process_sets_cloexec_on_pipe_fds(void) {
+	editorLspTestSetMockEnabled(0);
+
+	pid_t pid = 0;
+	int to_fd = -1;
+	int from_fd = -1;
+	ASSERT_EQ_INT(1, editorLspSpawnProcess("cat", &pid, &to_fd, &from_fd));
+	ASSERT_TRUE(pid > 0);
+	ASSERT_TRUE(to_fd >= 0);
+	ASSERT_TRUE(from_fd >= 0);
+
+	int to_flags = fcntl(to_fd, F_GETFD);
+	int from_flags = fcntl(from_fd, F_GETFD);
+	ASSERT_TRUE(to_flags != -1 && (to_flags & FD_CLOEXEC));
+	ASSERT_TRUE(from_flags != -1 && (from_flags & FD_CLOEXEC));
+
+	ASSERT_EQ_INT(0, close(to_fd));
+	ASSERT_EQ_INT(0, close(from_fd));
+	(void)kill(pid, SIGTERM);
+	int status = 0;
+	(void)waitpid(pid, &status, 0);
+	return 0;
+}
+
 const struct editorTestCase g_lsp_lifecycle_tests[] = {
+        {"editor_lsp_spawn_process_sets_cloexec_on_pipe_fds",
+         test_editor_lsp_spawn_process_sets_cloexec_on_pipe_fds},
         {"editor_lsp_transport_discards_unclaimed_build_response",
          test_editor_lsp_transport_discards_unclaimed_build_response},
         {"editor_lsp_lifecycle_lazy_start_and_non_go_buffers",
@@ -820,7 +846,10 @@ const int g_lsp_lifecycle_test_count =
 #include "rotide.h"
 #include "workspace/tabs.h"
 
+#include <fcntl.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
