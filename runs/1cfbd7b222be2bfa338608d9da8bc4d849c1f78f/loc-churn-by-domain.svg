@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="12">
+<rect width="720" height="320" fill="#ffffff"/>
+<text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">Churn by domain (added + deleted)</text>
+<line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">2.6k</text>
+<line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">1.3k</text>
+<line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
+<text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">lines</text>
+<line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-06-09</text>
+<line x1="196.8" y1="268" x2="196.8" y2="272" stroke="#444" stroke-width="1"/>
+<text x="196.8" y="286" text-anchor="middle" fill="#222">2026-06-20</text>
+<line x1="321.6" y1="268" x2="321.6" y2="272" stroke="#444" stroke-width="1"/>
+<text x="321.6" y="286" text-anchor="middle" fill="#222">2026-07-02</text>
+<line x1="446.4" y1="268" x2="446.4" y2="272" stroke="#444" stroke-width="1"/>
+<text x="446.4" y="286" text-anchor="middle" fill="#222">2026-07-10</text>
+<line x1="571.2" y1="268" x2="571.2" y2="272" stroke="#444" stroke-width="1"/>
+<text x="571.2" y="286" text-anchor="middle" fill="#222">2026-07-12#2</text>
+<line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-07-15#2</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,266.4 146.9,267.6 171.8,268.0 196.8,268.0 221.8,267.6 246.7,267.9 271.7,268.0 296.6,268.0 321.6,268.0 346.6,263.4 371.5,268.0 396.5,268.0 421.4,267.8 446.4,266.9 471.4,266.0 496.3,268.0 521.3,265.3 546.2,168.9 571.2,268.0 596.2,258.8 621.1,268.0 646.1,261.2 671.0,266.0 696.0,268.0"/>
+<circle cx="696.0" cy="268.0" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,265.6 146.9,266.7 171.8,268.0 196.8,267.7 221.8,267.6 246.7,267.6 271.7,268.0 296.6,268.0 321.6,268.0 346.6,264.7 371.5,268.0 396.5,268.0 421.4,268.0 446.4,267.0 471.4,267.7 496.3,268.0 521.3,268.0 546.2,264.9 571.2,267.5 596.2,267.6 621.1,266.6 646.1,267.8 671.0,268.0 696.0,267.0"/>
+<circle cx="696.0" cy="267.0" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,268.0 146.9,268.0 171.8,268.0 196.8,268.0 221.8,268.0 246.7,268.0 271.7,268.0 296.6,268.0 321.6,268.0 346.6,268.0 371.5,268.0 396.5,268.0 421.4,268.0 446.4,268.0 471.4,268.0 496.3,268.0 521.3,268.0 546.2,268.0 571.2,268.0 596.2,268.0 621.1,268.0 646.1,268.0 671.0,268.0 696.0,268.0"/>
+<circle cx="696.0" cy="268.0" r="3" fill="#2ca02c"/>
+<polyline fill="none" stroke="#d62728" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,268.0 146.9,267.7 171.8,268.0 196.8,261.9 221.8,268.0 246.7,268.0 271.7,268.0 296.6,268.0 321.6,268.0 346.6,266.2 371.5,268.0 396.5,268.0 421.4,268.0 446.4,267.8 471.4,268.0 496.3,268.0 521.3,268.0 546.2,268.0 571.2,245.6 596.2,266.1 621.1,268.0 646.1,268.0 671.0,268.0 696.0,250.0"/>
+<circle cx="696.0" cy="250.0" r="3" fill="#d62728"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,267.8 121.9,107.9 146.9,250.0 171.8,268.0 196.8,218.4 221.8,244.9 246.7,250.2 271.7,268.0 296.6,268.0 321.6,268.0 346.6,241.2 371.5,267.9 396.5,268.0 421.4,268.0 446.4,259.3 471.4,236.5 496.3,268.0 521.3,235.6 546.2,225.6 571.2,248.8 596.2,253.4 621.1,258.6 646.1,259.3 671.0,247.2 696.0,268.0"/>
+<circle cx="696.0" cy="268.0" r="3" fill="#9467bd"/>
+<polyline fill="none" stroke="#8c564b" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,228.7 146.9,268.0 171.8,268.0 196.8,268.0 221.8,268.0 246.7,268.0 271.7,268.0 296.6,268.0 321.6,268.0 346.6,268.0 371.5,259.7 396.5,254.1 421.4,268.0 446.4,268.0 471.4,268.0 496.3,264.8 521.3,265.4 546.2,268.0 571.2,268.0 596.2,268.0 621.1,268.0 646.1,219.4 671.0,256.9 696.0,245.2"/>
+<circle cx="696.0" cy="245.2" r="3" fill="#8c564b"/>
+<polyline fill="none" stroke="#e377c2" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,262.5 146.9,254.6 171.8,263.5 196.8,266.5 221.8,268.0 246.7,266.8 271.7,268.0 296.6,268.0 321.6,268.0 346.6,223.4 371.5,268.0 396.5,266.9 421.4,268.0 446.4,263.4 471.4,244.7 496.3,268.0 521.3,268.0 546.2,263.1 571.2,268.0 596.2,256.9 621.1,268.0 646.1,251.5 671.0,268.0 696.0,263.1"/>
+<circle cx="696.0" cy="263.1" r="3" fill="#e377c2"/>
+<polyline fill="none" stroke="#7f7f7f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,268.0 146.9,268.0 171.8,268.0 196.8,268.0 221.8,268.0 246.7,268.0 271.7,268.0 296.6,268.0 321.6,268.0 346.6,268.0 371.5,268.0 396.5,268.0 421.4,268.0 446.4,268.0 471.4,268.0 496.3,268.0 521.3,268.0 546.2,268.0 571.2,268.0 596.2,268.0 621.1,268.0 646.1,268.0 671.0,268.0 696.0,264.9"/>
+<circle cx="696.0" cy="264.9" r="3" fill="#7f7f7f"/>
+<polyline fill="none" stroke="#bcbd22" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,268.0 146.9,268.0 171.8,268.0 196.8,268.0 221.8,268.0 246.7,268.0 271.7,268.0 296.6,268.0 321.6,268.0 346.6,268.0 371.5,268.0 396.5,268.0 421.4,268.0 446.4,267.9 471.4,251.3 496.3,268.0 521.3,268.0 546.2,267.8 571.2,268.0 596.2,263.7 621.1,268.0 646.1,268.0 671.0,268.0 696.0,261.1"/>
+<circle cx="696.0" cy="261.1" r="3" fill="#bcbd22"/>
+<polyline fill="none" stroke="#17becf" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,268.0 146.9,268.0 171.8,268.0 196.8,268.0 221.8,268.0 246.7,268.0 271.7,268.0 296.6,268.0 321.6,268.0 346.6,268.0 371.5,268.0 396.5,268.0 421.4,268.0 446.4,268.0 471.4,268.0 496.3,268.0 521.3,268.0 546.2,268.0 571.2,268.0 596.2,268.0 621.1,268.0 646.1,268.0 671.0,268.0 696.0,268.0"/>
+<circle cx="696.0" cy="268.0" r="3" fill="#17becf"/>
+<polyline fill="none" stroke="#393b79" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 97.0,268.0 121.9,268.0 146.9,216.8 171.8,268.0 196.8,268.0 221.8,261.9 246.7,267.6 271.7,227.3 296.6,268.0 321.6,268.0 346.6,64.4 371.5,267.9 396.5,268.0 421.4,268.0 446.4,195.6 471.4,246.7 496.3,268.0 521.3,268.0 546.2,268.0 571.2,245.8 596.2,249.9 621.1,245.2 646.1,268.0 671.0,268.0 696.0,259.1"/>
+<circle cx="696.0" cy="259.1" r="3" fill="#393b79"/>
+<line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
+<text x="610" y="50" dominant-baseline="middle" fill="#222">config</text>
+<line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
+<text x="610" y="66" dominant-baseline="middle" fill="#222">core</text>
+<line x1="586" y1="82" x2="604" y2="82" stroke="#2ca02c" stroke-width="2"/>
+<text x="610" y="82" dominant-baseline="middle" fill="#222">debug</text>
+<line x1="586" y1="98" x2="604" y2="98" stroke="#d62728" stroke-width="2"/>
+<text x="610" y="98" dominant-baseline="middle" fill="#222">editing</text>
+<line x1="586" y1="114" x2="604" y2="114" stroke="#9467bd" stroke-width="2"/>
+<text x="610" y="114" dominant-baseline="middle" fill="#222">input</text>
+<line x1="586" y1="130" x2="604" y2="130" stroke="#8c564b" stroke-width="2"/>
+<text x="610" y="130" dominant-baseline="middle" fill="#222">language</text>
+<line x1="586" y1="146" x2="604" y2="146" stroke="#e377c2" stroke-width="2"/>
+<text x="610" y="146" dominant-baseline="middle" fill="#222">render</text>
+<line x1="586" y1="162" x2="604" y2="162" stroke="#7f7f7f" stroke-width="2"/>
+<text x="610" y="162" dominant-baseline="middle" fill="#222">support</text>
+<line x1="586" y1="178" x2="604" y2="178" stroke="#bcbd22" stroke-width="2"/>
+<text x="610" y="178" dominant-baseline="middle" fill="#222">terminal</text>
+<line x1="586" y1="194" x2="604" y2="194" stroke="#17becf" stroke-width="2"/>
+<text x="610" y="194" dominant-baseline="middle" fill="#222">text</text>
+<line x1="586" y1="210" x2="604" y2="210" stroke="#393b79" stroke-width="2"/>
+<text x="610" y="210" dominant-baseline="middle" fill="#222">workspace</text>
+</svg>
