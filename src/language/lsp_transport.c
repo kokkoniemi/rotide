@@ -229,14 +229,28 @@ void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdow
 	editorLspClientResetState(client);
 }
 
+/* CLOEXEC so other forked children never inherit the server's pipe ends;
+ * otherwise a crashed rotide leaves the server without stdin EOF, lingering. */
+static int lspTransportPipeCloexec(int fds[2]) {
+	if (pipe2(fds, O_CLOEXEC) == 0) {
+		return 0;
+	}
+	if (pipe(fds) == -1) {
+		return -1;
+	}
+	(void)fcntl(fds[0], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds[1], F_SETFD, FD_CLOEXEC);
+	return 0;
+}
+
 int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
                           int *from_server_fd_out) {
 	int stdin_pipe[2] = {-1, -1};
 	int stdout_pipe[2] = {-1, -1};
-	if (pipe(stdin_pipe) == -1) {
+	if (lspTransportPipeCloexec(stdin_pipe) == -1) {
 		return 0;
 	}
-	if (pipe(stdout_pipe) == -1) {
+	if (lspTransportPipeCloexec(stdout_pipe) == -1) {
 		close(stdin_pipe[0]);
 		close(stdin_pipe[1]);
 		return 0;
