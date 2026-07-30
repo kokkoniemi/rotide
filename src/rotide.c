@@ -225,6 +225,9 @@ int main(int argc, char *argv[]) {
 	 * empty terminal pane that steals nothing but renders dead. */
 	int reset_panes = !restored_session && argc >= 2;
 	(void)editorWorkspaceStateLoadAndApply(E.window_cols, reset_panes);
+	if (reset_panes) {
+		(void)editorDrawerSetCollapsed(1);
+	}
 	if (!restored_session && argc < 2) {
 		(void)editorWorkspaceStateRestoreTabs();
 	}
