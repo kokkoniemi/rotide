@@ -104,6 +104,23 @@ static const struct editorGitEntry *git_ops_find_entry(const char *rel_path) {
 	return NULL;
 }
 
+static int test_git_build_repo_command_args_terminates_last_argument(void) {
+	reset_editor_state();
+	free(E.git_repo_root);
+	E.git_repo_root = strdup("/repo");
+	ASSERT_TRUE(E.git_repo_root != NULL);
+
+	char cmd[128];
+	memset(cmd, 'X', sizeof(cmd));
+	cmd[sizeof(cmd) - 1] = '\0';
+	char *args[] = {"push", NULL};
+	ASSERT_TRUE(editorGitBuildRepoCommandArgs(cmd, sizeof(cmd), args));
+	ASSERT_EQ_STR("git -C '/repo' 'push'", cmd);
+
+	editorGitFree();
+	return 0;
+}
+
 static int test_git_ops_stage_and_unstage_file(void) {
 	SKIP_WITHOUT_GIT();
 	reset_editor_state();
@@ -584,6 +601,8 @@ static int test_git_ops_without_repo_sets_statusmsg(void) {
 }
 
 const struct editorTestCase g_git_ops_tests[] = {
+        {"git_build_repo_command_args_terminates_last_argument",
+         test_git_build_repo_command_args_terminates_last_argument},
         {"git_ops_stage_and_unstage_file", test_git_ops_stage_and_unstage_file},
         {"git_ops_stage_all_covers_untracked", test_git_ops_stage_all_covers_untracked},
         {"git_ops_commit_and_amend", test_git_ops_commit_and_amend},
