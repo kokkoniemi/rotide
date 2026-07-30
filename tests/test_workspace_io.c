@@ -1,5 +1,4 @@
 #include "alloc_test_hooks.h"
-#include "config/common.h"
 #include "rotide.h"
 #include "support/terminal.h"
 #include "test_case.h"

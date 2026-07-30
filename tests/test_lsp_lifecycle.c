@@ -4,6 +4,8 @@
 #include "test_helpers.h"
 #include "test_support.h"
 
+#include <sys/types.h>
+
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_config.gopls_enabled = 1;

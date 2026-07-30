@@ -1,4 +1,3 @@
-#include "config/common.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "input/system_vim.h"

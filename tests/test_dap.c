@@ -1,4 +1,3 @@
-#include "config/common.h"
 #include "config/dap_config.h"
 #include "config/theme_config.h"
 #include "debug/dap.h"
@@ -26,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 static int test_editor_dap_config_loads_global_defaults_and_project_launches(void) {
