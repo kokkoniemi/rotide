@@ -946,6 +946,10 @@ struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode
 	return (struct editorTerminalPane *)editorTabPayloadAt(pane->as.leaf.view.active_tab_idx);
 }
 
+int editorTerminalPaneIsLive(const struct editorTerminalPane *terminal) {
+	return terminal != NULL && !terminal->exited && terminal->child.pid > 0;
+}
+
 void editorTerminalPaneResetPendingInput(struct editorTerminalPane *terminal) {
 	if (terminal == NULL) {
 		return;

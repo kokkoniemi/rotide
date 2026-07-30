@@ -28,5 +28,6 @@ void editorVimKeymapResetDefaults(void);
 int editorVimLeaderKey(void);
 int editorVimLeaderAction(int c, int *action_out);
 int editorVimCtrlWAction(int c, int *action_out);
+int editorVimTabActionForKey(int c, int *action_out);
 
 #endif

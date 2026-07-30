@@ -3392,6 +3392,8 @@ static void dispatchTerminalVimCtrlW(struct editorTerminalPane *terminal, int c)
 }
 
 static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, int c) {
+	int tab_action = EDITOR_ACTION_COUNT;
+
 	if (terminal->pending_leader) {
 		terminal->pending_leader = 0;
 		int action = EDITOR_ACTION_COUNT;
@@ -3400,6 +3402,11 @@ static void dispatchTerminalVimNormalKey(struct editorTerminalPane *terminal, in
 			(void)editorDispatchProcessMappedAction((enum editorAction)action,
 			                                        &effects);
 		}
+		return;
+	}
+	if (editorVimTabActionForKey(c, &tab_action)) {
+		int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorDispatchProcessMappedAction((enum editorAction)tab_action, &effects);
 		return;
 	}
 	if (c == 'i' || c == 'a' || c == 'I' || c == 'A') {
@@ -3727,6 +3734,8 @@ void editorProcessKeypress(void) {
 	if (c == MOUSE_EVENT) {
 		dispatchHandleMouseEvent(&effects);
 	} else if (dispatchHandleKeyboardKey(c, &effects)) {
+		editorFileTabActionsAfterKeypress(g_dispatch_has_mapped_action,
+		                                  g_dispatch_mapped_action);
 		return;
 	}
 

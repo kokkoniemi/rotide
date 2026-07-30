@@ -497,6 +497,9 @@ void editorTabsFreeAll(void) {
 }
 
 int editorTabNewEmpty(void) {
+	struct editorPaneNode *pane = E.focused_leaf;
+	int active_slot = -1;
+
 	if (E.tab_count >= ROTIDE_MAX_TABS) {
 		editorSetStatusMsg("Tab limit reached (%d)", ROTIDE_MAX_TABS);
 		return 0;
@@ -506,7 +509,11 @@ int editorTabNewEmpty(void) {
 	}
 
 	tabsRegisterWithFocusedPane(E.active_tab);
+	if (pane != NULL && !pane->is_split && pane->as.leaf.kind == EDITOR_PANE_KIND_EDITOR) {
+		active_slot = editorPaneViewIndexOfTab(&pane->as.leaf.view, E.active_tab);
+	}
 	tabsStoreActiveTab();
+	int previous_idx = E.active_tab;
 	int new_idx = E.tab_count;
 	if (!tabsEnsureTabCapacity(E.tab_count + 1)) {
 		tabsLoadActiveTab(E.active_tab);
@@ -516,6 +523,16 @@ int editorTabNewEmpty(void) {
 
 	tabsStateInitEmpty(&E.tabs[new_idx]);
 	E.tab_count++;
+	if (pane != NULL && !pane->is_split && pane->as.leaf.kind == EDITOR_PANE_KIND_EDITOR &&
+	    !editorPaneViewInsertTabAt(&pane->as.leaf.view, new_idx,
+	                               active_slot < 0 ? pane->as.leaf.view.pane_tab_count
+	                                               : active_slot + 1)) {
+		tabsStateFree(&E.tabs[new_idx]);
+		E.tab_count--;
+		tabsLoadActiveTab(previous_idx);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
 	E.active_tab = new_idx;
 	tabsLoadActiveTab(E.active_tab);
 	tabsRegisterWithFocusedPane(new_idx);
@@ -1178,6 +1195,27 @@ int editorTabSwitchByDelta(int delta) {
 		target += E.tab_count;
 	}
 	return editorTabSwitchToIndex(target);
+}
+
+static int tabsSwitchToFocusedPaneEdge(int last) {
+	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
+	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 0;
+	}
+	const struct editorPaneView *view = &E.focused_leaf->as.leaf.view;
+	if (view->pane_tab_count <= 0) {
+		return 0;
+	}
+	int slot = last ? view->pane_tab_count - 1 : 0;
+	return editorTabSwitchToIndex(view->pane_tabs[slot]);
+}
+
+int editorTabSwitchToFirst(void) {
+	return tabsSwitchToFocusedPaneEdge(0);
+}
+
+int editorTabSwitchToLast(void) {
+	return tabsSwitchToFocusedPaneEdge(1);
 }
 
 /*

@@ -1174,6 +1174,15 @@ static int actionsWorkspaceHandleGlobalAction(enum editorAction action) {
 		case EDITOR_ACTION_FOCUS_DOWN_PANE:
 			actionsWorkspaceFocusDirection(EDITOR_FOCUS_DOWN);
 			return 1;
+		case EDITOR_ACTION_FOCUS_TOP_LEFT_PANE: {
+			struct editorPaneNode *target = editorPaneNodeFirstLeaf(E.layout_root);
+			editorHistoryBreakGroup();
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+			if (target != NULL && editorLayoutSetFocusedLeaf(target)) {
+				editorPaneAnnounceFocus();
+			}
+			return 1;
+		}
 		case EDITOR_ACTION_MOVE_TAB_LEFT_PANE:
 			actionsWorkspaceMoveTabDirection(EDITOR_FOCUS_LEFT);
 			return 1;

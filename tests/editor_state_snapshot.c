@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define EXCLUDE_FIELD(field)                                                                       \
-	{ offsetof(struct editorConfig, field), sizeof(((struct editorConfig *)0)->field) }
+	{offsetof(struct editorConfig, field), sizeof(((struct editorConfig *)0)->field)}
 
 static const struct snapshotExcludeRange k_excludes[] = {
         EXCLUDE_FIELD(layout_root),  // NOLINT(bugprone-sizeof-expression)

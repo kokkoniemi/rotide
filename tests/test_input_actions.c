@@ -177,12 +177,13 @@ static int test_editor_task_runner_merges_stderr_and_close_requires_confirmation
 	                            NULL, NULL));
 	ASSERT_TRUE(editorTaskIsRunning());
 
-	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
-	ASSERT_TRUE(strstr(E.statusmsg, "Task is still running") != NULL);
+	(void)input_actions_dispatch(EDITOR_ACTION_SAFE_CLOSE_TAB);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(0, E.close_confirmed);
+	ASSERT_TRUE(strstr(E.statusmsg, "Press Alt-D again") != NULL);
 
-	(void)input_actions_dispatch(EDITOR_ACTION_CLOSE_TAB);
+	(void)input_actions_dispatch(EDITOR_ACTION_SAFE_CLOSE_TAB);
 	ASSERT_TRUE(!editorTaskIsRunning());
 	ASSERT_EQ_INT(1, editorTabCount());
 	ASSERT_TRUE(!editorActiveTabIsTaskLog());
@@ -830,6 +831,10 @@ static int test_editor_process_keypress_tab_actions_new_next_prev(void) {
 	add_row("right");
 	const char alt_left[] = "\x1b[1;3D";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_left, sizeof(alt_left) - 1) == 0);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+
+	const char alt_j[] = "\x1bj";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_j, sizeof(alt_j) - 1) == 0);
 	ASSERT_EQ_INT(0, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "left");
@@ -837,9 +842,114 @@ static int test_editor_process_keypress_tab_actions_new_next_prev(void) {
 	const char alt_right_fallback[] = "\x1b\x1b[C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_right_fallback,
 	                                               sizeof(alt_right_fallback) - 1) == 0);
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+
+	const char alt_k[] = "\x1bk";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_k, sizeof(alt_k) - 1) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "right");
+	return 0;
+}
+
+static int test_editor_safe_close_follows_focused_pane_mru(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	E.dirty = 0;
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	E.dirty = 0;
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("two");
+	E.dirty = 0;
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	const char alt_d[] = "\x1b"
+	                     "d";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_d, sizeof(alt_d) - 1) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_ROW_TEXT_EQ(0, "zero");
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_d, sizeof(alt_d) - 1) == 0);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_ROW_TEXT_EQ(0, "two");
+	return 0;
+}
+
+static int test_editor_new_tab_inserts_beside_active(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+
+	(void)input_actions_dispatch(EDITOR_ACTION_NEW_TAB);
+	int inserted = editorTabActiveIndex();
+	ASSERT_EQ_INT(3, inserted);
+	ASSERT_EQ_INT(4, editorTabCount());
+
+	(void)input_actions_dispatch(EDITOR_ACTION_PREV_TAB);
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	(void)input_actions_dispatch(EDITOR_ACTION_NEXT_TAB);
+	ASSERT_EQ_INT(inserted, editorTabActiveIndex());
+	(void)input_actions_dispatch(EDITOR_ACTION_NEXT_TAB);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	return 0;
+}
+
+static int test_editor_alt_first_last_stay_in_focused_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(second != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_EQ_INT(3, editorTabActiveIndex());
+
+	const char alt_h[] = "\x1bh";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_h, sizeof(alt_h) - 1) == 0);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+
+	const char alt_l[] = "\x1bl";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_l, sizeof(alt_l) - 1) == 0);
+	ASSERT_EQ_INT(3, editorTabActiveIndex());
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_t_creates_terminal_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
+	const char alt_t[] = "\x1bt";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_t, sizeof(alt_t) - 1) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, editorTabActiveKind());
+	return 0;
+}
+
+static int test_editor_safe_close_dirty_requires_consecutive_second_press(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("dirty");
+	E.dirty = 1;
+
+	const char alt_d[] = "\x1b"
+	                     "d";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_d, sizeof(alt_d) - 1) == 0);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_INT(0, E.close_confirmed);
+	ASSERT_TRUE(strstr(E.statusmsg, "unsaved changes") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Press Alt-D again") != NULL);
+
+	const char move_right[] = "\x1b[C";
+	ASSERT_TRUE(editor_process_keypress_with_input(move_right, sizeof(move_right) - 1) == 0);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_d, sizeof(alt_d) - 1) == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_TRUE(strstr(E.statusmsg, "Press Alt-D again") != NULL);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_d, sizeof(alt_d) - 1) == 0);
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_INT(0, E.close_confirmed);
 	return 0;
 }
 
@@ -1535,7 +1645,7 @@ static int test_editor_process_keypress_resize_event_updates_window_size(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty(void) {
+static int test_editor_process_keypress_alt_z_no_longer_toggles_line_wrap(void) {
 	add_row("abcdefghijklmn");
 	E.window_rows = 4;
 	E.window_cols = 10;
@@ -1546,20 +1656,14 @@ static int test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty(vo
 
 	const char alt_z[] = "\x1bz";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_z, sizeof(alt_z) - 1) == 0);
-	ASSERT_EQ_INT(1, E.line_wrap_enabled);
-	ASSERT_EQ_INT(0, E.coloff);
-	ASSERT_EQ_INT(7, E.dirty);
-	ASSERT_EQ_STR("Line wrap enabled", E.statusmsg);
-
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_z, sizeof(alt_z) - 1) == 0);
 	ASSERT_EQ_INT(0, E.line_wrap_enabled);
-	ASSERT_EQ_INT(0, E.wrapoff);
+	ASSERT_EQ_INT(4, E.coloff);
 	ASSERT_EQ_INT(7, E.dirty);
-	ASSERT_EQ_STR("Line wrap disabled", E.statusmsg);
 	return 0;
 }
 
-static int test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty(void) {
+static int test_editor_process_keypress_alt_n_creates_editor_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
 	add_row("line");
 	E.window_rows = 4;
 	E.window_cols = 20;
@@ -1568,34 +1672,33 @@ static int test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty
 
 	const char alt_n[] = "\x1bn";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_n, sizeof(alt_n) - 1) == 0);
-	ASSERT_EQ_INT(0, E.line_numbers_enabled);
-	ASSERT_EQ_INT(7, E.dirty);
-	ASSERT_EQ_STR("Line numbers disabled", E.statusmsg);
-
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_n, sizeof(alt_n) - 1) == 0);
 	ASSERT_EQ_INT(1, E.line_numbers_enabled);
-	ASSERT_EQ_INT(7, E.dirty);
-	ASSERT_EQ_STR("Line numbers enabled", E.statusmsg);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(0, E.dirty);
 	return 0;
 }
 
-static int test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty(void) {
+static int test_editor_process_keypress_alt_h_switches_to_first_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
 	add_row("line");
 	E.window_rows = 4;
 	E.window_cols = 20;
 	E.current_line_highlight_enabled = 1;
-	E.dirty = 7;
+	E.dirty = 0;
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
 
 	const char alt_h[] = "\x1bh";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_h, sizeof(alt_h) - 1) == 0);
-	ASSERT_EQ_INT(0, E.current_line_highlight_enabled);
-	ASSERT_EQ_INT(7, E.dirty);
-	ASSERT_EQ_STR("Current-line highlight disabled", E.statusmsg);
-
-	ASSERT_TRUE(editor_process_keypress_with_input(alt_h, sizeof(alt_h) - 1) == 0);
 	ASSERT_EQ_INT(1, E.current_line_highlight_enabled);
-	ASSERT_EQ_INT(7, E.dirty);
-	ASSERT_EQ_STR("Current-line highlight enabled", E.statusmsg);
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_ROW_TEXT_EQ(0, "line");
+
+	const char alt_l[] = "\x1bl";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_l, sizeof(alt_l) - 1) == 0);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
 	return 0;
 }
 
@@ -2534,6 +2637,15 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
         {"editor_process_keypress_tab_actions_new_next_prev",
          test_editor_process_keypress_tab_actions_new_next_prev},
+        {"editor_safe_close_follows_focused_pane_mru",
+         test_editor_safe_close_follows_focused_pane_mru},
+        {"editor_new_tab_inserts_beside_active", test_editor_new_tab_inserts_beside_active},
+        {"editor_alt_first_last_stay_in_focused_pane",
+         test_editor_alt_first_last_stay_in_focused_pane},
+        {"editor_process_keypress_alt_t_creates_terminal_tab",
+         test_editor_process_keypress_alt_t_creates_terminal_tab},
+        {"editor_safe_close_dirty_requires_consecutive_second_press",
+         test_editor_safe_close_dirty_requires_consecutive_second_press},
         {"editor_tab_open_file_reuses_active_clean_empty_buffer",
          test_editor_tab_open_file_reuses_active_clean_empty_buffer},
         {"editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive",
@@ -2595,12 +2707,12 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_ctrl_s_saves_file},
         {"editor_process_keypress_resize_event_updates_window_size",
          test_editor_process_keypress_resize_event_updates_window_size},
-        {"editor_process_keypress_alt_z_toggles_line_wrap_without_dirty",
-         test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty},
-        {"editor_process_keypress_alt_n_toggles_line_numbers_without_dirty",
-         test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty},
-        {"editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty",
-         test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty},
+        {"editor_process_keypress_alt_z_no_longer_toggles_line_wrap",
+         test_editor_process_keypress_alt_z_no_longer_toggles_line_wrap},
+        {"editor_process_keypress_alt_n_creates_editor_tab",
+         test_editor_process_keypress_alt_n_creates_editor_tab},
+        {"editor_process_keypress_alt_h_switches_to_first_tab",
+         test_editor_process_keypress_alt_h_switches_to_first_tab},
         {"editor_process_keypress_arrow_scrolls_created_pane_width",
          test_editor_process_keypress_arrow_scrolls_created_pane_width},
         {"editor_drawer_open_selected_file_in_preview_reuses_preview_tab",

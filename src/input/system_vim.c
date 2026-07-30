@@ -161,6 +161,32 @@ static struct vimBindableCommand g_vim_commands[] = {
 #define VIM_COMMAND_COUNT (sizeof(g_vim_commands) / sizeof(g_vim_commands[0]))
 static const size_t g_vim_command_count = VIM_COMMAND_COUNT;
 
+struct vimActionBinding {
+	const char *name;
+	enum editorAction action;
+	int canonical_key;
+	int bound_key;
+};
+
+static struct vimActionBinding g_vim_tab_actions[] = {
+        {"tab_first", EDITOR_ACTION_FIRST_TAB, EDITOR_ALT_LETTER_KEY('h'),
+         EDITOR_ALT_LETTER_KEY('h')},
+        {"tab_previous", EDITOR_ACTION_PREV_TAB, EDITOR_ALT_LETTER_KEY('j'),
+         EDITOR_ALT_LETTER_KEY('j')},
+        {"tab_next", EDITOR_ACTION_NEXT_TAB, EDITOR_ALT_LETTER_KEY('k'),
+         EDITOR_ALT_LETTER_KEY('k')},
+        {"tab_last", EDITOR_ACTION_LAST_TAB, EDITOR_ALT_LETTER_KEY('l'),
+         EDITOR_ALT_LETTER_KEY('l')},
+        {"tab_new", EDITOR_ACTION_NEW_TAB, EDITOR_ALT_LETTER_KEY('n'), EDITOR_ALT_LETTER_KEY('n')},
+        {"tab_close", EDITOR_ACTION_SAFE_CLOSE_TAB, EDITOR_ALT_LETTER_KEY('d'),
+         EDITOR_ALT_LETTER_KEY('d')},
+        {"tab_terminal", EDITOR_ACTION_TERMINAL_NEW_TAB, EDITOR_ALT_LETTER_KEY('t'),
+         EDITOR_ALT_LETTER_KEY('t')},
+};
+
+static const size_t g_vim_tab_action_count =
+        sizeof(g_vim_tab_actions) / sizeof(g_vim_tab_actions[0]);
+
 /* Leader sequences: `<leader>` followed by one key dispatches an editor action.
  * Leader is space by default. Both the leader key and each sub-key are bindable
  * via `[keymap.vim]` (`normal.leader` and `leader.<command>`). */
@@ -215,13 +241,31 @@ static const struct vimExCommand g_vim_ex_commands[] = {
         {"only", EDITOR_ACTION_CLOSE_OTHER_PANES},
         {"on", EDITOR_ACTION_CLOSE_OTHER_PANES},
         {"tabnew", EDITOR_ACTION_NEW_TAB},
+        {"tabnext", EDITOR_ACTION_NEXT_TAB},
+        {"tabn", EDITOR_ACTION_NEXT_TAB},
+        {"tabprevious", EDITOR_ACTION_PREV_TAB},
+        {"tabp", EDITOR_ACTION_PREV_TAB},
+        {"tabNext", EDITOR_ACTION_PREV_TAB},
+        {"tabfirst", EDITOR_ACTION_FIRST_TAB},
+        {"tabfir", EDITOR_ACTION_FIRST_TAB},
+        {"tabrewind", EDITOR_ACTION_FIRST_TAB},
+        {"tabr", EDITOR_ACTION_FIRST_TAB},
+        {"tablast", EDITOR_ACTION_LAST_TAB},
+        {"tabl", EDITOR_ACTION_LAST_TAB},
 };
 
 static const size_t g_vim_ex_command_count =
         sizeof(g_vim_ex_commands) / sizeof(g_vim_ex_commands[0]);
 
-static const char *const g_vim_ex_builtin_commands[] = {"w",    "q",   "q!",  "wq",    "x",    "e",
-                                                        "edit", "git", "lsp", "latex", "jumps"};
+static const char *const g_vim_ex_builtin_commands[] = {
+        "w", "q", "q!", "wq", "x", "e", "edit", "git", "lsp", "latex", "jumps", "set",
+};
+
+static const char *const g_vim_set_option_completions[] = {
+        "number",      "nonumber",    "number!", "number?", "nu",         "nonu",
+        "wrap",        "nowrap",      "wrap!",   "wrap?",   "cursorline", "nocursorline",
+        "cursorline!", "cursorline?", "cul",     "nocul",
+};
 
 static const size_t g_vim_ex_builtin_command_count =
         sizeof(g_vim_ex_builtin_commands) / sizeof(g_vim_ex_builtin_commands[0]);
@@ -230,10 +274,25 @@ void editorVimKeymapResetDefaults(void) {
 	for (size_t i = 0; i < g_vim_command_count; i++) {
 		g_vim_commands[i].bound_key = g_vim_commands[i].canonical_key;
 	}
+	for (size_t i = 0; i < g_vim_tab_action_count; i++) {
+		g_vim_tab_actions[i].bound_key = g_vim_tab_actions[i].canonical_key;
+	}
 	for (size_t i = 0; i < g_vim_leader_count; i++) {
 		g_vim_leader_map[i].bound_key = g_vim_leader_map[i].canonical_key;
 	}
 	g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
+}
+
+int editorVimTabActionForKey(int c, int *action_out) {
+	for (size_t i = 0; i < g_vim_tab_action_count; i++) {
+		if (g_vim_tab_actions[i].bound_key == c) {
+			if (action_out != NULL) {
+				*action_out = (int)g_vim_tab_actions[i].action;
+			}
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static int vimSystemLeaderLookup(int c, enum editorAction *action_out) {
@@ -299,7 +358,7 @@ static int vimSystemCtrlWAction(int c, enum editorAction *action_out) {
 			action = EDITOR_ACTION_CLOSE_OTHER_PANES;
 			break;
 		case 't':
-			action = EDITOR_ACTION_TERMINAL_NEW_TAB;
+			action = EDITOR_ACTION_FOCUS_TOP_LEFT_PANE;
 			break;
 		case 'w':
 		case CTRL_KEY('w'):
@@ -2784,14 +2843,15 @@ static int vimSystemJoinLines(int count, int *effects_out) {
 
 static int vimSystemActionForKey(enum vimSystemMode mode, int c, enum editorAction *action_out) {
 	enum editorAction action;
+	int tab_action = EDITOR_ACTION_COUNT;
 
+	if (editorVimTabActionForKey(c, &tab_action)) {
+		if (action_out != NULL) {
+			*action_out = (enum editorAction)tab_action;
+		}
+		return 1;
+	}
 	switch (c) {
-		case ALT_ARROW_LEFT:
-			action = EDITOR_ACTION_PREV_TAB;
-			break;
-		case ALT_ARROW_RIGHT:
-			action = EDITOR_ACTION_NEXT_TAB;
-			break;
 		case ALT_ARROW_UP:
 			action = EDITOR_ACTION_MOVE_LINE_UP;
 			break;
@@ -2800,15 +2860,6 @@ static int vimSystemActionForKey(enum vimSystemMode mode, int c, enum editorActi
 			break;
 		case EDITOR_ALT_LETTER_KEY('c'):
 			action = EDITOR_ACTION_TOGGLE_COMMENT;
-			break;
-		case EDITOR_ALT_LETTER_KEY('z'):
-			action = EDITOR_ACTION_TOGGLE_LINE_WRAP;
-			break;
-		case EDITOR_ALT_LETTER_KEY('n'):
-			action = EDITOR_ACTION_TOGGLE_LINE_NUMBERS;
-			break;
-		case EDITOR_ALT_LETTER_KEY('h'):
-			action = EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT;
 			break;
 		default:
 			if (mode != VIM_SYSTEM_MODE_INSERT) {
@@ -3373,12 +3424,71 @@ static void vimSystemExSplitOpen(enum editorAction split_action, const char *pat
 	}
 }
 
+static int vimSystemExSetCompletionInput(const char *input, const char **token_out) {
+	if (input == NULL) {
+		return 0;
+	}
+	while (*input == ' ' || *input == '\t' || *input == ':') {
+		input++;
+	}
+	if (strncmp(input, "set", 3) != 0 || (input[3] != ' ' && input[3] != '\t')) {
+		return 0;
+	}
+	const char *token = input + 4;
+	for (const char *p = token; *p != '\0'; p++) {
+		if (*p == ' ' || *p == '\t') {
+			token = p + 1;
+		}
+	}
+	if (token_out != NULL) {
+		*token_out = token;
+	}
+	return 1;
+}
+
+static char *vimSystemExCompleteSetOption(const char *anchor, int tab_iteration) {
+	const char *token = NULL;
+	const char *matches[32];
+	int match_count = 0;
+
+	if (!vimSystemExSetCompletionInput(anchor, &token)) {
+		return NULL;
+	}
+	size_t prefix_len = strlen(token);
+	for (size_t i = 0;
+	     i < sizeof(g_vim_set_option_completions) / sizeof(g_vim_set_option_completions[0]) &&
+	     match_count < 32;
+	     i++) {
+		if (strncmp(g_vim_set_option_completions[i], token, prefix_len) == 0) {
+			matches[match_count++] = g_vim_set_option_completions[i];
+		}
+	}
+	if (match_count == 0) {
+		return NULL;
+	}
+	int idx = tab_iteration % match_count;
+	if (idx < 0) {
+		idx = 0;
+	}
+	size_t base_len = (size_t)(token - anchor);
+	size_t match_len = strlen(matches[idx]);
+	char *replacement = malloc(base_len + match_len + 1);
+	if (replacement == NULL) {
+		return NULL;
+	}
+	memcpy(replacement, anchor, base_len);
+	memcpy(replacement + base_len, matches[idx], match_len + 1);
+	return replacement;
+}
+
 static char *vimSystemExCompleteFn(const char *current, const char *anchor, void *ctx,
                                    int tab_iteration) {
-	(void)anchor;
 	(void)ctx;
 	if (current == NULL) {
 		return NULL;
+	}
+	if (vimSystemExSetCompletionInput(anchor, NULL)) {
+		return vimSystemExCompleteSetOption(anchor, tab_iteration);
 	}
 	const char *matches[64];
 	int match_count = 0;
@@ -3535,6 +3645,148 @@ static void vimSystemExJumps(void) {
 	editorSetStatusMsg("jumps %d/%d  <- %s  -> %s", index, count, back_buf, fwd_buf);
 }
 
+enum vimSystemSetOption {
+	VIM_SYSTEM_SET_NUMBER = 0,
+	VIM_SYSTEM_SET_WRAP,
+	VIM_SYSTEM_SET_CURSORLINE,
+};
+
+enum vimSystemSetOperation {
+	VIM_SYSTEM_SET_DISABLE = 0,
+	VIM_SYSTEM_SET_ENABLE,
+	VIM_SYSTEM_SET_TOGGLE,
+	VIM_SYSTEM_SET_QUERY,
+};
+
+static int vimSystemSetOptionState(enum vimSystemSetOption option) {
+	switch (option) {
+		case VIM_SYSTEM_SET_NUMBER:
+			return E.line_numbers_enabled;
+		case VIM_SYSTEM_SET_WRAP:
+			return E.line_wrap_enabled;
+		case VIM_SYSTEM_SET_CURSORLINE:
+			return E.current_line_highlight_enabled;
+	}
+	return 0;
+}
+
+static enum editorAction vimSystemSetOptionAction(enum vimSystemSetOption option) {
+	switch (option) {
+		case VIM_SYSTEM_SET_NUMBER:
+			return EDITOR_ACTION_TOGGLE_LINE_NUMBERS;
+		case VIM_SYSTEM_SET_WRAP:
+			return EDITOR_ACTION_TOGGLE_LINE_WRAP;
+		case VIM_SYSTEM_SET_CURSORLINE:
+			return EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT;
+	}
+	return EDITOR_ACTION_COUNT;
+}
+
+static const char *vimSystemSetOptionName(enum vimSystemSetOption option) {
+	switch (option) {
+		case VIM_SYSTEM_SET_NUMBER:
+			return "number";
+		case VIM_SYSTEM_SET_WRAP:
+			return "wrap";
+		case VIM_SYSTEM_SET_CURSORLINE:
+			return "cursorline";
+	}
+	return "";
+}
+
+static int vimSystemSetParseToken(const char *token, enum vimSystemSetOption *option_out,
+                                  enum vimSystemSetOperation *operation_out) {
+	char name[32];
+	size_t len;
+	enum vimSystemSetOperation operation = VIM_SYSTEM_SET_ENABLE;
+
+	if (token == NULL) {
+		return 0;
+	}
+	len = strlen(token);
+	if (len == 0 || len >= sizeof(name)) {
+		return 0;
+	}
+	memcpy(name, token, len + 1);
+	if (name[len - 1] == '!' || name[len - 1] == '?') {
+		operation = name[len - 1] == '!' ? VIM_SYSTEM_SET_TOGGLE : VIM_SYSTEM_SET_QUERY;
+		name[--len] = '\0';
+	}
+	if (strncmp(name, "no", 2) == 0) {
+		if (operation != VIM_SYSTEM_SET_ENABLE) {
+			return 0;
+		}
+		operation = VIM_SYSTEM_SET_DISABLE;
+		memmove(name, name + 2, strlen(name + 2) + 1);
+	}
+
+	enum vimSystemSetOption option;
+	if (strcmp(name, "number") == 0 || strcmp(name, "nu") == 0) {
+		option = VIM_SYSTEM_SET_NUMBER;
+	} else if (strcmp(name, "wrap") == 0) {
+		option = VIM_SYSTEM_SET_WRAP;
+	} else if (strcmp(name, "cursorline") == 0 || strcmp(name, "cul") == 0) {
+		option = VIM_SYSTEM_SET_CURSORLINE;
+	} else {
+		return 0;
+	}
+	if (option_out != NULL) {
+		*option_out = option;
+	}
+	if (operation_out != NULL) {
+		*operation_out = operation;
+	}
+	return 1;
+}
+
+static void vimSystemSetAppendState(char *status, size_t status_size,
+                                    enum vimSystemSetOption option) {
+	size_t used = strlen(status);
+	if (used >= status_size) {
+		return;
+	}
+	(void)snprintf(status + used, status_size - used, "%s%s%s", used > 0 ? " " : "",
+	               vimSystemSetOptionState(option) ? "" : "no", vimSystemSetOptionName(option));
+}
+
+static void vimSystemExSet(char *args, int *effects_out) {
+	if (args == NULL || args[0] == '\0') {
+		char status[sizeof(E.statusmsg)] = "";
+		vimSystemSetAppendState(status, sizeof(status), VIM_SYSTEM_SET_NUMBER);
+		vimSystemSetAppendState(status, sizeof(status), VIM_SYSTEM_SET_WRAP);
+		vimSystemSetAppendState(status, sizeof(status), VIM_SYSTEM_SET_CURSORLINE);
+		editorSetStatusMsg("%s", status);
+		return;
+	}
+
+	char query_status[sizeof(E.statusmsg)] = "";
+	int queried = 0;
+	char *saveptr = NULL;
+	for (char *token = strtok_r(args, " \t", &saveptr); token != NULL;
+	     token = strtok_r(NULL, " \t", &saveptr)) {
+		enum vimSystemSetOption option;
+		enum vimSystemSetOperation operation;
+		if (!vimSystemSetParseToken(token, &option, &operation)) {
+			editorSetStatusMsg("Unknown option: %s", token);
+			return;
+		}
+		if (operation == VIM_SYSTEM_SET_QUERY) {
+			vimSystemSetAppendState(query_status, sizeof(query_status), option);
+			queried = 1;
+			continue;
+		}
+		int enabled = vimSystemSetOptionState(option);
+		if (operation == VIM_SYSTEM_SET_TOGGLE ||
+		    (operation == VIM_SYSTEM_SET_ENABLE && !enabled) ||
+		    (operation == VIM_SYSTEM_SET_DISABLE && enabled)) {
+			vimSystemExDispatch(vimSystemSetOptionAction(option), effects_out);
+		}
+	}
+	if (queried) {
+		editorSetStatusMsg("%s", query_status);
+	}
+}
+
 static void vimSystemRunExCommand(char *line, int *effects_out) {
 	char *cmd = line;
 	char *args = NULL;
@@ -3599,6 +3851,10 @@ static void vimSystemRunExCommand(char *line, int *effects_out) {
 	}
 	if (strcmp(cmd, "jumps") == 0) {
 		vimSystemExJumps();
+		return;
+	}
+	if (strcmp(cmd, "set") == 0) {
+		vimSystemExSet(args, effects_out);
 		return;
 	}
 	if (args != NULL && args[0] != '\0') {
@@ -4755,6 +5011,47 @@ static int vimSystemBindLeaderAction(const char *name, int key) {
 	return 1;
 }
 
+static struct vimActionBinding *vimSystemFindTabAction(const char *name) {
+	if (name == NULL) {
+		return NULL;
+	}
+	for (size_t i = 0; i < g_vim_tab_action_count; i++) {
+		if (strcmp(g_vim_tab_actions[i].name, name) == 0) {
+			return &g_vim_tab_actions[i];
+		}
+	}
+	return NULL;
+}
+
+static void vimSystemReleaseTabActionKey(int key) {
+	for (size_t i = 0; i < g_vim_tab_action_count; i++) {
+		if (g_vim_tab_actions[i].bound_key == key) {
+			g_vim_tab_actions[i].bound_key = -1;
+		}
+	}
+}
+
+static int vimSystemBindTabAction(const char *name, int key) {
+	struct vimActionBinding *target = vimSystemFindTabAction(name);
+
+	if (target == NULL ||
+	    (!EDITOR_IS_ALT_LETTER_KEY(key) && !EDITOR_IS_CTRL_ALT_LETTER_KEY(key))) {
+		return 0;
+	}
+	for (size_t i = 0; i < g_vim_tab_action_count; i++) {
+		if (&g_vim_tab_actions[i] != target && g_vim_tab_actions[i].bound_key == key) {
+			g_vim_tab_actions[i].bound_key = -1;
+		}
+	}
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		if (g_vim_commands[i].bound_key == key) {
+			g_vim_commands[i].bound_key = -1;
+		}
+	}
+	target->bound_key = key;
+	return 1;
+}
+
 static int vimSystemBindKey(const char *mode, const char *name, int key) {
 	enum vimSystemMode target_mode = VIM_SYSTEM_MODE_NORMAL;
 	struct vimBindableCommand *target = NULL;
@@ -4767,6 +5064,9 @@ static int vimSystemBindKey(const char *mode, const char *name, int key) {
 	}
 	if (strcmp(mode, "normal") == 0 && strcmp(name, "leader") == 0) {
 		return vimSystemSetLeaderKey(key);
+	}
+	if (strcmp(mode, "normal") == 0 && vimSystemFindTabAction(name) != NULL) {
+		return vimSystemBindTabAction(name, key);
 	}
 	if (!vimSystemModeFromName(mode, &target_mode)) {
 		return 0;
@@ -4792,6 +5092,7 @@ static int vimSystemBindKey(const char *mode, const char *name, int key) {
 			g_vim_commands[i].bound_key = -1;
 		}
 	}
+	vimSystemReleaseTabActionKey(key);
 	target->bound_key = key;
 	return 1;
 }
