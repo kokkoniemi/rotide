@@ -37,17 +37,23 @@ jobs:
           if-no-files-found: ignore
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install lint tools
-        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy
+      - name: Install LLVM 22 lint tools
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
+          echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
+          sudo apt-get update
+          sudo apt-get install -y clang-format-22 clang-tidy-22
 
       - name: Run lint gates
-        run: make lint-check
+        run: make lint-check CLANG_FORMAT=clang-format-22 CLANG_TIDY=clang-tidy-22
 
   sanitizers:
     runs-on: ubuntu-latest

@@ -1,4 +1,3 @@
-#include "config/common.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "input/system_vim.h"
@@ -907,6 +906,57 @@ static int test_editor_keymap_vim_project_overrides_global(void) {
 	return 0;
 }
 
+static int test_editor_keymap_vim_shared_tab_bindings_and_collisions(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-tabs-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+	int action = EDITOR_ACTION_COUNT;
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.tab_previous = \"alt+x\"\n"
+	                                          "normal.move_left = \"alt+h\"\n"));
+
+	editorVimReset();
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+	ASSERT_TRUE(!editorVimTabActionForKey(EDITOR_ALT_LETTER_KEY('j'), &action));
+	ASSERT_TRUE(editorVimTabActionForKey(EDITOR_ALT_LETTER_KEY('x'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
+	ASSERT_TRUE(!editorVimTabActionForKey(EDITOR_ALT_LETTER_KEY('h'), &action));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	(void)keymap_vim_send_key(EDITOR_ALT_LETTER_KEY('x'));
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	(void)keymap_vim_send_key(EDITOR_ALT_LETTER_KEY('k'));
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	E.cx = 1;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(EDITOR_ALT_LETTER_KEY('h')));
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(0, E.cx);
+
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.tab_first = \"alt+k\"\n"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+	ASSERT_TRUE(editorVimTabActionForKey(EDITOR_ALT_LETTER_KEY('k'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_FIRST_TAB, action);
+	ASSERT_TRUE(!editorVimTabActionForKey(EDITOR_ALT_LETTER_KEY('h'), &action));
+
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.tab_first = \"h\"\n"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+	ASSERT_TRUE(editorVimTabActionForKey(EDITOR_ALT_LETTER_KEY('h'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_FIRST_TAB, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_workspace_keymap_view_tests[] = {
         {"editor_cursor_style_load_valid_values_case_insensitive",
          test_editor_cursor_style_load_valid_values_case_insensitive},
@@ -957,6 +1007,8 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_vim_rebindings_preserve_structural_grammar},
         {"editor_keymap_vim_project_overrides_global",
          test_editor_keymap_vim_project_overrides_global},
+        {"editor_keymap_vim_shared_tab_bindings_and_collisions",
+         test_editor_keymap_vim_shared_tab_bindings_and_collisions},
 };
 
 const int g_workspace_keymap_view_test_count =

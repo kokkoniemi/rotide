@@ -294,6 +294,15 @@ console = "terminal"
 # Visual-mode commands: the motions above plus delete change yank delete_char paste.
 # Insert-mode commands: normal_mode (leave Insert; default "esc").
 #
+# Shared tab actions use normal.tab_* configuration names but are active in
+# editor Normal/Insert/Visual and Terminal Normal modes. They accept Alt or
+# Ctrl-Alt letters. A modified key belongs to one action: rebinding a tab action
+# releases collisions from other tab actions and per-mode commands, and binding
+# a per-mode command releases a colliding shared tab action.
+#   tab_first ("alt+h"), tab_previous ("alt+j"), tab_next ("alt+k"),
+#   tab_last ("alt+l"), tab_new ("alt+n"), tab_close ("alt+d"),
+#   tab_terminal ("alt+t").
+#
 # Leader sequences (Normal mode): "<leader>" then one key runs an editor action.
 # Set the leader key with "normal.leader" (default "space"; "space" and a literal
 # " " both work). Bind sub-keys with "leader.<command>". Built-in leader commands:
@@ -306,9 +315,8 @@ console = "terminal"
 # Built-in Vim window commands are not configurable yet: Ctrl-W s/v splits,
 # Ctrl-W c/q closes the focused pane, Ctrl-W o closes other panes, Ctrl-W w and
 # Ctrl-W W cycle pane focus, Ctrl-W h/j/k/l (or arrows) move focus,
-# Ctrl-W H/J/K/L move the active tab to a neighbour pane, and Ctrl-W t opens a
-# new terminal tab beside the current one. Ctrl-W q is pane-close; use :q or
-# :q to quit the app.
+# Ctrl-W H/J/K/L move the active tab to a neighbour pane, and Ctrl-W t focuses
+# the top-left pane. Ctrl-W q is pane-close; use :q to quit the app.
 #
 # Vim terminal focus is modal, like Vim's :terminal, and the mode is shown in the
 # status bar. New terminals start in Job/Insert mode, which forwards every key to
@@ -321,16 +329,19 @@ console = "terminal"
 #     from Job/Insert mode;
 #   Ctrl-W N enters Terminal Normal mode;
 #   Ctrl-W . sends a literal Ctrl-W byte to the child.
-# In Terminal Normal mode the Vim <leader> and Ctrl-W maps run against rotide (so
-# <leader>p, <leader>e, Ctrl-W h/l, etc. work), keys are not sent to the child,
-# and i/a/I/A return to Job/Insert mode. (Ctrl-W is a built-in window key and not
-# yet rebindable; a shell that wants readline's Ctrl-W can use Ctrl-W . to send a
-# literal Ctrl-W.)
+# In Terminal Normal mode the Vim <leader>, shared Alt tab actions, and Ctrl-W
+# maps run against rotide (so Alt-J/K, <leader>p, Ctrl-W h/l, etc. work), keys
+# are not sent to the child, and i/a/I/A return to Job/Insert mode. (Ctrl-W is a
+# built-in window key and not yet rebindable; a shell that wants readline's
+# Ctrl-W can use Ctrl-W . to send a literal Ctrl-W.)
 #
 # Built-in ex aliases include :split/:sp, :vsplit/:vs/:vsp, :e/:edit <file>,
 # :split <file>, :vsplit <file>, :close/:clo, :only/:on, :tabclose/:tabc,
-# :bd/:bdelete, :tabnew, :term/:terminal, :vterm, and :tabterm (a terminal tab
-# beside the current one, like Ctrl-W t). The :git command opens
+# :bd/:bdelete, :tabnew, :tabnext/:tabn, :tabprevious/:tabp/:tabNext,
+# :tabfirst/:tabfir/:tabrewind/:tabr, :tablast/:tabl, :term/:terminal, :vterm,
+# and :tabterm (a terminal tab beside the current one). :set supports
+# number/nonumber, wrap/nowrap, cursorline/nocursorline, ! toggles, ? queries,
+# and the nu/nonu and cul/nocul aliases. The :git command opens
 # the Git drawer; :git branches|log|stash|commit|amend|push|pull|fetch runs the
 # matching view or action. Press Tab in the : prompt to complete/cycle command
 # names. These spellings are built in and are not configured under [keymap.vim].
@@ -344,3 +355,10 @@ console = "terminal"
 # leader.find_file = "p"
 # leader.project_search = "f"
 # leader.git_blame_details = "b"
+# normal.tab_first = "alt+h"
+# normal.tab_previous = "alt+j"
+# normal.tab_next = "alt+k"
+# normal.tab_last = "alt+l"
+# normal.tab_new = "alt+n"
+# normal.tab_close = "alt+d"
+# normal.tab_terminal = "alt+t"

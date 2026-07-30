@@ -73,7 +73,7 @@ SUITE_EXTERN(metrics_render_svg);
 SUITE_EXTERN(golden_apply);
 
 #define SUITE(name_str, tags_str, prefix)                                                          \
-	{ name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count }
+	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
 
 static const struct editorTestSuite k_suites[] = {
         SUITE("document_text_editing", "document", document_text_editing),

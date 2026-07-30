@@ -3,8 +3,26 @@
 RotIDE uses Vim input exclusively. Normal, Insert, Visual, and Visual-Block
 editing follow the modal bindings below. Workspace commands route through the
 leader, `g` prefixes, `Ctrl-W`, ex commands, or focus-specific Git and drawer
-keys. `Alt-Left`/`Alt-Right`, `Alt-Up`/`Alt-Down`, `Alt-C`, and
-`Alt-Z`/`Alt-N`/`Alt-H` remain explicit Vim-owned shortcuts.
+keys.
+
+The only default tab-key family is:
+
+- `Alt-H` / `Alt-L`: first/last visible tab in the focused pane
+- `Alt-J` / `Alt-K`: previous/next visible tab, wrapping
+- `Alt-N`: new empty editor tab beside the active tab
+- `Alt-D`: close the active tab when it is safe to repeat
+- `Alt-T`: new terminal tab beside the active tab
+
+Repeated `Alt-D` follows the pane's MRU selection after every close. On an
+unsaved tab, running task tab, or live terminal, the first press warns and the
+next consecutive `Alt-D` closes it (terminating the task or terminal when
+needed). Any intervening action cancels that confirmation.
+`Alt-Left` and `Alt-Right` are not tab aliases. `Alt-Up`/`Alt-Down` still move
+the current line, and `Alt-C` toggles comments.
+
+The tab family works in editor Normal, Insert, and Visual modes and in Terminal
+Normal mode. Terminal Job/Insert mode forwards every Alt/Meta key to the child
+PTY; use `Ctrl-W N` to enter Terminal Normal first.
 
 ## Vim leader bindings
 
@@ -35,6 +53,7 @@ In Vim Normal mode, `Ctrl-W` starts a built-in window-command prefix:
 - `Ctrl-W W`: focus the previous pane
 - `Ctrl-W h` / `j` / `k` / `l`: focus left/down/up/right; arrow keys work too
 - `Ctrl-W H` / `J` / `K` / `L`: move the active tab to the neighbour pane
+- `Ctrl-W t`: focus the top-left pane
 
 `Ctrl-W q` closes a pane in RotIDE; it does not quit the app. Use `:q` for
 app quit semantics.
@@ -50,8 +69,12 @@ The `:` prompt accepts these Vim-style aliases:
 - `:only` / `:on`: close other panes
 - `:tabclose` / `:tabc`, `:bd` / `:bdelete`: close the active tab
 - `:tabnew`: create an empty tab
+- `:tabnext` / `:tabn`, `:tabprevious` / `:tabp` / `:tabNext`: move through tabs
+- `:tabfirst` / `:tabfir` / `:tabrewind` / `:tabr`: select the first tab
+- `:tablast` / `:tabl`: select the last tab
 - `:term` / `:terminal`: open a terminal in a horizontal split
 - `:vterm`: open a terminal in a vertical split
+- `:tabterm`: open a terminal tab beside the active tab
 - `:git`: open the Git drawer; `:git branches` / `log` / `stash` / `commit` /
   `amend` / `push` / `pull` / `fetch` run the matching Git view or action
 - `:lsp`: open the LSP Problems/Symbols drawer; `:lsp install-server <name>`
@@ -63,6 +86,17 @@ The `:` prompt accepts these Vim-style aliases:
 
 Press Tab in the `:` prompt to complete and cycle command names. File-path
 arguments are not completed yet. `:q` keeps RotIDE's quit-app behavior.
+
+Runtime view settings use Vim's `:set` vocabulary:
+
+- line numbers: `:set number`, `:set nonumber`, `:set number!`, `:set number?`
+- wrapping: `:set wrap`, `:set nowrap`, `:set wrap!`, `:set wrap?`
+- current line: `:set cursorline`, `:set nocursorline`, `:set cursorline!`,
+  `:set cursorline?`
+
+The aliases `nu`/`nonu` and `cul`/`nocul` are accepted. Bare `:set` reports all
+three states, and multiple options apply from left to right. These commands
+change runtime view state without marking text dirty or rewriting configuration.
 
 ## Vim find-char motions
 

@@ -1,4 +1,3 @@
-#include "config/common.h"
 #include "editing/edit.h"
 #include "editing/jumplist.h"
 #include "editor_test_api.h"

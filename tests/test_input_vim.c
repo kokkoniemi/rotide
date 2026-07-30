@@ -420,6 +420,29 @@ static int test_input_vim_mode_is_tab_local(void) {
 	return 0;
 }
 
+static int test_input_vim_alt_tabs_work_in_normal_insert_and_visual(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	ASSERT_TRUE(vim_test_activate());
+
+	(void)vim_test_key(EDITOR_ALT_LETTER_KEY('j'));
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	(void)vim_test_key(EDITOR_ALT_LETTER_KEY('k'));
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
+	(void)vim_test_key(EDITOR_ALT_LETTER_KEY('j'));
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	return 0;
+}
+
 static int test_input_vim_normal_delete_and_change_operators(void) {
 	add_row("abcdef");
 
@@ -1093,6 +1116,70 @@ static int test_input_vim_ex_tab_and_terminal_aliases(void) {
 	return 0;
 }
 
+static int test_input_vim_ex_tab_navigation_commands(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("two");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(vim_test_ex_command("tabfirst") == 0);
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_TRUE(vim_test_ex_command("tabp") == 0);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_TRUE(vim_test_ex_command("tabn") == 0);
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_TRUE(vim_test_ex_command("tabl") == 0);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_TRUE(vim_test_ex_command("tabrewind") == 0);
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_TRUE(vim_test_ex_command("tabNext") == 0);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	return 0;
+}
+
+static int test_input_vim_ex_set_view_options(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("line");
+	ASSERT_TRUE(vim_test_activate());
+	E.dirty = 7;
+	E.line_numbers_enabled = 1;
+	E.line_wrap_enabled = 0;
+	E.current_line_highlight_enabled = 1;
+
+	ASSERT_TRUE(vim_test_ex_command("set nonumber wrap nocursorline") == 0);
+	ASSERT_EQ_INT(0, E.line_numbers_enabled);
+	ASSERT_EQ_INT(1, E.line_wrap_enabled);
+	ASSERT_EQ_INT(0, E.current_line_highlight_enabled);
+	ASSERT_EQ_INT(7, E.dirty);
+
+	ASSERT_TRUE(vim_test_ex_command("set number! wrap! cursorline!") == 0);
+	ASSERT_EQ_INT(1, E.line_numbers_enabled);
+	ASSERT_EQ_INT(0, E.line_wrap_enabled);
+	ASSERT_EQ_INT(1, E.current_line_highlight_enabled);
+
+	ASSERT_TRUE(vim_test_ex_command("set nonu nocul") == 0);
+	ASSERT_EQ_INT(0, E.line_numbers_enabled);
+	ASSERT_EQ_INT(0, E.current_line_highlight_enabled);
+	ASSERT_TRUE(vim_test_ex_command("set nu cul") == 0);
+	ASSERT_EQ_INT(1, E.line_numbers_enabled);
+	ASSERT_EQ_INT(1, E.current_line_highlight_enabled);
+
+	ASSERT_TRUE(vim_test_ex_command("set number? wrap? cursorline?") == 0);
+	ASSERT_EQ_STR("number nowrap cursorline", E.statusmsg);
+	ASSERT_TRUE(vim_test_ex_command("set") == 0);
+	ASSERT_EQ_STR("number nowrap cursorline", E.statusmsg);
+
+	E.line_numbers_enabled = 0;
+	ASSERT_TRUE(vim_test_ex_command("set number not-a-real-option") == 0);
+	ASSERT_EQ_INT(1, E.line_numbers_enabled);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Unknown option: not-a-real-option", E.statusmsg);
+	return 0;
+}
+
 static int test_input_vim_ex_completion_cycles_commands(void) {
 	char *first = vimSystemExCompletionTest("sp", 0);
 	char *second = vimSystemExCompletionTest("sp", 1);
@@ -1102,6 +1189,8 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	char *tab2 = vimSystemExCompletionTest("tab", 2);
 	char *tab3 = vimSystemExCompletionTest("tab", 3);
 	char *wrap = vimSystemExCompletionTest("tab", 4);
+	char *set_number = vimSystemExCompletionTest("set nu", 0);
+	char *set_nonumber = vimSystemExCompletionTest("set no", 0);
 	char *builtin = vimSystemExCompletionTest("x", 0);
 	char *missing = vimSystemExCompletionTest("zz", 0);
 
@@ -1112,7 +1201,9 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	ASSERT_EQ_STR("tabc", tab1);
 	ASSERT_EQ_STR("tabterm", tab2);
 	ASSERT_EQ_STR("tabnew", tab3);
-	ASSERT_EQ_STR("tabclose", wrap);
+	ASSERT_EQ_STR("tabnext", wrap);
+	ASSERT_EQ_STR("set number", set_number);
+	ASSERT_EQ_STR("set nonumber", set_nonumber);
 	ASSERT_EQ_STR("x", builtin);
 	ASSERT_TRUE(missing == NULL);
 	free(first);
@@ -1123,6 +1214,8 @@ static int test_input_vim_ex_completion_cycles_commands(void) {
 	free(tab2);
 	free(tab3);
 	free(wrap);
+	free(set_number);
+	free(set_nonumber);
 	free(builtin);
 	return 0;
 }
@@ -3109,6 +3202,8 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_operator_arrow_down_deletes_lines",
          test_input_vim_operator_arrow_down_deletes_lines},
         {"input_vim_mode_is_tab_local", test_input_vim_mode_is_tab_local},
+        {"input_vim_alt_tabs_work_in_normal_insert_and_visual",
+         test_input_vim_alt_tabs_work_in_normal_insert_and_visual},
         {"input_vim_normal_delete_and_change_operators",
          test_input_vim_normal_delete_and_change_operators},
         {"input_vim_operator_motion_delete_yank_and_change",
@@ -3145,6 +3240,8 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_ex_window_aliases", test_input_vim_ex_window_aliases},
         {"input_vim_ex_file_argument_commands", test_input_vim_ex_file_argument_commands},
         {"input_vim_ex_tab_and_terminal_aliases", test_input_vim_ex_tab_and_terminal_aliases},
+        {"input_vim_ex_tab_navigation_commands", test_input_vim_ex_tab_navigation_commands},
+        {"input_vim_ex_set_view_options", test_input_vim_ex_set_view_options},
         {"input_vim_ex_completion_cycles_commands", test_input_vim_ex_completion_cycles_commands},
         {"input_vim_ctrl_w_split_focus_and_close", test_input_vim_ctrl_w_split_focus_and_close},
         {"input_vim_ctrl_w_cycle_only_and_cancel", test_input_vim_ctrl_w_cycle_only_and_cancel},

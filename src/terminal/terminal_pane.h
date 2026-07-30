@@ -149,6 +149,9 @@ struct editorPaneNode;
  * a TERMINAL tab, else NULL. */
 struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane);
 
+/* Returns 1 while the terminal still owns a running child process. */
+int editorTerminalPaneIsLive(const struct editorTerminalPane *terminal);
+
 /* Drop sequences abandoned across a terminal-tab focus change. */
 void editorTerminalPaneResetPendingInput(struct editorTerminalPane *terminal);
 

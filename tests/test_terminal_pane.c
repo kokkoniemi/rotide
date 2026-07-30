@@ -1139,23 +1139,24 @@ static int test_terminal_input_vim_ctrl_w_n_toggles_mode(void) {
 	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
 }
 
-static int test_terminal_input_vim_ctrl_w_t_opens_terminal_tab(void) {
+static int test_terminal_input_vim_ctrl_w_t_focuses_top_left_from_terminal(void) {
 	struct editorTerminalPane *t = NULL;
 	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
 	if (leaf == NULL) {
 		return 1;
 	}
+	struct editorPaneNode *first = editorPaneNodeFirstLeaf(E.layout_root);
 	int tabs_before = E.tab_count;
 	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
 	feed_keys("\x17t");
-	struct editorTerminalPane *active = editorTerminalPaneForPane(E.focused_leaf);
-	int failed = E.tab_count != tabs_before + 1 ||
-	             editorPaneTreeLeafCount(E.layout_root) != leaves_before || active == NULL ||
-	             active == t || t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
+	int failed = E.tab_count != tabs_before ||
+	             editorPaneTreeLeafCount(E.layout_root) != leaves_before ||
+	             E.focused_leaf != first || E.focused_leaf == leaf ||
+	             t->input_mode != EDITOR_TERMINAL_INPUT_INSERT;
 	return failed;
 }
 
-static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
+static int test_terminal_input_vim_ctrl_w_t_focuses_top_left_from_editor(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
 	}
@@ -1166,13 +1167,83 @@ static int test_terminal_input_vim_ctrl_w_t_from_editor_pane(void) {
 	if (!editorTabsInit()) {
 		return 1;
 	}
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (second == NULL || E.focused_leaf != second) {
+		return 1;
+	}
+	struct editorPaneNode *first = editorPaneNodeFirstLeaf(E.layout_root);
 	int tabs_before = E.tab_count;
 	int leaves_before = editorPaneTreeLeafCount(E.layout_root);
 	feed_keys("\x17t");
-	int failed = E.tab_count != tabs_before + 1 ||
+	int failed = E.tab_count != tabs_before ||
 	             editorPaneTreeLeafCount(E.layout_root) != leaves_before ||
-	             editorTerminalPaneForPane(E.focused_leaf) == NULL;
+	             E.focused_leaf != first;
 	return failed;
+}
+
+static int test_terminal_input_vim_normal_alt_tab_navigation(void) {
+	struct editorTerminalPane *a = NULL;
+	if (setup_focused_terminal("sleep 5", &a) == NULL) {
+		return 1;
+	}
+	int a_idx = E.active_tab;
+	int b_idx = editorTabNewTerminalBesideActive("sleep 5");
+	if (b_idx < 0) {
+		return 1;
+	}
+	struct editorTerminalPane *b = editorTerminalPaneForPane(E.focused_leaf);
+	if (b == NULL || b == a) {
+		return 1;
+	}
+
+	feed_keys("\x17N\x1bj");
+	if (E.active_tab != a_idx) {
+		return 1;
+	}
+	feed_keys("\x17N\x1bk");
+	return E.active_tab != b_idx;
+}
+
+static int test_terminal_input_vim_normal_alt_d_confirms_live_terminal(void) {
+	struct editorTerminalPane *t = NULL;
+	if (setup_focused_terminal("sleep 5", &t) == NULL) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	feed_keys("\x17N\x1b"
+	          "d");
+	if (E.tab_count != tabs_before || E.close_confirmed ||
+	    strstr(E.statusmsg, "Press Alt-D again") == NULL) {
+		return 1;
+	}
+	feed_keys("\x1b"
+	          "d");
+	return E.tab_count != tabs_before - 1;
+}
+
+static int test_terminal_input_vim_normal_alt_t_opens_terminal_tab(void) {
+	struct editorTerminalPane *t = NULL;
+	if (setup_focused_terminal("sleep 5", &t) == NULL) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	feed_keys("\x17N\x1bt");
+	struct editorTerminalPane *active = editorTerminalPaneForPane(E.focused_leaf);
+	return E.tab_count != tabs_before + 1 || active == NULL || active == t;
+}
+
+static int test_terminal_input_vim_insert_forwards_alt_namespace(void) {
+	struct editorTerminalPane *t = NULL;
+	struct editorPaneNode *leaf = setup_focused_terminal("sleep 5", &t);
+	if (leaf == NULL) {
+		return 1;
+	}
+	int tabs_before = E.tab_count;
+	int active_before = E.active_tab;
+	feed_keys("\x1b"
+	          "d\x1bh\x1bj\x1bk\x1bl\x1bn\x1bt\x1b[1;3D\x1b[1;3C");
+	return t->input_mode != EDITOR_TERMINAL_INPUT_INSERT || E.focused_leaf != leaf ||
+	       E.tab_count != tabs_before || E.active_tab != active_before;
 }
 
 static int test_terminal_input_vim_ctrl_w_switches_pane(void) {
@@ -1258,10 +1329,18 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_input_vim_esc_prefixed_stays_insert},
         {"terminal_input_vim_ctrl_w_n_toggles_mode", test_terminal_input_vim_ctrl_w_n_toggles_mode},
         {"terminal_input_vim_ctrl_w_switches_pane", test_terminal_input_vim_ctrl_w_switches_pane},
-        {"terminal_input_vim_ctrl_w_t_opens_terminal_tab",
-         test_terminal_input_vim_ctrl_w_t_opens_terminal_tab},
-        {"terminal_input_vim_ctrl_w_t_from_editor_pane",
-         test_terminal_input_vim_ctrl_w_t_from_editor_pane},
+        {"terminal_input_vim_ctrl_w_t_focuses_top_left_from_terminal",
+         test_terminal_input_vim_ctrl_w_t_focuses_top_left_from_terminal},
+        {"terminal_input_vim_ctrl_w_t_focuses_top_left_from_editor",
+         test_terminal_input_vim_ctrl_w_t_focuses_top_left_from_editor},
+        {"terminal_input_vim_normal_alt_tab_navigation",
+         test_terminal_input_vim_normal_alt_tab_navigation},
+        {"terminal_input_vim_normal_alt_d_confirms_live_terminal",
+         test_terminal_input_vim_normal_alt_d_confirms_live_terminal},
+        {"terminal_input_vim_normal_alt_t_opens_terminal_tab",
+         test_terminal_input_vim_normal_alt_t_opens_terminal_tab},
+        {"terminal_input_vim_insert_forwards_alt_namespace",
+         test_terminal_input_vim_insert_forwards_alt_namespace},
         {"terminal_input_vim_normal_leader_resolves",
          test_terminal_input_vim_normal_leader_resolves},
         {"terminal_input_vim_normal_colon_runs_ex_command",

@@ -40,6 +40,7 @@ static int g_render_once = 0;
 
 void editorInit(void) {
 	editorResetActiveBufferFields();
+	editorDispatchResetInputState();
 	editorLspConfigInitDefaults(&E.lsp_config);
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
@@ -224,6 +225,9 @@ int main(int argc, char *argv[]) {
 	 * empty terminal pane that steals nothing but renders dead. */
 	int reset_panes = !restored_session && argc >= 2;
 	(void)editorWorkspaceStateLoadAndApply(E.window_cols, reset_panes);
+	if (reset_panes) {
+		(void)editorDrawerSetCollapsed(1);
+	}
 	if (!restored_session && argc < 2) {
 		(void)editorWorkspaceStateRestoreTabs();
 	}

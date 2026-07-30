@@ -6,7 +6,12 @@
 # Context lines (source excerpt + caret) are detected by their format and
 # skipped together with the matched warning line.
 
-/no header providing "(CLOCK_MONOTONIC|CLOCK_REALTIME|PATH_MAX|poll|pollfd|POLLIN|POLLOUT|POLLERR|POLLHUP|POLLNVAL|nfds_t|rusage|TIOCSWINSZ|TIOCGWINSZ|FIONREAD|errno|ETIMEDOUT|EACCES|EEXIST|EINTR|EIO|ENOENT|EROFS|siginfo_t|pthread_t|pthread_mutex_t|pthread_cond_t|mbstate_t|CHAR_MIN|CHAR_MAX|strdup|stat)" is directly included/ {
+/no header providing "(CLOCK_MONOTONIC|CLOCK_REALTIME|PATH_MAX|poll|pollfd|POLLIN|POLLOUT|POLLERR|POLLHUP|POLLNVAL|nfds_t|rusage|TIOCSWINSZ|TIOCGWINSZ|FIONREAD|errno|EACCES|EAGAIN|EBADF|ECHILD|EEXIST|EINVAL|EINTR|EIO|EISDIR|EMSGSIZE|ENAMETOOLONG|ENOMEM|ENOENT|ENOSPC|ENOSYS|ENOTDIR|EOVERFLOW|EPERM|EPIPE|EPROTO|EROFS|ETIMEDOUT|EWOULDBLOCK|EXDEV|siginfo_t|pthread_t|pthread_mutex_t|pthread_cond_t|mbstate_t|CHAR_MIN|CHAR_MAX|strdup|stat)" is directly included/ {
+    skip = 1
+    next
+}
+
+/tests\/save_syscalls_test_hooks.c:.*included header errno.h is not used directly/ {
     skip = 1
     next
 }

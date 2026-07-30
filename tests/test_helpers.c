@@ -55,6 +55,7 @@ static void ensure_test_stdout_open(void) {
 }
 
 void clear_editor_state(void) {
+	editorDispatchResetInputState();
 	editorDapShutdown();
 	editorDrawerShutdown();
 	editorRecoveryShutdown();

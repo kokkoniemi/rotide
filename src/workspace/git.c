@@ -568,6 +568,7 @@ static int gitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos, cons
 		return 0;
 	}
 	cmd[cur++] = '\'';
+	cmd[cur] = '\0';
 	*pos = cur;
 	return 1;
 }

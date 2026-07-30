@@ -37,6 +37,8 @@
 #define VT100_CURSOR_COLOR_DEFAULT "\x1b]112\x07"
 #define VT100_ENABLE_MOUSE "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h"
 #define VT100_DISABLE_MOUSE "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l"
+#define VT100_ENABLE_BRACKETED_PASTE "\x1b[?2004h"
+#define VT100_DISABLE_BRACKETED_PASTE "\x1b[?2004l"
 #define OSC52_PLAIN_PREFIX "\x1b]52;c;"
 #define OSC52_PLAIN_SUFFIX "\a"
 #define OSC52_TMUX_PREFIX "\x1bPtmux;\x1b\x1b]52;c;"
@@ -798,6 +800,8 @@ static void terminalRestoreInternal(void) {
 		}
 	}
 	(void)terminalWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE, sizeof(VT100_DISABLE_MOUSE) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_DISABLE_BRACKETED_PASTE,
+	                       sizeof(VT100_DISABLE_BRACKETED_PASTE) - 1);
 	terminalRestoreCursorVisualState();
 	// Drop any queued event so a later key read cannot consume stale mouse data.
 	g_terminal_pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
@@ -932,8 +936,10 @@ void editorSetRawMode(void) {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
 		editorPanic("tcsetattr");
 	}
-	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
+	// Unsupported terminals ignore these optional input modes.
 	(void)terminalWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_ENABLE_BRACKETED_PASTE,
+	                       sizeof(VT100_ENABLE_BRACKETED_PASTE) - 1);
 	g_terminal_raw_enabled = 1;
 	(void)signal(SIGPIPE, SIG_IGN);
 	terminalInstallTerminationHandlers();

@@ -14,7 +14,7 @@
 #include <time.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
-#define ROTIDE_VERSION "0.1.0"
+#define ROTIDE_VERSION "0.1.1"
 #define ROTIDE_TAB_WIDTH 8
 #define ROTIDE_INDENT_WIDTH_DEFAULT 4
 #define ROTIDE_INDENT_WIDTH_MAX 16
@@ -279,8 +279,11 @@ enum editorAction {
 	EDITOR_ACTION_SAVE,
 	EDITOR_ACTION_NEW_TAB,
 	EDITOR_ACTION_CLOSE_TAB,
+	EDITOR_ACTION_SAFE_CLOSE_TAB,
 	EDITOR_ACTION_NEXT_TAB,
 	EDITOR_ACTION_PREV_TAB,
+	EDITOR_ACTION_FIRST_TAB,
+	EDITOR_ACTION_LAST_TAB,
 	EDITOR_ACTION_FOCUS_DRAWER,
 	EDITOR_ACTION_TOGGLE_DRAWER,
 	EDITOR_ACTION_EXPLORER_DRAWER,
@@ -378,6 +381,7 @@ enum editorAction {
 	EDITOR_ACTION_FOCUS_RIGHT_PANE,
 	EDITOR_ACTION_FOCUS_UP_PANE,
 	EDITOR_ACTION_FOCUS_DOWN_PANE,
+	EDITOR_ACTION_FOCUS_TOP_LEFT_PANE,
 	EDITOR_ACTION_MOVE_TAB_LEFT_PANE,
 	EDITOR_ACTION_MOVE_TAB_RIGHT_PANE,
 	EDITOR_ACTION_MOVE_TAB_UP_PANE,
@@ -860,9 +864,8 @@ struct editorConfig {
 	/* --- Input transient: paste gate --- */
 	/*
 	 * Non-zero between BRACKETED_PASTE_START_EVENT and
-	 * BRACKETED_PASTE_END_EVENT. Used by terminal panes so the
-	 * libvterm paste markers are sent to the child only when the
-	 * editor was actually told a paste is in progress.
+	 * BRACKETED_PASTE_END_EVENT. Editor insert mode buffers the payload
+	 * as one edit; terminal panes forward the matching paste markers.
 	 */
 	int paste_active;
 

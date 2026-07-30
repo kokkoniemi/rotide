@@ -51,6 +51,16 @@ static int git_input_git_available(void) {
 	return available;
 }
 
+static int git_input_git_lfs_available(void) {
+	static int checked = 0;
+	static int available = 0;
+	if (!checked) {
+		checked = 1;
+		available = git_input_run_cmd("git lfs version >/dev/null 2>&1");
+	}
+	return available;
+}
+
 #define SKIP_WITHOUT_GIT()                                                                         \
 	do {                                                                                       \
 		if (!git_input_git_available()) {                                                  \
@@ -376,6 +386,48 @@ static int test_git_input_push_key_runs_task_to_bare_remote(void) {
 	        "test \"$(git -C '%s' rev-parse --abbrev-ref --symbolic-full-name '@{u}')\" "
 	        "= origin/main",
 	        repo));
+
+	ASSERT_TRUE(git_input_run_cmd("rm -rf '%s'", bare));
+	git_input_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_input_push_runs_lfs_pre_push_hook(void) {
+	SKIP_WITHOUT_GIT();
+	if (!git_input_git_lfs_available()) {
+		(void)fprintf(stderr, "%s: skipped (no git-lfs binary)\n", __func__);
+		return 0;
+	}
+	char *repo = NULL;
+	ASSERT_TRUE(git_input_setup(&repo));
+
+	char bare[600];
+	(void)snprintf(bare, sizeof(bare), "%s-bare", repo);
+	ASSERT_TRUE(git_input_run_cmd("git init -q --bare '%s'", bare));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' remote add origin '%s'", repo, bare));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' lfs install --local >/dev/null 2>&1", repo));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' lfs track '*.bin' >/dev/null", repo));
+	ASSERT_TRUE(git_input_write_file(repo, "asset.bin", "large object payload\n"));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' add .gitattributes asset.bin", repo));
+	ASSERT_TRUE(git_input_run_cmd("git -C '%s' commit -q -m lfs", repo));
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_TRUE(git_input_select_action_row("Push"));
+	ASSERT_TRUE(editor_process_keypress_with_input("\ry\r", 3) == 0);
+	ASSERT_TRUE(editorTaskIsRunning());
+
+	for (int i = 0; i < 1000 && editorTaskIsRunning(); i++) {
+		(void)editorTaskPoll();
+		usleep(10000);
+	}
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_EQ_STR("Push finished", E.statusmsg);
+	ASSERT_TRUE(
+	        git_input_run_cmd("git -c safe.bareRepository=all -C '%s' show main:asset.bin | "
+	                          "grep -q '^version https://git-lfs.github.com/spec/v1$'",
+	                          bare));
+	ASSERT_TRUE(git_input_run_cmd("test -n \"$(find '%s/lfs/objects' -type f -print -quit)\"",
+	                              bare));
 
 	ASSERT_TRUE(git_input_run_cmd("rm -rf '%s'", bare));
 	git_input_repo_destroy(repo);
@@ -1192,6 +1244,7 @@ const struct editorTestCase g_git_input_tests[] = {
          test_git_input_push_without_upstream_can_cancel},
         {"git_input_push_key_runs_task_to_bare_remote",
          test_git_input_push_key_runs_task_to_bare_remote},
+        {"git_input_push_runs_lfs_pre_push_hook", test_git_input_push_runs_lfs_pre_push_hook},
         {"git_input_push_prompt_handles_adversarial_remote_name",
          test_git_input_push_prompt_handles_adversarial_remote_name},
         {"git_input_commit_via_vim_write", test_git_input_commit_via_vim_write},

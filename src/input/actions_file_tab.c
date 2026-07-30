@@ -8,6 +8,7 @@
 #include "language/syntax_worker.h"
 #include "rotide.h"
 #include "support/terminal.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
@@ -17,6 +18,11 @@
 
 static int g_actions_file_tab_quit_confirmed = 0;
 static int g_actions_file_tab_quit_task_confirmed = 0;
+static int g_actions_file_tab_safe_close_confirmed_tab = -1;
+
+static void actionsFileTabResetSafeCloseConfirmation(void) {
+	g_actions_file_tab_safe_close_confirmed_tab = -1;
+}
 
 static void actionsFileTabSetQuitConfirmStatus(void) {
 	editorSetStatusMsg("File has unsaved changes. Use :q again to quit");
@@ -118,7 +124,44 @@ void editorActionCloseTab(void) {
 	}
 }
 
+static void actionsFileTabSafeClose(void) {
+	int task_running = editorActiveTaskTabIsRunning();
+	int terminal_live =
+	        editorTabActiveKind() == EDITOR_PANE_KIND_TERMINAL &&
+	        editorTerminalPaneIsLive(
+	                (const struct editorTerminalPane *)editorTabPayloadAt(E.active_tab));
+
+	if ((task_running || E.dirty || terminal_live) &&
+	    g_actions_file_tab_safe_close_confirmed_tab != E.active_tab) {
+		g_actions_file_tab_safe_close_confirmed_tab = E.active_tab;
+		if (task_running) {
+			editorSetStatusMsg("Task is still running. Press Alt-D again to terminate "
+			                   "and close it");
+		} else if (E.dirty) {
+			editorSetStatusMsg(
+			        "Tab has unsaved changes. Press Alt-D again to close it");
+		} else {
+			editorSetStatusMsg("Terminal is still running. Press Alt-D again to "
+			                   "terminate and close it");
+		}
+		return;
+	}
+	if (task_running) {
+		(void)editorTaskTerminate();
+	}
+
+	int was_commit_tab = E.tab_kind == EDITOR_TAB_GIT_COMMIT;
+	actionsFileTabResetSafeCloseConfirmation();
+	if (editorTabCloseActive() && was_commit_tab) {
+		editorSetStatusMsg("Commit aborted");
+	}
+}
+
 int editorHandleFileTabMappedAction(enum editorAction action) {
+	if (action != EDITOR_ACTION_SAFE_CLOSE_TAB) {
+		actionsFileTabResetSafeCloseConfirmation();
+	}
+
 	switch (action) {
 		case EDITOR_ACTION_QUIT:
 			editorHistoryBreakGroup();
@@ -136,6 +179,10 @@ int editorHandleFileTabMappedAction(enum editorAction action) {
 			editorHistoryBreakGroup();
 			editorActionCloseTab();
 			return 1;
+		case EDITOR_ACTION_SAFE_CLOSE_TAB:
+			editorHistoryBreakGroup();
+			actionsFileTabSafeClose();
+			return 1;
 		case EDITOR_ACTION_NEXT_TAB:
 			editorHistoryBreakGroup();
 			(void)editorTabSwitchByDelta(1);
@@ -143,6 +190,14 @@ int editorHandleFileTabMappedAction(enum editorAction action) {
 		case EDITOR_ACTION_PREV_TAB:
 			editorHistoryBreakGroup();
 			(void)editorTabSwitchByDelta(-1);
+			return 1;
+		case EDITOR_ACTION_FIRST_TAB:
+			editorHistoryBreakGroup();
+			(void)editorTabSwitchToFirst();
+			return 1;
+		case EDITOR_ACTION_LAST_TAB:
+			editorHistoryBreakGroup();
+			(void)editorTabSwitchToLast();
 			return 1;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
@@ -156,6 +211,9 @@ int editorHandleFileTabMappedAction(enum editorAction action) {
 void editorFileTabActionsAfterKeypress(int mapped_action, enum editorAction action) {
 	if (!mapped_action || action != EDITOR_ACTION_CLOSE_TAB) {
 		E.close_confirmed = 0;
+	}
+	if (!mapped_action || action != EDITOR_ACTION_SAFE_CLOSE_TAB) {
+		actionsFileTabResetSafeCloseConfirmation();
 	}
 	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
 		g_actions_file_tab_quit_confirmed = 0;

@@ -95,6 +95,8 @@ int editorTabOpenGenerated(enum editorTabKind kind, const char *title, const cha
 int editorTabSwitchToGeneratedTab(enum editorTabKind kind, const char *title);
 int editorTabSwitchToIndex(int idx);
 int editorTabSwitchByDelta(int delta);
+int editorTabSwitchToFirst(void);
+int editorTabSwitchToLast(void);
 int editorTabCloseActive(void);
 int editorTabCount(void);
 int editorTabActiveIndex(void);
