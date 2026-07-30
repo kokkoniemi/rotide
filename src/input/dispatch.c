@@ -79,6 +79,29 @@ static void dispatchMoveCurrentLine(int direction);
 
 static enum editorAction g_dispatch_mapped_action = EDITOR_ACTION_COUNT;
 static int g_dispatch_has_mapped_action = 0;
+static char *g_dispatch_paste_text = NULL;
+static size_t g_dispatch_paste_textlen = 0;
+static size_t g_dispatch_paste_textcap = 0;
+static int g_dispatch_buffering_paste = 0;
+static int g_dispatch_paste_failed = 0;
+static int g_dispatch_paste_previous_was_cr = 0;
+
+static void dispatchDiscardPasteBuffer(void) {
+	free(g_dispatch_paste_text);
+	g_dispatch_paste_text = NULL;
+	g_dispatch_paste_textlen = 0;
+	g_dispatch_paste_textcap = 0;
+	g_dispatch_buffering_paste = 0;
+	g_dispatch_paste_failed = 0;
+	g_dispatch_paste_previous_was_cr = 0;
+}
+
+void editorDispatchResetInputState(void) {
+	dispatchDiscardPasteBuffer();
+	g_dispatch_mapped_action = EDITOR_ACTION_COUNT;
+	g_dispatch_has_mapped_action = 0;
+	E.paste_active = 0;
+}
 
 static int dispatchIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
@@ -3094,6 +3117,77 @@ int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out
 	return dispatchFinishMappedAction(0, effects, effects_out);
 }
 
+static void dispatchBeginBracketedPaste(void) {
+	dispatchDiscardPasteBuffer();
+	g_dispatch_buffering_paste = E.primary_focus == EDITOR_PRIMARY_FOCUS_TEXT &&
+	                             editorTerminalPaneForPane(E.focused_leaf) == NULL &&
+	                             editorVimIsInsertMode();
+}
+
+static int dispatchAppendBracketedPasteByte(int c) {
+	if (!E.paste_active || !g_dispatch_buffering_paste) {
+		return 0;
+	}
+	if (g_dispatch_paste_failed) {
+		return 1;
+	}
+	if (c < CHAR_MIN || c > CHAR_MAX) {
+		g_dispatch_paste_failed = 1;
+		editorSetStatusMsg("Paste contains unsupported terminal input");
+		return 1;
+	}
+
+	if (c == '\n' && g_dispatch_paste_previous_was_cr) {
+		g_dispatch_paste_previous_was_cr = 0;
+		return 1;
+	}
+	g_dispatch_paste_previous_was_cr = c == '\r';
+	char byte = c == '\r' ? '\n' : (char)c;
+
+	if (g_dispatch_paste_textlen == g_dispatch_paste_textcap) {
+		size_t new_cap = g_dispatch_paste_textcap == 0 ? 256 : g_dispatch_paste_textcap * 2;
+		if (new_cap < g_dispatch_paste_textcap || new_cap > ROTIDE_MAX_TEXT_BYTES) {
+			new_cap = ROTIDE_MAX_TEXT_BYTES;
+		}
+		if (new_cap <= g_dispatch_paste_textlen) {
+			g_dispatch_paste_failed = 1;
+			editorSetOperationTooLargeStatus();
+			return 1;
+		}
+		char *grown = editorRealloc(g_dispatch_paste_text, new_cap);
+		if (grown == NULL) {
+			g_dispatch_paste_failed = 1;
+			editorSetAllocFailureStatus();
+			return 1;
+		}
+		g_dispatch_paste_text = grown;
+		g_dispatch_paste_textcap = new_cap;
+	}
+	g_dispatch_paste_text[g_dispatch_paste_textlen++] = byte;
+	return 1;
+}
+
+static void dispatchFinishBracketedPaste(void) {
+	if (!g_dispatch_buffering_paste) {
+		dispatchDiscardPasteBuffer();
+		return;
+	}
+	if (!g_dispatch_paste_failed && g_dispatch_paste_textlen > 0) {
+		if (editorActiveTabIsReadOnly()) {
+			editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
+			                           ? "File is unsupported"
+			                           : "Task log is read-only");
+		} else {
+			dispatchPinActivePreviewForEdit();
+			editorEditPasteText(g_dispatch_paste_text, g_dispatch_paste_textlen,
+			                    dispatchClearSelectionMode);
+			editorViewportEnsureCursorVisible();
+			editorRecoveryMaybeAutosaveOnActivity();
+		}
+	}
+	dispatchDiscardPasteBuffer();
+}
+
 static int dispatchHandleInputEvent(int c) {
 	switch (c) {
 		case INPUT_EOF_EVENT:
@@ -3118,6 +3212,7 @@ static int dispatchHandleInputEvent(int c) {
 		}
 		case BRACKETED_PASTE_START_EVENT: {
 			E.paste_active = 1;
+			dispatchBeginBracketedPaste();
 			struct editorTerminalPane *paste_term =
 			        editorTerminalPaneForPane(E.focused_leaf);
 			if (paste_term != NULL) {
@@ -3132,6 +3227,7 @@ static int dispatchHandleInputEvent(int c) {
 			if (paste_term != NULL) {
 				(void)editorTerminalPaneSendPasteEnd(paste_term);
 			}
+			dispatchFinishBracketedPaste();
 			return 1;
 		}
 		default:
@@ -3616,6 +3712,9 @@ void editorProcessKeypress(void) {
 	int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
 
 	if (dispatchHandleInputEvent(c)) {
+		return;
+	}
+	if (dispatchAppendBracketedPasteByte(c)) {
 		return;
 	}
 	if (dispatchHandlePopupKey(c)) {

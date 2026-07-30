@@ -40,6 +40,7 @@ static int g_render_once = 0;
 
 void editorInit(void) {
 	editorResetActiveBufferFields();
+	editorDispatchResetInputState();
 	editorLspConfigInitDefaults(&E.lsp_config);
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;

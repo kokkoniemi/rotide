@@ -860,9 +860,8 @@ struct editorConfig {
 	/* --- Input transient: paste gate --- */
 	/*
 	 * Non-zero between BRACKETED_PASTE_START_EVENT and
-	 * BRACKETED_PASTE_END_EVENT. Used by terminal panes so the
-	 * libvterm paste markers are sent to the child only when the
-	 * editor was actually told a paste is in progress.
+	 * BRACKETED_PASTE_END_EVENT. Editor insert mode buffers the payload
+	 * as one edit; terminal panes forward the matching paste markers.
 	 */
 	int paste_active;
 

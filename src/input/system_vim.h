@@ -23,6 +23,7 @@ int editorVimBindKey(const char *mode, const char *name, int key);
 void editorVimStatusSegment(char *buf, size_t bufsize);
 int editorVimStatusColor(void);
 int editorVimCursorStyle(void);
+int editorVimIsInsertMode(void);
 void editorVimKeymapResetDefaults(void);
 int editorVimLeaderKey(void);
 int editorVimLeaderAction(int c, int *action_out);

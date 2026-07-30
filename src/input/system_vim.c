@@ -22,6 +22,7 @@
 #include "workspace/tabs.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -503,7 +504,8 @@ static int vimSystemEffectiveCount(void) {
 }
 
 static int vimSystemConsumeCountKey(int c) {
-	if (!isdigit(c) || (c == '0' && E.input_vim_count == 0)) {
+	if (c < 0 || c > UCHAR_MAX || !isdigit((unsigned char)c) ||
+	    (c == '0' && E.input_vim_count == 0)) {
 		return 0;
 	}
 	if (E.input_vim_count < 100000000) {
@@ -4841,4 +4843,8 @@ int editorVimStatusColor(void) {
 
 int editorVimCursorStyle(void) {
 	return vimSystemCursorStyle();
+}
+
+int editorVimIsInsertMode(void) {
+	return vimSystemMode() == VIM_SYSTEM_MODE_INSERT;
 }

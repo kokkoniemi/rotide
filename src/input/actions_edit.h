@@ -31,6 +31,7 @@ int editorEditSelectAll(void);
 void editorEditCopySelection(editorEditActionFn clear_selection_mode);
 void editorEditCutSelection(editorEditActionFn clear_selection_mode);
 void editorEditDeleteSelection(editorEditActionFn clear_selection_mode);
+void editorEditPasteText(const char *text, size_t len, editorEditActionFn clear_selection_mode);
 void editorEditPasteClipboard(editorEditActionFn clear_selection_mode);
 void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
                                   editorEditActionFn pin_active_preview_for_edit);

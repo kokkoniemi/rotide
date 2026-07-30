@@ -17,6 +17,7 @@ int editorDispatchJumpToPathLocation(const char *path, int line, int character);
 int editorDispatchJumplistBack(int count, int *effects_out);
 int editorDispatchJumplistForward(int count, int *effects_out);
 void editorDispatchHandleTextByte(int c, int *effects_out);
+void editorDispatchResetInputState(void);
 int editorDispatchOpenGitBlameDetailsAt(int row_idx, int anchor_col, int report_status);
 void editorProcessKeypress(void);
 int editorLspLocationMenuActivate(void);

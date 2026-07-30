@@ -2351,6 +2351,52 @@ static int test_editor_bracketed_paste_markers_toggle_paste_active(void) {
 	return 0;
 }
 
+static int test_editor_bracketed_paste_preserves_multiline_text_in_insert_mode(void) {
+	static const char pasted[] = "module type Runner = sig\n"
+	                             "  val run : 'a -> int\n"
+	                             "end\n"
+	                             "\n"
+	                             "module Demo = struct\n"
+	                             "  type state = Ready | Done\n"
+	                             "  type person = { name : string; age : int }\n"
+	                             "\n"
+	                             "  let count = ref 0\n"
+	                             "\n"
+	                             "  let run value =\n"
+	                             "    let local = value in\n"
+	                             "    Printf.printf \"Value %d\\n\" local;\n"
+	                             "    match local with\n"
+	                             "    | 0 -> Ready\n"
+	                             "    | _ -> Done\n"
+	                             "\n"
+	                             "  class worker initial = object\n"
+	                             "    val mutable current = initial\n"
+	                             "    method get = current\n"
+	                             "  end\n"
+	                             "end";
+	char input[sizeof("\x1b[200~") - 1 + sizeof(pasted) - 1 + sizeof("\x1b[201~")];
+	size_t offset = 0;
+
+	memcpy(input + offset, "\x1b[200~", sizeof("\x1b[200~") - 1);
+	offset += sizeof("\x1b[200~") - 1;
+	memcpy(input + offset, pasted, sizeof(pasted) - 1);
+	offset += sizeof(pasted) - 1;
+	memcpy(input + offset, "\x1b[201~", sizeof("\x1b[201~") - 1);
+	offset += sizeof("\x1b[201~") - 1;
+
+	ASSERT_TRUE(editor_process_keypress_with_input("i", 1) == 0);
+	E.auto_indent_enabled = 1;
+	ASSERT_TRUE(editor_process_keypress_with_input(input, offset) == 0);
+	size_t actual_len = 0;
+	char *actual = dup_active_source_text(&actual_len);
+	ASSERT_TRUE(actual != NULL);
+	ASSERT_EQ_INT((int)(sizeof(pasted) - 1), (int)actual_len);
+	ASSERT_MEM_EQ(pasted, actual, actual_len);
+	free(actual);
+	ASSERT_EQ_INT(0, E.paste_active);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_editor_right_click_opens_context_menu(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("abcdef");
@@ -3373,6 +3419,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
         {"editor_bracketed_paste_markers_toggle_paste_active",
          test_editor_bracketed_paste_markers_toggle_paste_active},
+        {"editor_bracketed_paste_preserves_multiline_text_in_insert_mode",
+         test_editor_bracketed_paste_preserves_multiline_text_in_insert_mode},
         {"editor_process_keypress_mouse_editor_right_click_opens_context_menu",
          test_editor_process_keypress_mouse_editor_right_click_opens_context_menu},
         {"editor_context_menu_shows_go_to_definition_only_for_lsp_files",

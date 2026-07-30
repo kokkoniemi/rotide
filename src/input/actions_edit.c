@@ -620,22 +620,19 @@ void editorEditDeleteSelection(editorEditActionFn clear_selection_mode) {
 	}
 }
 
-void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
-	size_t clip_len = 0;
-	const char *clip = editorClipboardGet(&clip_len);
-	if (clip_len <= 0) {
-		editorSetStatusMsg("Clipboard is empty");
+void editorEditPasteText(const char *text, size_t len, editorEditActionFn clear_selection_mode) {
+	if (text == NULL || len == 0) {
 		return;
 	}
 
 	if (E.column_select_active) {
 		editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 		int dirty_before = E.dirty;
-		int pasted = editorColumnSelectionPasteText(clip, clip_len);
+		int pasted = editorColumnSelectionPasteText(text, len);
 		editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 		editorHistoryBreakGroup();
 		if (pasted) {
-			editorSetStatusMsg("Pasted %zu bytes", clip_len);
+			editorSetStatusMsg("Pasted %zu bytes", len);
 		}
 		return;
 	}
@@ -646,13 +643,13 @@ void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
 	int indent_cx = has_selection ? range.start_cx : E.cx;
 	char *indented_clip = NULL;
 	size_t indented_clip_len = 0;
-	int indent_result = editorBuildAutoIndentedText(clip, clip_len, indent_cy, indent_cx,
+	int indent_result = editorBuildAutoIndentedText(text, len, indent_cy, indent_cx,
 	                                                &indented_clip, &indented_clip_len);
 	if (indent_result < 0) {
 		return;
 	}
-	const char *paste_text = indent_result > 0 ? indented_clip : clip;
-	size_t paste_len = indent_result > 0 ? indented_clip_len : clip_len;
+	const char *paste_text = indent_result > 0 ? indented_clip : text;
+	size_t paste_len = indent_result > 0 ? indented_clip_len : len;
 
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
@@ -675,8 +672,18 @@ void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
 	free(indented_clip);
 
 	if (pasted) {
-		editorSetStatusMsg("Pasted %zu bytes", clip_len);
+		editorSetStatusMsg("Pasted %zu bytes", len);
 	}
+}
+
+void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
+	size_t clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	if (clip_len <= 0) {
+		editorSetStatusMsg("Clipboard is empty");
+		return;
+	}
+	editorEditPasteText(clip, clip_len, clear_selection_mode);
 }
 
 static void actionsEditCallIfPresent(editorEditActionFn fn) {
