@@ -3,28 +3,28 @@
 <rect width="720" height="320" fill="#ffffff"/>
 <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">vterm — corpus bytes</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">30.8M</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">31.1M</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">15.4M</text>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">15.5M</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
 <text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
 <text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">bytes</text>
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-07-14</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-07-15</text>
 <line x1="179.6" y1="268" x2="179.6" y2="272" stroke="#444" stroke-width="1"/>
-<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-07-17</text>
+<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-07-18</text>
 <line x1="287.2" y1="268" x2="287.2" y2="272" stroke="#444" stroke-width="1"/>
-<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-07-21#2</text>
+<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-07-22</text>
 <line x1="394.8" y1="268" x2="394.8" y2="272" stroke="#444" stroke-width="1"/>
-<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-07-26</text>
+<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-07-27</text>
 <line x1="502.3" y1="268" x2="502.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-07-30#2</text>
+<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-07-31</text>
 <line x1="609.9" y1="268" x2="609.9" y2="272" stroke="#444" stroke-width="1"/>
-<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-08-04</text>
+<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-08-05</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-08-08</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,267.9 93.5,104.7 115.0,267.9 136.6,267.9 158.1,102.7 179.6,100.9 201.1,99.1 222.6,97.2 244.1,95.2 265.7,93.4 287.2,267.9 308.7,91.9 330.2,90.4 351.7,88.8 373.2,87.4 394.8,85.9 416.3,84.2 437.8,82.5 459.3,81.0 480.8,79.6 502.3,267.9 523.9,78.1 545.4,76.6 566.9,74.9 588.4,73.4 609.9,71.8 631.4,70.3 653.0,68.8 674.5,65.8 696.0,64.4"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-08-09</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,105.8 93.5,267.9 115.0,267.9 136.6,103.8 158.1,102.1 179.6,100.2 201.1,98.4 222.6,96.4 244.1,94.6 265.7,267.9 287.2,93.1 308.7,91.6 330.2,90.0 351.7,88.7 373.2,87.2 394.8,85.4 416.3,83.8 437.8,82.3 459.3,80.9 480.8,267.9 502.3,79.4 523.9,77.9 545.4,76.3 566.9,74.7 588.4,73.2 609.9,71.6 631.4,70.2 653.0,67.2 674.5,65.8 696.0,64.4"/>
 <circle cx="696.0" cy="64.4" r="3" fill="#1f77b4"/>
 </svg>
