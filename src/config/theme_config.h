@@ -113,6 +113,8 @@ struct editorThemeColor editorTheme256Color(unsigned char color);
 struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, unsigned char b);
 struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme,
                                                   enum editorThemeDiffTint tint);
+struct editorThemeColor editorThemeGitDiffEmphasisBgColor(const struct editorTheme *theme,
+                                                          enum editorThemeDiffTint tint);
 
 void editorThemeInitDefault(struct editorTheme *theme_out);
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name);

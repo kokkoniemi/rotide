@@ -56,6 +56,11 @@ int editorGitViewLineEntity(enum editorTabKind kind, const char *line, char *ent
 /* Render hooks: per-row background tint (diff added/removed lines, header
  * rows) and synthetic syntax spans for the git list views. */
 int editorGitViewRowBgColor(int row_idx, struct editorThemeColor *color_out);
+/* Render range inside a changed diff row that actually differs from its
+ * counterpart on the other side of the hunk, with the stronger tint to paint
+ * it. Returns 0 when the row has no counterpart or shares nothing with it. */
+int editorGitViewRowInlineChange(int row_idx, int *start_out, int *end_out,
+                                 struct editorThemeColor *bg_out);
 int editorGitViewRowSyntaxSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
                                 int *count_out);
 

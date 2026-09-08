@@ -37,6 +37,10 @@ struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, un
 	return color;
 }
 
+/* How much accent each diff shade carries: a light wash for a changed row, a
+ * stronger one for the characters inside it that actually differ. */
+enum { THEME_BUILTIN_DIFF_TINT_PCT = 22, THEME_BUILTIN_DIFF_EMPHASIS_PCT = 40 };
+
 /* Mixes `accent_pct`% of `accent` into `base`, both RGB. Used to derive a subtle
  * tinted background from an accent color and the editor background. Falls back to
  * a dim 256 yellow when either input is not RGB. */
@@ -51,35 +55,64 @@ static struct editorThemeColor themeBuiltinBlendRgb(struct editorThemeColor acce
 	                           (unsigned char)((accent.b * accent_pct + base.b * b) / 100));
 }
 
+/* Accent and fallbacks each diff tint is derived from. */
+struct themeBuiltinDiffTint {
+	enum editorThemeUiRole role;
+	unsigned char r, g, b;
+	unsigned char fallback_256;
+	unsigned char emphasis_fallback_256;
+};
+
+static const struct themeBuiltinDiffTint *themeBuiltinDiffTintSpec(enum editorThemeDiffTint tint) {
+	static const struct themeBuiltinDiffTint tints[] = {
+	        {EDITOR_THEME_UI_DIFF_ADDED_BG, 0x2E, 0xA0, 0x43, 22, 28},
+	        {EDITOR_THEME_UI_DIFF_REMOVED_BG, 0xD1, 0x37, 0x3F, 52, 88},
+	        {EDITOR_THEME_UI_DIFF_MODIFIED_BG, 0xD2, 0x99, 0x22, 58, 94},
+	};
+	if (tint < 0 || (size_t)tint >= sizeof(tints) / sizeof(tints[0])) {
+		return NULL;
+	}
+	return &tints[tint];
+}
+
 /* Background tint for changed diff lines, shared by the diff tabs and the gutter
  * change bar. Themes may set the diff_*_bg roles explicitly; otherwise the tint
  * is derived by blending a green/red/amber accent into the theme background so
  * every built-in theme (light or dark) gets a readable value for free. */
 struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme,
                                                   enum editorThemeDiffTint tint) {
-	static const struct {
-		enum editorThemeUiRole role;
-		unsigned char r, g, b;
-		unsigned char fallback_256;
-	} tints[] = {
-	        {EDITOR_THEME_UI_DIFF_ADDED_BG, 0x2E, 0xA0, 0x43, 22},
-	        {EDITOR_THEME_UI_DIFF_REMOVED_BG, 0xD1, 0x37, 0x3F, 52},
-	        {EDITOR_THEME_UI_DIFF_MODIFIED_BG, 0xD2, 0x99, 0x22, 58},
-	};
-	if (theme == NULL || tint < 0 || (size_t)tint >= sizeof(tints) / sizeof(tints[0])) {
+	const struct themeBuiltinDiffTint *spec = themeBuiltinDiffTintSpec(tint);
+	if (theme == NULL || spec == NULL) {
 		return editorThemeDefaultColor();
 	}
-	struct editorThemeColor configured = theme->ui[tints[tint].role];
+	struct editorThemeColor configured = theme->ui[spec->role];
 	if (configured.kind != EDITOR_THEME_COLOR_DEFAULT) {
 		return configured;
 	}
 	struct editorThemeColor bg = theme->ui[EDITOR_THEME_UI_BACKGROUND];
 	if (bg.kind == EDITOR_THEME_COLOR_RGB) {
-		struct editorThemeColor accent =
-		        editorThemeRgbColor(tints[tint].r, tints[tint].g, tints[tint].b);
-		return themeBuiltinBlendRgb(accent, bg, 22);
+		return themeBuiltinBlendRgb(editorThemeRgbColor(spec->r, spec->g, spec->b), bg,
+		                            THEME_BUILTIN_DIFF_TINT_PCT);
 	}
-	return editorTheme256Color(tints[tint].fallback_256);
+	return editorTheme256Color(spec->fallback_256);
+}
+
+/* Stronger shade of a row tint, marking the characters that actually differ
+ * inside a changed line. Blending the accent into the row's own tint (rather
+ * than into the editor background) keeps a theme-configured diff_*_bg as the
+ * base this brightens from, so the two shades always belong together. */
+struct editorThemeColor editorThemeGitDiffEmphasisBgColor(const struct editorTheme *theme,
+                                                          enum editorThemeDiffTint tint) {
+	const struct themeBuiltinDiffTint *spec = themeBuiltinDiffTintSpec(tint);
+	if (theme == NULL || spec == NULL) {
+		return editorThemeDefaultColor();
+	}
+	struct editorThemeColor base = editorThemeGitDiffBgColor(theme, tint);
+	if (base.kind == EDITOR_THEME_COLOR_RGB) {
+		return themeBuiltinBlendRgb(editorThemeRgbColor(spec->r, spec->g, spec->b), base,
+		                            THEME_BUILTIN_DIFF_EMPHASIS_PCT);
+	}
+	return editorTheme256Color(spec->emphasis_fallback_256);
 }
 
 static struct editorThemeStyle themeBuiltinStyleDefault(void) {

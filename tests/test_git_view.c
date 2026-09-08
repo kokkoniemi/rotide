@@ -3,7 +3,10 @@
 #include "editor_test_api.h"
 #include "input/dispatch.h"
 #include "language/syntax.h"
+#include "render/ansi_style.h"
+#include "render/screen.h"
 #include "render/status_bar.h"
+#include "render/write_buf.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "test_case.h"
@@ -247,6 +250,200 @@ static int test_git_view_build_diff_untracked_uses_new_side_path(void) {
 	free(kinds);
 	free(line_numbers);
 	free(source_path);
+	return 0;
+}
+
+/* Builds a diff tab whose rows carry `kinds`, one kind per line of `text`. */
+static int git_view_open_diff_with_kinds(const char *text, const unsigned char *kinds,
+                                         int kind_count) {
+	if (!editorTabsInit() ||
+	    !editorTabOpenGenerated(EDITOR_TAB_GIT_DIFF, "git diff: x.c", text)) {
+		return 0;
+	}
+	E.git_view_line_kinds = editorRealloc(NULL, (size_t)kind_count);
+	if (E.git_view_line_kinds == NULL) {
+		return 0;
+	}
+	memcpy(E.git_view_line_kinds, kinds, (size_t)kind_count);
+	E.git_view_line_kind_count = kind_count;
+	return 1;
+}
+
+static int test_git_view_inline_change_marks_only_differing_chars(void) {
+	static const unsigned char kinds[] = {
+	        EDITOR_GIT_VIEW_LINE_HEADER, EDITOR_GIT_VIEW_LINE_REMOVED,
+	        EDITOR_GIT_VIEW_LINE_ADDED, EDITOR_GIT_VIEW_LINE_TEXT};
+	ASSERT_TRUE(git_view_open_diff_with_kinds("diff --git a/x.c b/x.c\n"
+	                                          "    return foo(x);\n"
+	                                          "    return foo(yy);\n"
+	                                          "kept\n",
+	                                          kinds, 4));
+
+	/* Both sides narrow to the argument: "x" on the removed row, "yy" on the
+	 * added one. The shared prefix and suffix stay at the flat row tint. */
+	int start = 0;
+	int end = 0;
+	struct editorThemeColor bg;
+	ASSERT_TRUE(editorGitViewRowInlineChange(1, &start, &end, &bg));
+	ASSERT_EQ_INT(15, start);
+	ASSERT_EQ_INT(16, end);
+	ASSERT_TRUE(editorGitViewRowInlineChange(2, &start, &end, &bg));
+	ASSERT_EQ_INT(15, start);
+	ASSERT_EQ_INT(17, end);
+
+	/* The emphasis is a distinct, stronger shade of that row's own tint. */
+	struct editorThemeColor row_bg;
+	ASSERT_TRUE(editorGitViewRowBgColor(2, &row_bg));
+	struct editorThemeColor emphasis =
+	        editorThemeGitDiffEmphasisBgColor(&E.theme, EDITOR_THEME_DIFF_TINT_ADDED);
+	ASSERT_EQ_INT(emphasis.kind, bg.kind);
+	ASSERT_EQ_INT(emphasis.value, bg.value);
+	ASSERT_TRUE(!editorThemeColorEquals(row_bg, bg));
+
+	/* Context and header rows never carry an inline range. */
+	ASSERT_TRUE(!editorGitViewRowInlineChange(0, &start, &end, &bg));
+	ASSERT_TRUE(!editorGitViewRowInlineChange(3, &start, &end, &bg));
+	return 0;
+}
+
+static int test_git_view_inline_change_skips_unrelated_and_unpaired_rows(void) {
+	static const unsigned char kinds[] = {EDITOR_GIT_VIEW_LINE_REMOVED,
+	                                      EDITOR_GIT_VIEW_LINE_ADDED,
+	                                      EDITOR_GIT_VIEW_LINE_ADDED};
+	ASSERT_TRUE(git_view_open_diff_with_kinds("alpha\n"
+	                                          "zulu\n"
+	                                          "extra\n",
+	                                          kinds, 3));
+
+	int start = 0;
+	int end = 0;
+	struct editorThemeColor bg;
+	/* Rows sharing no prefix or suffix stay flat rather than lighting up end
+	 * to end, and the unpaired third row has no counterpart at all. */
+	ASSERT_TRUE(!editorGitViewRowInlineChange(0, &start, &end, &bg));
+	ASSERT_TRUE(!editorGitViewRowInlineChange(1, &start, &end, &bg));
+	ASSERT_TRUE(!editorGitViewRowInlineChange(2, &start, &end, &bg));
+	return 0;
+}
+
+static int test_git_view_inline_change_keeps_cluster_boundaries(void) {
+	static const unsigned char kinds[] = {EDITOR_GIT_VIEW_LINE_REMOVED,
+	                                      EDITOR_GIT_VIEW_LINE_ADDED};
+	/* The two accented characters share a lead byte, so a raw byte trim would
+	 * cut mid-codepoint. */
+	ASSERT_TRUE(git_view_open_diff_with_kinds("caf\xC3\xA9 x\n"
+	                                          "caf\xC3\xA8 x\n",
+	                                          kinds, 2));
+
+	int start = 0;
+	int end = 0;
+	struct editorThemeColor bg;
+	ASSERT_TRUE(editorGitViewRowInlineChange(0, &start, &end, &bg));
+	ASSERT_EQ_INT(3, start);
+	ASSERT_EQ_INT(5, end);
+	return 0;
+}
+
+static int git_view_bytes_contain(const char *data, size_t len, const char *needle) {
+	size_t needle_len = strlen(needle);
+	if (data == NULL || needle_len == 0 || len < needle_len) {
+		return 0;
+	}
+	for (size_t i = 0; i + needle_len <= len; i++) {
+		if (memcmp(data + i, needle, needle_len) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* Renders `color` the way the row painter would, as a NUL-terminated needle. */
+static int git_view_bg_sequence(struct editorThemeColor color, char *out, size_t out_size) {
+	struct writeBuf wb = WRITEBUF_INIT;
+	int ok = editorAppendThemeBackground(&wb, color) && wb.len > 0 && wb.len < out_size;
+	if (ok) {
+		memcpy(out, wb.b, wb.len);
+		out[wb.len] = '\0';
+	}
+	wbFree(&wb);
+	return ok;
+}
+
+static int test_git_view_inline_change_ignores_shared_indentation(void) {
+	static const unsigned char kinds[] = {
+	        EDITOR_GIT_VIEW_LINE_REMOVED, EDITOR_GIT_VIEW_LINE_REMOVED,
+	        EDITOR_GIT_VIEW_LINE_ADDED, EDITOR_GIT_VIEW_LINE_ADDED};
+	/* A block rewritten wholesale: position pairs each removed row with an
+	 * added one, but the pairs have only their indentation in common. Shared
+	 * indentation must not pass for similarity, or every such pair lights up
+	 * end to end. */
+	ASSERT_TRUE(git_view_open_diff_with_kinds(
+	        "\tstatic const struct {\n"
+	        "\t\tenum editorThemeUiRole role;\n"
+	        "\tconst struct themeBuiltinDiffTint *spec = themeBuiltinDiffTintSpec(tint);\n"
+	        "\tif (theme == NULL || spec == NULL) {\n",
+	        kinds, 4));
+
+	int start = 0;
+	int end = 0;
+	struct editorThemeColor bg;
+	for (int row = 0; row < 4; row++) {
+		ASSERT_TRUE(!editorGitViewRowInlineChange(row, &start, &end, &bg));
+	}
+	return 0;
+}
+
+static int test_git_view_inline_change_needs_enough_left_after_trim(void) {
+	static const unsigned char kinds[] = {EDITOR_GIT_VIEW_LINE_REMOVED,
+	                                      EDITOR_GIT_VIEW_LINE_ADDED};
+	/* Sharing only a closing "); " on an otherwise rewritten line is not an
+	 * edit worth picking characters out of. */
+	ASSERT_TRUE(git_view_open_diff_with_kinds("\tregister_the_old_widget(alpha, beta);\n"
+	                                          "\tteardown_everything_instead(gamma);\n",
+	                                          kinds, 2));
+
+	int start = 0;
+	int end = 0;
+	struct editorThemeColor bg;
+	ASSERT_TRUE(!editorGitViewRowInlineChange(0, &start, &end, &bg));
+
+	/* A re-indent keeps its emphasis: the shared code is the similarity, and
+	 * the differing indentation is what gets marked. */
+	static const unsigned char reindent_kinds[] = {EDITOR_GIT_VIEW_LINE_REMOVED,
+	                                               EDITOR_GIT_VIEW_LINE_ADDED};
+	ASSERT_TRUE(git_view_open_diff_with_kinds("\t\tdo_the_thing(value);\n"
+	                                          "\tdo_the_thing(value);\n",
+	                                          reindent_kinds, 2));
+	ASSERT_TRUE(editorGitViewRowInlineChange(0, &start, &end, &bg));
+	ASSERT_EQ_INT(8, start);
+	ASSERT_EQ_INT(16, end);
+	return 0;
+}
+
+static int test_git_view_inline_change_renders_stronger_background(void) {
+	static const unsigned char kinds[] = {EDITOR_GIT_VIEW_LINE_REMOVED,
+	                                      EDITOR_GIT_VIEW_LINE_ADDED,
+	                                      EDITOR_GIT_VIEW_LINE_TEXT};
+	ASSERT_TRUE(git_view_open_diff_with_kinds("    return foo(x);\n"
+	                                          "    return foo(yy);\n"
+	                                          "    done();\n",
+	                                          kinds, 3));
+
+	char emphasis_seq[32];
+	ASSERT_TRUE(git_view_bg_sequence(
+	        editorThemeGitDiffEmphasisBgColor(&E.theme, EDITOR_THEME_DIFF_TINT_ADDED),
+	        emphasis_seq, sizeof(emphasis_seq)));
+
+	struct writeBuf changed = WRITEBUF_INIT;
+	struct writeBuf context = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawFileRow(&changed, 1, 40));
+	ASSERT_TRUE(editorDrawFileRow(&context, 2, 40));
+	/* The changed characters carry the stronger shade; an unchanged row never
+	 * emits it. */
+	ASSERT_TRUE(git_view_bytes_contain(changed.b, changed.len, emphasis_seq));
+	ASSERT_TRUE(!git_view_bytes_contain(context.b, context.len, emphasis_seq));
+	wbFree(&changed);
+	wbFree(&context);
 	return 0;
 }
 
@@ -765,6 +962,18 @@ const struct editorTestCase g_git_view_tests[] = {
          test_git_view_build_diff_multi_file_has_no_source_path},
         {"git_view_build_diff_untracked_uses_new_side_path",
          test_git_view_build_diff_untracked_uses_new_side_path},
+        {"git_view_inline_change_marks_only_differing_chars",
+         test_git_view_inline_change_marks_only_differing_chars},
+        {"git_view_inline_change_skips_unrelated_and_unpaired_rows",
+         test_git_view_inline_change_skips_unrelated_and_unpaired_rows},
+        {"git_view_inline_change_keeps_cluster_boundaries",
+         test_git_view_inline_change_keeps_cluster_boundaries},
+        {"git_view_inline_change_ignores_shared_indentation",
+         test_git_view_inline_change_ignores_shared_indentation},
+        {"git_view_inline_change_needs_enough_left_after_trim",
+         test_git_view_inline_change_needs_enough_left_after_trim},
+        {"git_view_inline_change_renders_stronger_background",
+         test_git_view_inline_change_renders_stronger_background},
         {"git_view_row_bg_color_for_diff_and_headers",
          test_git_view_row_bg_color_for_diff_and_headers},
         {"git_view_row_spans_colorize_views", test_git_view_row_spans_colorize_views},
