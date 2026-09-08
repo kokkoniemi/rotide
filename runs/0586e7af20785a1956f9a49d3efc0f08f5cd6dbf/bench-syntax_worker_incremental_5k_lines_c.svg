@@ -3,34 +3,34 @@
 <rect width="720" height="320" fill="#ffffff"/>
 <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">syntax_worker_incremental_5k_lines_c — min / p50 / p95</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">21.3M</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">21.5M</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">14.6M</text>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">14.7M</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">8.0M</text>
+<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">7.9M</text>
 <text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">ns</text>
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-08-09</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-08-10</text>
 <line x1="179.6" y1="268" x2="179.6" y2="272" stroke="#444" stroke-width="1"/>
-<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-08-14</text>
+<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-08-15</text>
 <line x1="287.2" y1="268" x2="287.2" y2="272" stroke="#444" stroke-width="1"/>
-<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-08-19</text>
+<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-08-20</text>
 <line x1="394.8" y1="268" x2="394.8" y2="272" stroke="#444" stroke-width="1"/>
-<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-08-24</text>
+<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-08-25</text>
 <line x1="502.3" y1="268" x2="502.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-08-29</text>
+<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-08-30</text>
 <line x1="609.9" y1="268" x2="609.9" y2="272" stroke="#444" stroke-width="1"/>
-<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-09-03</text>
+<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-09-04</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-09-07</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,87.2 93.5,209.7 115.0,85.2 136.6,209.8 158.1,242.7 179.6,80.7 201.1,73.5 222.6,76.5 244.1,85.6 265.7,130.9 287.2,213.5 308.7,78.4 330.2,79.1 351.7,88.0 373.2,125.8 394.8,77.4 416.3,210.6 437.8,86.6 459.3,202.4 480.8,82.3 502.3,83.7 523.9,82.8 545.4,87.5 566.9,79.7 588.4,175.6 609.9,169.9 631.4,182.6 653.0,72.2 674.5,81.5 696.0,206.0"/>
-<circle cx="696.0" cy="206.0" r="3" fill="#1f77b4"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,85.3 93.5,186.2 115.0,79.5 136.6,187.2 158.1,240.1 179.6,74.4 201.1,71.6 222.6,72.7 244.1,84.5 265.7,124.0 287.2,209.3 308.7,77.1 330.2,77.7 351.7,84.4 373.2,107.6 394.8,72.3 416.3,205.8 437.8,84.9 459.3,198.1 480.8,76.8 502.3,79.8 523.9,78.3 545.4,80.2 566.9,76.9 588.4,172.5 609.9,163.7 631.4,177.6 653.0,62.7 674.5,72.9 696.0,202.2"/>
-<circle cx="696.0" cy="202.2" r="3" fill="#ff7f0e"/>
-<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,89.9 93.5,216.3 115.0,88.3 136.6,214.4 158.1,249.3 179.6,84.3 201.1,76.6 222.6,79.1 244.1,88.2 265.7,136.0 287.2,216.5 308.7,80.6 330.2,80.2 351.7,91.2 373.2,128.6 394.8,79.0 416.3,213.6 437.8,90.2 459.3,206.4 480.8,84.0 502.3,86.4 523.9,85.4 545.4,89.5 566.9,82.2 588.4,183.5 609.9,173.8 631.4,187.8 653.0,82.7 674.5,84.8 696.0,209.8"/>
-<circle cx="696.0" cy="209.8" r="3" fill="#2ca02c"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-09-08</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,210.1 93.5,87.2 115.0,210.2 136.6,242.8 158.1,82.7 179.6,75.6 201.1,78.6 222.6,87.6 244.1,132.3 265.7,213.9 287.2,80.5 308.7,81.1 330.2,89.9 351.7,127.3 373.2,79.4 394.8,211.1 416.3,88.5 437.8,203.0 459.3,84.3 480.8,85.7 502.3,84.8 523.9,89.5 545.4,81.7 566.9,176.5 588.4,170.8 609.9,183.4 631.4,74.4 653.0,83.6 674.5,206.5 696.0,88.9"/>
+<circle cx="696.0" cy="88.9" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,187.0 93.5,81.6 115.0,188.0 136.6,240.2 158.1,76.5 179.6,73.7 201.1,74.9 222.6,86.4 244.1,125.5 265.7,209.8 287.2,79.2 308.7,79.8 330.2,86.4 351.7,109.3 373.2,74.4 394.8,206.3 416.3,86.9 437.8,198.7 459.3,78.9 480.8,81.8 502.3,80.3 523.9,82.2 545.4,79.0 566.9,173.4 588.4,164.7 609.9,178.5 631.4,64.9 653.0,75.0 674.5,202.8 696.0,62.7"/>
+<circle cx="696.0" cy="62.7" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,216.7 93.5,90.2 115.0,214.8 136.6,249.3 158.1,86.3 179.6,78.6 201.1,81.2 222.6,90.2 244.1,137.3 265.7,216.9 287.2,82.6 308.7,82.2 330.2,93.1 351.7,130.1 373.2,81.1 394.8,214.0 416.3,92.1 437.8,206.9 459.3,86.0 480.8,88.3 502.3,87.4 523.9,91.4 545.4,84.2 566.9,184.3 588.4,174.7 609.9,188.6 631.4,84.7 653.0,86.8 674.5,210.3 696.0,91.0"/>
+<circle cx="696.0" cy="91.0" r="3" fill="#2ca02c"/>
 <line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
 <text x="610" y="50" dominant-baseline="middle" fill="#222">p50</text>
 <line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
