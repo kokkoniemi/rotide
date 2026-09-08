@@ -51,26 +51,35 @@ static struct editorThemeColor themeBuiltinBlendRgb(struct editorThemeColor acce
 	                           (unsigned char)((accent.b * accent_pct + base.b * b) / 100));
 }
 
-/* Background tint for added/removed diff lines. Themes may set the
- * diff_added_bg / diff_removed_bg roles explicitly; otherwise the tint is
- * derived by blending a green/red accent into the theme background so every
- * built-in theme (light or dark) gets a readable value for free. */
-struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme, int added) {
-	if (theme == NULL) {
+/* Background tint for changed diff lines, shared by the diff tabs and the gutter
+ * change bar. Themes may set the diff_*_bg roles explicitly; otherwise the tint
+ * is derived by blending a green/red/amber accent into the theme background so
+ * every built-in theme (light or dark) gets a readable value for free. */
+struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme,
+                                                  enum editorThemeDiffTint tint) {
+	static const struct {
+		enum editorThemeUiRole role;
+		unsigned char r, g, b;
+		unsigned char fallback_256;
+	} tints[] = {
+	        {EDITOR_THEME_UI_DIFF_ADDED_BG, 0x2E, 0xA0, 0x43, 22},
+	        {EDITOR_THEME_UI_DIFF_REMOVED_BG, 0xD1, 0x37, 0x3F, 52},
+	        {EDITOR_THEME_UI_DIFF_MODIFIED_BG, 0xD2, 0x99, 0x22, 58},
+	};
+	if (theme == NULL || tint < 0 || (size_t)tint >= sizeof(tints) / sizeof(tints[0])) {
 		return editorThemeDefaultColor();
 	}
-	struct editorThemeColor configured =
-	        theme->ui[added ? EDITOR_THEME_UI_DIFF_ADDED_BG : EDITOR_THEME_UI_DIFF_REMOVED_BG];
+	struct editorThemeColor configured = theme->ui[tints[tint].role];
 	if (configured.kind != EDITOR_THEME_COLOR_DEFAULT) {
 		return configured;
 	}
 	struct editorThemeColor bg = theme->ui[EDITOR_THEME_UI_BACKGROUND];
 	if (bg.kind == EDITOR_THEME_COLOR_RGB) {
-		struct editorThemeColor accent = added ? editorThemeRgbColor(0x2E, 0xA0, 0x43)
-		                                       : editorThemeRgbColor(0xD1, 0x37, 0x3F);
+		struct editorThemeColor accent =
+		        editorThemeRgbColor(tints[tint].r, tints[tint].g, tints[tint].b);
 		return themeBuiltinBlendRgb(accent, bg, 22);
 	}
-	return editorTheme256Color(added ? 22 : 52);
+	return editorTheme256Color(tints[tint].fallback_256);
 }
 
 static struct editorThemeStyle themeBuiltinStyleDefault(void) {

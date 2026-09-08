@@ -1109,10 +1109,12 @@ int editorGitViewRowBgColor(int row_idx, struct editorThemeColor *color_out) {
 			}
 			switch (E.git_view_line_kinds[row_idx]) {
 				case EDITOR_GIT_VIEW_LINE_ADDED:
-					*color_out = editorThemeGitDiffBgColor(&E.theme, 1);
+					*color_out = editorThemeGitDiffBgColor(
+					        &E.theme, EDITOR_THEME_DIFF_TINT_ADDED);
 					return 1;
 				case EDITOR_GIT_VIEW_LINE_REMOVED:
-					*color_out = editorThemeGitDiffBgColor(&E.theme, 0);
+					*color_out = editorThemeGitDiffBgColor(
+					        &E.theme, EDITOR_THEME_DIFF_TINT_REMOVED);
 					return 1;
 				case EDITOR_GIT_VIEW_LINE_HEADER:
 					*color_out = E.theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG];

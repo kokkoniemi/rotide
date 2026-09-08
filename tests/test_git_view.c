@@ -267,11 +267,13 @@ static int test_git_view_row_bg_color_for_diff_and_headers(void) {
 	struct editorThemeColor color;
 	ASSERT_TRUE(editorGitViewRowBgColor(0, &color));
 	ASSERT_TRUE(editorGitViewRowBgColor(1, &color));
-	struct editorThemeColor removed = editorThemeGitDiffBgColor(&E.theme, 0);
+	struct editorThemeColor removed =
+	        editorThemeGitDiffBgColor(&E.theme, EDITOR_THEME_DIFF_TINT_REMOVED);
 	ASSERT_EQ_INT(removed.kind, color.kind);
 	ASSERT_EQ_INT(removed.value, color.value);
 	ASSERT_TRUE(editorGitViewRowBgColor(2, &color));
-	struct editorThemeColor added = editorThemeGitDiffBgColor(&E.theme, 1);
+	struct editorThemeColor added =
+	        editorThemeGitDiffBgColor(&E.theme, EDITOR_THEME_DIFF_TINT_ADDED);
 	ASSERT_EQ_INT(added.kind, color.kind);
 	ASSERT_EQ_INT(added.value, color.value);
 	ASSERT_TRUE(!editorGitViewRowBgColor(3, &color));

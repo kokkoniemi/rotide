@@ -67,6 +67,10 @@
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
 #define TEXT_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"   /* U+25CF BLACK CIRCLE */
 #define TEXT_DAP_STOPPED_LINE_UTF8 "\xE2\x96\xB6" /* U+25B6 BLACK RIGHT-POINTING TRIANGLE */
+/* Removed lines sit between rows, so their marker hugs the edge of the cell the
+ * gap touches: U+2594 UPPER ONE EIGHTH BLOCK / U+2581 LOWER ONE EIGHTH BLOCK. */
+#define TEXT_GIT_GUTTER_DELETED_ABOVE_UTF8 "\xE2\x96\x94"
+#define TEXT_GIT_GUTTER_DELETED_BELOW_UTF8 "\xE2\x96\x81"
 
 int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
 	return editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) &&
@@ -1102,6 +1106,51 @@ int editorDebugStoppedLineHighlightApplies(int row_idx) {
 	return row_idx >= 0 && row_idx < E.numrows && editorDapIsStoppedLine(E.filename, row_idx);
 }
 
+/* Draws the gutter's trailing column. Added/modified lines tint its background
+ * so the change bar costs no extra width; a debug glyph still owns the
+ * foreground, and removal markers fill in where there is none. */
+static int screenDrawGutterMarkerCell(struct writeBuf *wb, int row_idx, int allow_debug_glyph) {
+	enum editorGitGutterMark mark = editorGitGutterMarkForRow(row_idx);
+	int tinted = mark == EDITOR_GIT_GUTTER_ADDED || mark == EDITOR_GIT_GUTTER_MODIFIED;
+	/* Same tints the diff tabs use, so a changed line reads the same at the
+	 * gutter as it does in its diff. */
+	enum editorThemeDiffTint tint = mark == EDITOR_GIT_GUTTER_ADDED
+	                                        ? EDITOR_THEME_DIFF_TINT_ADDED
+	                                        : EDITOR_THEME_DIFF_TINT_MODIFIED;
+	if (tinted && !editorAppendThemeBackground(wb, editorThemeGitDiffBgColor(&E.theme, tint))) {
+		return 0;
+	}
+
+	int stopped = allow_debug_glyph && editorDapIsStoppedLine(E.filename, row_idx);
+	if (stopped) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE) ||
+		    !wbAppend(wb, TEXT_DAP_STOPPED_LINE_UTF8,
+		              sizeof(TEXT_DAP_STOPPED_LINE_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (allow_debug_glyph && editorDapHasBreakpoint(E.filename, row_idx) >= 0) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_BREAKPOINT) ||
+		    !wbAppend(wb, TEXT_DAP_BREAKPOINT_UTF8, sizeof(TEXT_DAP_BREAKPOINT_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (mark == EDITOR_GIT_GUTTER_DELETED_ABOVE) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_DELETED) ||
+		    !wbAppend(wb, TEXT_GIT_GUTTER_DELETED_ABOVE_UTF8,
+		              sizeof(TEXT_GIT_GUTTER_DELETED_ABOVE_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (mark == EDITOR_GIT_GUTTER_DELETED_BELOW) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_DELETED) ||
+		    !wbAppend(wb, TEXT_GIT_GUTTER_DELETED_BELOW_UTF8,
+		              sizeof(TEXT_GIT_GUTTER_DELETED_BELOW_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (!wbAppend(wb, " ", 1)) {
+		return 0;
+	}
+	return !tinted || screenAppendTextRowReset(wb);
+}
+
 int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_coloff,
                                int gutter_cols) {
 	if (gutter_cols <= 0) {
@@ -1144,29 +1193,26 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
 		if (len > 0 && !wbAppend(wb, visible_number, (size_t)len)) {
 			return 0;
 		}
-		/* The trailing separator column doubles as the debug marker slot, so a
-		 * breakpoint/stopped indicator never widens the gutter. Stopped line
-		 * takes precedence over a breakpoint on the same row. */
-		if (gutter_cols > 1) {
-			if (editorDapIsStoppedLine(E.filename, row_idx)) {
-				if (!editorAppendThemeForegroundRole(
-				            wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE) ||
-				    !wbAppend(wb, TEXT_DAP_STOPPED_LINE_UTF8,
-				              sizeof(TEXT_DAP_STOPPED_LINE_UTF8) - 1)) {
-					return 0;
-				}
-			} else if (editorDapHasBreakpoint(E.filename, row_idx) >= 0) {
-				if (!editorAppendThemeForegroundRole(wb,
-				                                     EDITOR_THEME_UI_BREAKPOINT) ||
-				    !wbAppend(wb, TEXT_DAP_BREAKPOINT_UTF8,
-				              sizeof(TEXT_DAP_BREAKPOINT_UTF8) - 1)) {
-					return 0;
-				}
-			} else if (!wbAppend(wb, " ", 1)) {
+		/* The trailing separator column doubles as the debug marker and git
+		 * change slots, so neither widens the gutter. Stopped line takes
+		 * precedence over a breakpoint on the same row. */
+		if (gutter_cols > 1 && !screenDrawGutterMarkerCell(wb, row_idx, 1)) {
+			return 0;
+		}
+		return editorAppendThemeBaseForeground(wb);
+	}
+
+	/* Wrapped continuation rows carry the change bar too, so a long changed
+	 * line reads as one block. */
+	if (gutter_cols > 1 && row_idx >= 0 && row_idx < E.numrows &&
+	    editorGitGutterMarkForRow(row_idx) != EDITOR_GIT_GUTTER_NONE) {
+		for (int col = 0; col < gutter_cols - 1; col++) {
+			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
 		}
-		return editorAppendThemeBaseForeground(wb);
+		return screenDrawGutterMarkerCell(wb, row_idx, 0) &&
+		       editorAppendThemeBaseForeground(wb);
 	}
 
 	for (int col = 0; col < gutter_cols; col++) {
