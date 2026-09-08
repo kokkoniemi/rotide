@@ -20,6 +20,7 @@ enum {
 static int gitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos, const char *value);
 static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char *literal);
 static void gitBlameFileCacheReset(void);
+static void gitGutterCacheReset(void);
 static int gitReplaceString(char **slot, const char *value);
 static char *gitDupStringLimited(const char *s);
 static char *gitDupLimited(const char *data, size_t len);
@@ -494,6 +495,7 @@ int editorGitTestParseStatus(const char *data, size_t len, int *ahead_out, int *
 void editorGitFree(void) {
 	editorGitBlameCacheClearAll();
 	gitBlameFileCacheReset();
+	gitGutterCacheReset();
 	free(E.git_repo_root);
 	E.git_repo_root = NULL;
 	free(E.git_branch);
@@ -671,18 +673,18 @@ void editorGitBlameCacheClearAll(void) {
 	}
 }
 
-static int gitBlameCacheStringEqual(const char *a, const char *b) {
+static int gitCacheStringEqual(const char *a, const char *b) {
 	if (a == NULL || b == NULL) {
 		return a == b;
 	}
 	return strcmp(a, b) == 0;
 }
 
-static int gitBlameTimeEqual(struct timespec left, struct timespec right) {
+static int gitCacheTimeEqual(struct timespec left, struct timespec right) {
 	return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
 }
 
-static int gitBlameDiskStateEqual(const struct editorFileDiskState *left,
+static int gitCacheDiskStateEqual(const struct editorFileDiskState *left,
                                   const struct editorFileDiskState *right) {
 	if (left == NULL || right == NULL) {
 		return 0;
@@ -694,17 +696,17 @@ static int gitBlameDiskStateEqual(const struct editorFileDiskState *left,
 		return 1;
 	}
 	return left->dev == right->dev && left->ino == right->ino && left->size == right->size &&
-	       gitBlameTimeEqual(left->mtime, right->mtime) &&
-	       gitBlameTimeEqual(left->ctime, right->ctime);
+	       gitCacheTimeEqual(left->mtime, right->mtime) &&
+	       gitCacheTimeEqual(left->ctime, right->ctime);
 }
 
 static int gitBlameActiveCacheMatches(int one_based_line) {
 	return E.git_blame_line_number == one_based_line &&
-	       gitBlameCacheStringEqual(E.git_blame_filename, E.filename) &&
-	       gitBlameCacheStringEqual(E.git_blame_repo_root, E.git_repo_root) &&
-	       gitBlameCacheStringEqual(E.git_blame_branch, E.git_branch) &&
-	       gitBlameCacheStringEqual(E.git_blame_head, E.git_head) &&
-	       gitBlameDiskStateEqual(&E.git_blame_disk_state, &E.disk_state);
+	       gitCacheStringEqual(E.git_blame_filename, E.filename) &&
+	       gitCacheStringEqual(E.git_blame_repo_root, E.git_repo_root) &&
+	       gitCacheStringEqual(E.git_blame_branch, E.git_branch) &&
+	       gitCacheStringEqual(E.git_blame_head, E.git_head) &&
+	       gitCacheDiskStateEqual(&E.git_blame_disk_state, &E.disk_state);
 }
 
 static int gitBlameStoreActiveCacheKey(int one_based_line) {
@@ -802,11 +804,11 @@ static void gitBlameFileCacheReset(void) {
 }
 
 static int gitBlameFileCacheKeyMatchesActive(const struct gitBlameFileCache *c) {
-	return gitBlameCacheStringEqual(c->filename, E.filename) &&
-	       gitBlameCacheStringEqual(c->repo_root, E.git_repo_root) &&
-	       gitBlameCacheStringEqual(c->branch, E.git_branch) &&
-	       gitBlameCacheStringEqual(c->head, E.git_head) &&
-	       gitBlameDiskStateEqual(&c->disk_state, &E.disk_state);
+	return gitCacheStringEqual(c->filename, E.filename) &&
+	       gitCacheStringEqual(c->repo_root, E.git_repo_root) &&
+	       gitCacheStringEqual(c->branch, E.git_branch) &&
+	       gitCacheStringEqual(c->head, E.git_head) &&
+	       gitCacheDiskStateEqual(&c->disk_state, &E.disk_state);
 }
 
 static int gitBlameFileCacheStoreKey(struct gitBlameFileCache *c) {
@@ -1220,6 +1222,258 @@ int editorGitBlameActiveInlineLabel(int one_based_line, time_t now, char *buf, s
 
 long editorGitBlameTestLoadCount(void) {
 	return g_git_blame_load_count;
+}
+
+/* Gutter change marks. `git diff HEAD` describes the file on disk, so the marks
+ * are keyed on the same file/branch/head/disk-state tuple as blame and reload
+ * when the file is saved, HEAD moves, or the tab changes. Unsaved edits keep
+ * the previous marks until the next save. */
+enum { GIT_GUTTER_MAX_LINES = 1000000, GIT_GUTTER_MAX_OUTPUT_BYTES = 4 * 1024 * 1024 };
+
+struct gitGutterCache {
+	int key_valid;
+	char *filename;
+	char *repo_root;
+	char *branch;
+	char *head;
+	struct editorFileDiskState disk_state;
+	unsigned char *marks;
+	int mark_count;
+};
+
+static struct gitGutterCache g_git_gutter_cache;
+static long g_git_gutter_load_count;
+
+static void gitGutterCacheReset(void) {
+	struct gitGutterCache *c = &g_git_gutter_cache;
+	free(c->marks);
+	free(c->filename);
+	free(c->repo_root);
+	free(c->branch);
+	free(c->head);
+	c->marks = NULL;
+	c->mark_count = 0;
+	c->filename = NULL;
+	c->repo_root = NULL;
+	c->branch = NULL;
+	c->head = NULL;
+	memset(&c->disk_state, 0, sizeof(c->disk_state));
+	c->key_valid = 0;
+}
+
+static int gitGutterCacheKeyMatchesActive(const struct gitGutterCache *c) {
+	return gitCacheStringEqual(c->filename, E.filename) &&
+	       gitCacheStringEqual(c->repo_root, E.git_repo_root) &&
+	       gitCacheStringEqual(c->branch, E.git_branch) &&
+	       gitCacheStringEqual(c->head, E.git_head) &&
+	       gitCacheDiskStateEqual(&c->disk_state, &E.disk_state);
+}
+
+static int gitGutterCacheStoreKey(struct gitGutterCache *c) {
+	c->filename = E.filename != NULL ? strdup(E.filename) : NULL;
+	c->repo_root = E.git_repo_root != NULL ? strdup(E.git_repo_root) : NULL;
+	c->branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	c->head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	c->disk_state = E.disk_state;
+	return !((E.filename != NULL && c->filename == NULL) ||
+	         (E.git_repo_root != NULL && c->repo_root == NULL) ||
+	         (E.git_branch != NULL && c->branch == NULL) ||
+	         (E.git_head != NULL && c->head == NULL));
+}
+
+/* Consumes one run of digits; clamps instead of overflowing on absurd counts. */
+static const char *gitGutterParseNumber(const char *cursor, const char *end, long *out) {
+	const char *start = cursor;
+	long value = 0;
+	while (cursor < end && *cursor >= '0' && *cursor <= '9') {
+		if (value <= GIT_GUTTER_MAX_LINES) {
+			value = value * 10 + (*cursor - '0');
+		}
+		cursor++;
+	}
+	if (cursor == start) {
+		return NULL;
+	}
+	*out = value;
+	return cursor;
+}
+
+static void gitGutterMarkRange(unsigned char *marks, int count, long start, long len,
+                               unsigned char mark) {
+	if (start < 1) {
+		start = 1;
+	}
+	for (long line = start; line < start + len && line <= count; line++) {
+		marks[line - 1] = mark;
+	}
+}
+
+/* Applies one `@@ -old_start[,old_count] +new_start[,new_count] @@` header,
+ * with `cursor` positioned just past the leading "@@ -". Added/modified runs
+ * overwrite; a removal only claims a line no other hunk marked, so a removal
+ * next to a change keeps the stronger mark. */
+static void gitGutterApplyHunkHeader(const char *cursor, const char *end, unsigned char *marks,
+                                     int count) {
+	long old_start = 0;
+	long old_count = 1;
+	long new_start = 0;
+	long new_count = 1;
+
+	cursor = gitGutterParseNumber(cursor, end, &old_start);
+	if (cursor == NULL) {
+		return;
+	}
+	if (cursor < end && *cursor == ',') {
+		cursor = gitGutterParseNumber(cursor + 1, end, &old_count);
+		if (cursor == NULL) {
+			return;
+		}
+	}
+	if (cursor + 1 >= end || cursor[0] != ' ' || cursor[1] != '+') {
+		return;
+	}
+	cursor = gitGutterParseNumber(cursor + 2, end, &new_start);
+	if (cursor == NULL) {
+		return;
+	}
+	if (cursor < end && *cursor == ',') {
+		cursor = gitGutterParseNumber(cursor + 1, end, &new_count);
+		if (cursor == NULL) {
+			return;
+		}
+	}
+
+	if (new_count == 0) {
+		/* A removal leaves no line behind: git names the line before the gap,
+		 * so flag the one that closes it, or the last line at end of file. */
+		long line = new_start + 1;
+		unsigned char mark = EDITOR_GIT_GUTTER_DELETED_ABOVE;
+		if (line > count) {
+			line = count;
+			mark = EDITOR_GIT_GUTTER_DELETED_BELOW;
+		}
+		if (line >= 1 && line <= count && marks[line - 1] == EDITOR_GIT_GUTTER_NONE) {
+			marks[line - 1] = mark;
+		}
+		return;
+	}
+	gitGutterMarkRange(marks, count, new_start, new_count,
+	                   old_count == 0 ? EDITOR_GIT_GUTTER_ADDED : EDITOR_GIT_GUTTER_MODIFIED);
+}
+
+static void gitGutterParseDiff(const char *data, size_t len, unsigned char *marks, int count) {
+	const char *cursor = data;
+	const char *end = data + len;
+	while (cursor < end) {
+		const char *newline = memchr(cursor, '\n', (size_t)(end - cursor));
+		const char *line_end = newline != NULL ? newline : end;
+		if (line_end - cursor > 4 && memcmp(cursor, "@@ -", 4) == 0) {
+			gitGutterApplyHunkHeader(cursor + 4, line_end, marks, count);
+		}
+		cursor = newline != NULL ? newline + 1 : end;
+	}
+}
+
+int editorGitGutterTestParseDiff(const char *diff, int line_count, unsigned char *marks_out) {
+	if (diff == NULL || marks_out == NULL || line_count < 0) {
+		return 0;
+	}
+	memset(marks_out, EDITOR_GIT_GUTTER_NONE, (size_t)line_count);
+	gitGutterParseDiff(diff, strlen(diff), marks_out, line_count);
+	return 1;
+}
+
+long editorGitGutterTestLoadCount(void) {
+	return g_git_gutter_load_count;
+}
+
+static int gitGutterLoadDiff(struct gitGutterCache *c) {
+	char *rel_path = gitRelativePathDup(E.filename);
+	if (rel_path == NULL) {
+		return 0;
+	}
+	char cmd[PATH_MAX * 4 + 256];
+	size_t pos = 0;
+	if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos,
+	                      " --no-pager diff --no-color --no-ext-diff -U0 HEAD -- ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+		free(rel_path);
+		return 0;
+	}
+	free(rel_path);
+
+	g_git_gutter_load_count++;
+	FILE *fp = popen(cmd, "r");
+	if (fp == NULL) {
+		return 0;
+	}
+	size_t buf_len = 0;
+	char *buf = gitReadCappedCommandOutput(fp, GIT_GUTTER_MAX_OUTPUT_BYTES, &buf_len);
+	int status = pclose(fp);
+	if (buf == NULL || status != 0) {
+		free(buf);
+		return 0;
+	}
+	/* No output means no difference from HEAD, which is a valid result. */
+	gitGutterParseDiff(buf, buf_len, c->marks, c->mark_count);
+	free(buf);
+	return 1;
+}
+
+static int gitGutterFill(struct gitGutterCache *c) {
+	if (E.numrows <= 0 || E.numrows > GIT_GUTTER_MAX_LINES || E.filename == NULL ||
+	    E.git_repo_root == NULL || E.git_head == NULL) {
+		return 0;
+	}
+	c->marks = editorMalloc((size_t)E.numrows);
+	if (c->marks == NULL) {
+		return 0;
+	}
+	c->mark_count = E.numrows;
+	memset(c->marks, EDITOR_GIT_GUTTER_NONE, (size_t)c->mark_count);
+	/* An untracked file has no HEAD side to diff against: every line is new. */
+	if (editorGitFileStatus(E.filename) == EDITOR_GIT_STATUS_UNTRACKED) {
+		memset(c->marks, EDITOR_GIT_GUTTER_ADDED, (size_t)c->mark_count);
+		return 1;
+	}
+	return gitGutterLoadDiff(c);
+}
+
+/* Ensures the mark array is valid for the active file, loading it once per key
+ * change. A failed load keeps the key with no marks, so it is not retried until
+ * the file, branch, head, or disk state moves. */
+static void gitGutterCacheEnsureActive(void) {
+	struct gitGutterCache *c = &g_git_gutter_cache;
+	if (c->key_valid && gitGutterCacheKeyMatchesActive(c)) {
+		return;
+	}
+	gitGutterCacheReset();
+	if (!gitGutterCacheStoreKey(c)) {
+		gitGutterCacheReset();
+		return;
+	}
+	c->key_valid = 1;
+	if (!gitGutterFill(c)) {
+		free(c->marks);
+		c->marks = NULL;
+		c->mark_count = 0;
+	}
+}
+
+enum editorGitGutterMark editorGitGutterMarkForRow(int row_idx) {
+	if (row_idx < 0 || E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL ||
+	    E.git_repo_root == NULL) {
+		return EDITOR_GIT_GUTTER_NONE;
+	}
+	gitGutterCacheEnsureActive();
+	const struct gitGutterCache *c = &g_git_gutter_cache;
+	if (row_idx >= c->mark_count) {
+		return EDITOR_GIT_GUTTER_NONE;
+	}
+	return (enum editorGitGutterMark)c->marks[row_idx];
 }
 
 static int gitShaIsAllZero(const char *sha) {

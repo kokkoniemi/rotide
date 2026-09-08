@@ -67,6 +67,10 @@
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
 #define TEXT_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"   /* U+25CF BLACK CIRCLE */
 #define TEXT_DAP_STOPPED_LINE_UTF8 "\xE2\x96\xB6" /* U+25B6 BLACK RIGHT-POINTING TRIANGLE */
+/* Removed lines sit between rows, so their marker hugs the edge of the cell the
+ * gap touches: U+2594 UPPER ONE EIGHTH BLOCK / U+2581 LOWER ONE EIGHTH BLOCK. */
+#define TEXT_GIT_GUTTER_DELETED_ABOVE_UTF8 "\xE2\x96\x94"
+#define TEXT_GIT_GUTTER_DELETED_BELOW_UTF8 "\xE2\x96\x81"
 
 int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
 	return editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) &&
@@ -98,6 +102,11 @@ struct screenRenderSliceArgs {
 	int hover_render_start;
 	int hover_render_end;
 	int bracket_render_idx[2];
+	/* Characters inside a changed diff row that differ from their counterpart;
+	 * painted a shade stronger than the rest of the row. */
+	int inline_change_start;
+	int inline_change_end;
+	struct editorThemeColor inline_change_bg;
 };
 
 static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
@@ -518,6 +527,24 @@ static int screenSliceForegroundForPos(const struct screenRenderSliceArgs *args,
 	return 1;
 }
 
+/* Background for the characters that actually differ inside a changed diff row.
+ * Clearing it restores the row's own tint rather than the terminal default, so
+ * the unchanged part of the line keeps its base shade. */
+static int screenSliceApplyEmphasisBg(const struct screenRenderSliceArgs *args, int next_on,
+                                      int *emphasis_on) {
+	if (next_on == *emphasis_on) {
+		return 1;
+	}
+	*emphasis_on = next_on;
+	if (next_on) {
+		return editorAppendThemeBackground(args->wb, args->inline_change_bg);
+	}
+	if (g_screen_drawing_git_row_bg_active) {
+		return editorAppendThemeBackground(args->wb, g_screen_drawing_git_row_bg);
+	}
+	return editorAppendThemeBackground(args->wb, editorThemeDefaultColor());
+}
+
 static int screenSliceApplyForeground(struct writeBuf *wb, struct editorThemeColor next_color,
                                       struct editorThemeColor *active_color,
                                       int *active_color_emitted) {
@@ -592,6 +619,10 @@ static int screenSliceNextSpanBoundary(const struct screenRenderSliceArgs *args,
 		screenSliceConsiderBoundary(args->hover_render_start, pos, &next);
 		screenSliceConsiderBoundary(args->hover_render_end, pos, &next);
 	}
+	screenSliceConsiderBoundary(args->inline_change_start, pos, &next);
+	screenSliceConsiderBoundary(args->inline_change_end, pos, &next);
+	screenSliceConsiderBoundary(args->inline_change_start, pos, &next);
+	screenSliceConsiderBoundary(args->inline_change_end, pos, &next);
 	for (int i = 0; i < 2; i++) {
 		int b = args->bracket_render_idx[i];
 		if (b < 0) {
@@ -639,7 +670,8 @@ static int screenSliceSyntaxFastPathApplies(const struct screenRenderSliceArgs *
 	                  (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE));
 	int has_diag = args->diagnostic_spans != NULL && args->diagnostic_span_count > 0;
 	int has_bracket = args->bracket_render_idx[0] >= 0 || args->bracket_render_idx[1] >= 0;
-	return !has_syntax && !has_diag && !has_bracket;
+	int has_inline_change = args->inline_change_end > args->inline_change_start;
+	return !has_syntax && !has_diag && !has_bracket && !has_inline_change;
 }
 
 static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *args,
@@ -662,6 +694,7 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 	int underline_on = 0;
 	int underline_red = 0;
 	int bold_on = 0;
+	int emphasis_on = 0;
 	int has_hover = args->hover_render_end > args->hover_render_start;
 	int pos = segment_start;
 	while (pos < segment_end) {
@@ -685,6 +718,12 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 			return 0;
 		}
 
+		if (!screenSliceApplyEmphasisBg(
+		            args, pos >= args->inline_change_start && pos < args->inline_change_end,
+		            &emphasis_on)) {
+			return 0;
+		}
+
 		int next = screenSliceNextSpanBoundary(args, pos, segment_end, has_hover);
 		if (next <= pos) {
 			next = screenSliceNextCodepointBoundary(row, pos, segment_end);
@@ -696,6 +735,9 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 		pos = next;
 	}
 
+	if (!screenSliceApplyEmphasisBg(args, 0, &emphasis_on)) {
+		return 0;
+	}
 	return screenSliceResetStyles(wb, active_color_emitted, underline_on, underline_red,
 	                              bold_on);
 }
@@ -850,6 +892,15 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 	screenGatherBracketIndices(row_idx, row, &row_line, row_size, have_row_line,
 	                           bracket_render_idx);
 
+	int inline_change_start = -1;
+	int inline_change_end = -1;
+	struct editorThemeColor inline_change_bg = editorThemeDefaultColor();
+	if (!editorGitViewRowInlineChange(row_idx, &inline_change_start, &inline_change_end,
+	                                  &inline_change_bg)) {
+		inline_change_start = -1;
+		inline_change_end = -1;
+	}
+
 	struct screenRenderSliceArgs slice = {
 	        .wb = wb,
 	        .row = row,
@@ -861,6 +912,9 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 	        .hover_render_start = hover_render_start,
 	        .hover_render_end = hover_render_end,
 	        .bracket_render_idx = {bracket_render_idx[0], bracket_render_idx[1]},
+	        .inline_change_start = inline_change_start,
+	        .inline_change_end = inline_change_end,
+	        .inline_change_bg = inline_change_bg,
 	};
 
 	if (highlight_len_chars <= 0) {
@@ -1102,6 +1156,51 @@ int editorDebugStoppedLineHighlightApplies(int row_idx) {
 	return row_idx >= 0 && row_idx < E.numrows && editorDapIsStoppedLine(E.filename, row_idx);
 }
 
+/* Draws the gutter's trailing column. Added/modified lines tint its background
+ * so the change bar costs no extra width; a debug glyph still owns the
+ * foreground, and removal markers fill in where there is none. */
+static int screenDrawGutterMarkerCell(struct writeBuf *wb, int row_idx, int allow_debug_glyph) {
+	enum editorGitGutterMark mark = editorGitGutterMarkForRow(row_idx);
+	int tinted = mark == EDITOR_GIT_GUTTER_ADDED || mark == EDITOR_GIT_GUTTER_MODIFIED;
+	/* Same tints the diff tabs use, so a changed line reads the same at the
+	 * gutter as it does in its diff. */
+	enum editorThemeDiffTint tint = mark == EDITOR_GIT_GUTTER_ADDED
+	                                        ? EDITOR_THEME_DIFF_TINT_ADDED
+	                                        : EDITOR_THEME_DIFF_TINT_MODIFIED;
+	if (tinted && !editorAppendThemeBackground(wb, editorThemeGitDiffBgColor(&E.theme, tint))) {
+		return 0;
+	}
+
+	int stopped = allow_debug_glyph && editorDapIsStoppedLine(E.filename, row_idx);
+	if (stopped) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE) ||
+		    !wbAppend(wb, TEXT_DAP_STOPPED_LINE_UTF8,
+		              sizeof(TEXT_DAP_STOPPED_LINE_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (allow_debug_glyph && editorDapHasBreakpoint(E.filename, row_idx) >= 0) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_BREAKPOINT) ||
+		    !wbAppend(wb, TEXT_DAP_BREAKPOINT_UTF8, sizeof(TEXT_DAP_BREAKPOINT_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (mark == EDITOR_GIT_GUTTER_DELETED_ABOVE) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_DELETED) ||
+		    !wbAppend(wb, TEXT_GIT_GUTTER_DELETED_ABOVE_UTF8,
+		              sizeof(TEXT_GIT_GUTTER_DELETED_ABOVE_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (mark == EDITOR_GIT_GUTTER_DELETED_BELOW) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_DELETED) ||
+		    !wbAppend(wb, TEXT_GIT_GUTTER_DELETED_BELOW_UTF8,
+		              sizeof(TEXT_GIT_GUTTER_DELETED_BELOW_UTF8) - 1)) {
+			return 0;
+		}
+	} else if (!wbAppend(wb, " ", 1)) {
+		return 0;
+	}
+	return !tinted || screenAppendTextRowReset(wb);
+}
+
 int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_coloff,
                                int gutter_cols) {
 	if (gutter_cols <= 0) {
@@ -1144,29 +1243,26 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
 		if (len > 0 && !wbAppend(wb, visible_number, (size_t)len)) {
 			return 0;
 		}
-		/* The trailing separator column doubles as the debug marker slot, so a
-		 * breakpoint/stopped indicator never widens the gutter. Stopped line
-		 * takes precedence over a breakpoint on the same row. */
-		if (gutter_cols > 1) {
-			if (editorDapIsStoppedLine(E.filename, row_idx)) {
-				if (!editorAppendThemeForegroundRole(
-				            wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE) ||
-				    !wbAppend(wb, TEXT_DAP_STOPPED_LINE_UTF8,
-				              sizeof(TEXT_DAP_STOPPED_LINE_UTF8) - 1)) {
-					return 0;
-				}
-			} else if (editorDapHasBreakpoint(E.filename, row_idx) >= 0) {
-				if (!editorAppendThemeForegroundRole(wb,
-				                                     EDITOR_THEME_UI_BREAKPOINT) ||
-				    !wbAppend(wb, TEXT_DAP_BREAKPOINT_UTF8,
-				              sizeof(TEXT_DAP_BREAKPOINT_UTF8) - 1)) {
-					return 0;
-				}
-			} else if (!wbAppend(wb, " ", 1)) {
+		/* The trailing separator column doubles as the debug marker and git
+		 * change slots, so neither widens the gutter. Stopped line takes
+		 * precedence over a breakpoint on the same row. */
+		if (gutter_cols > 1 && !screenDrawGutterMarkerCell(wb, row_idx, 1)) {
+			return 0;
+		}
+		return editorAppendThemeBaseForeground(wb);
+	}
+
+	/* Wrapped continuation rows carry the change bar too, so a long changed
+	 * line reads as one block. */
+	if (gutter_cols > 1 && row_idx >= 0 && row_idx < E.numrows &&
+	    editorGitGutterMarkForRow(row_idx) != EDITOR_GIT_GUTTER_NONE) {
+		for (int col = 0; col < gutter_cols - 1; col++) {
+			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
 		}
-		return editorAppendThemeBaseForeground(wb);
+		return screenDrawGutterMarkerCell(wb, row_idx, 0) &&
+		       editorAppendThemeBaseForeground(wb);
 	}
 
 	for (int col = 0; col < gutter_cols; col++) {

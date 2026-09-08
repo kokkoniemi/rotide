@@ -1,4 +1,9 @@
+#include "config/theme_config.h"
+#include "editing/edit.h"
 #include "editor_test_api.h"
+#include "render/ansi_style.h"
+#include "render/screen.h"
+#include "render/write_buf.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -93,6 +98,19 @@ static void git_ops_test_repo_destroy(char *repo) {
 	}
 	free(repo);
 	editorGitFree();
+}
+
+static int git_ops_bytes_contain(const char *data, size_t len, const char *needle) {
+	size_t needle_len = strlen(needle);
+	if (data == NULL || needle_len == 0 || len < needle_len) {
+		return 0;
+	}
+	for (size_t i = 0; i + needle_len <= len; i++) {
+		if (memcmp(data + i, needle, needle_len) == 0) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static const struct editorGitEntry *git_ops_find_entry(const char *rel_path) {
@@ -600,6 +618,151 @@ static int test_git_ops_without_repo_sets_statusmsg(void) {
 	return 0;
 }
 
+static int test_git_gutter_parse_diff_marks_lines(void) {
+	reset_editor_state();
+	unsigned char marks[10];
+	const char *diff = "diff --git a/a.txt b/a.txt\n"
+	                   "index 1111111..2222222 100644\n"
+	                   "--- a/a.txt\n"
+	                   "+++ b/a.txt\n"
+	                   "@@ -1,0 +2,2 @@\n" /* lines 2-3 are new */
+	                   "+new\n"
+	                   "+new\n"
+	                   "@@ -4,2 +6 @@\n" /* line 6 replaces two old lines */
+	                   "-old\n"
+	                   "-old\n"
+	                   "+mixed\n"
+	                   "@@ -8,2 +7,0 @@\n" /* two lines removed above line 8 */
+	                   "-gone\n"
+	                   "-gone\n";
+	ASSERT_TRUE(editorGitGutterTestParseDiff(diff, (int)sizeof(marks), marks));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, marks[0]);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_ADDED, marks[1]);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_ADDED, marks[2]);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, marks[3]);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_MODIFIED, marks[5]);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_DELETED_ABOVE, marks[7]);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, marks[8]);
+
+	/* A removal past the last line hangs off the bottom of it instead. */
+	ASSERT_TRUE(editorGitGutterTestParseDiff("@@ -11,2 +10,0 @@\n", (int)sizeof(marks), marks));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_DELETED_BELOW, marks[9]);
+
+	/* A change claims a line a neighbouring removal would otherwise flag. */
+	ASSERT_TRUE(editorGitGutterTestParseDiff("@@ -1,1 +1,0 @@\n"
+	                                         "@@ -3,0 +2,1 @@\n",
+	                                         (int)sizeof(marks), marks));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_ADDED, marks[1]);
+	return 0;
+}
+
+static int test_git_gutter_marks_worktree_changes(void) {
+	SKIP_WITHOUT_GIT();
+	reset_editor_state();
+	char *repo = git_ops_test_repo_create();
+	ASSERT_TRUE(repo != NULL);
+
+	ASSERT_TRUE(git_ops_write_file(repo, "g.txt", "one\ntwo\nthree\nfour\n"));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' add g.txt", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' commit -q -m base", repo));
+	ASSERT_TRUE(git_ops_write_file(repo, "g.txt", "one\nTWO\nthree\nadded\n"));
+	editorGitRefresh();
+
+	char path[512];
+	int n = snprintf(path, sizeof(path), "%s/g.txt", repo);
+	ASSERT_TRUE(n > 0 && n < (int)sizeof(path));
+	ASSERT_TRUE(editorOpen(path));
+	ASSERT_EQ_INT(4, E.numrows);
+
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, editorGitGutterMarkForRow(0));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_MODIFIED, editorGitGutterMarkForRow(1));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, editorGitGutterMarkForRow(2));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_MODIFIED, editorGitGutterMarkForRow(3));
+
+	/* Later rows reuse the cached marks instead of respawning git. */
+	long loads = editorGitGutterTestLoadCount();
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, editorGitGutterMarkForRow(0));
+	ASSERT_TRUE(loads == editorGitGutterTestLoadCount());
+
+	git_ops_test_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_gutter_renders_bar_in_separator_column(void) {
+	static const char deleted_below_glyph[] = "\xE2\x96\x81";
+	SKIP_WITHOUT_GIT();
+	reset_editor_state();
+	char *repo = git_ops_test_repo_create();
+	ASSERT_TRUE(repo != NULL);
+
+	ASSERT_TRUE(git_ops_write_file(repo, "g.txt", "one\ntwo\nthree\nfour\n"));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' add g.txt", repo));
+	ASSERT_TRUE(git_ops_run_cmd("git -C '%s' commit -q -m base", repo));
+	/* "two" edited and the trailing "four" dropped. */
+	ASSERT_TRUE(git_ops_write_file(repo, "g.txt", "one\nTWO\nthree\n"));
+	editorGitRefresh();
+
+	char path[512];
+	int n = snprintf(path, sizeof(path), "%s/g.txt", repo);
+	ASSERT_TRUE(n > 0 && n < (int)sizeof(path));
+	ASSERT_TRUE(editorOpen(path));
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_MODIFIED, editorGitGutterMarkForRow(1));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_DELETED_BELOW, editorGitGutterMarkForRow(2));
+
+	/* The bar tints the gutter column that is already there, so a marked row
+	 * carries extra bytes without asking for extra columns. */
+	struct writeBuf clean = WRITEBUF_INIT;
+	struct writeBuf changed = WRITEBUF_INIT;
+	struct writeBuf removed = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawLineNumberGutter(&clean, 0, 0, 6));
+	ASSERT_TRUE(editorDrawLineNumberGutter(&changed, 1, 0, 6));
+	ASSERT_TRUE(editorDrawLineNumberGutter(&removed, 2, 0, 6));
+	ASSERT_TRUE(changed.len > clean.len);
+	ASSERT_TRUE(!git_ops_bytes_contain(clean.b, clean.len, deleted_below_glyph));
+	ASSERT_TRUE(git_ops_bytes_contain(removed.b, removed.len, deleted_below_glyph));
+
+	/* The bar carries the diff view's tint, not the drawer's full-strength
+	 * accent, so the same change reads alike in both places. */
+	struct writeBuf tint = WRITEBUF_INIT;
+	ASSERT_TRUE(editorAppendThemeBackground(
+	        &tint, editorThemeGitDiffBgColor(&E.theme, EDITOR_THEME_DIFF_TINT_MODIFIED)));
+	char tint_seq[32];
+	ASSERT_TRUE(tint.len > 0 && tint.len < sizeof(tint_seq));
+	memcpy(tint_seq, tint.b, tint.len);
+	tint_seq[tint.len] = '\0';
+	wbFree(&tint);
+	ASSERT_TRUE(git_ops_bytes_contain(changed.b, changed.len, tint_seq));
+
+	wbFree(&clean);
+	wbFree(&changed);
+	wbFree(&removed);
+
+	git_ops_test_repo_destroy(repo);
+	return 0;
+}
+
+static int test_git_gutter_marks_untracked_file_as_added(void) {
+	SKIP_WITHOUT_GIT();
+	reset_editor_state();
+	char *repo = git_ops_test_repo_create();
+	ASSERT_TRUE(repo != NULL);
+
+	ASSERT_TRUE(git_ops_write_file(repo, "fresh.txt", "alpha\nbeta\n"));
+	editorGitRefresh();
+
+	char path[512];
+	int n = snprintf(path, sizeof(path), "%s/fresh.txt", repo);
+	ASSERT_TRUE(n > 0 && n < (int)sizeof(path));
+	ASSERT_TRUE(editorOpen(path));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_ADDED, editorGitGutterMarkForRow(0));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_ADDED, editorGitGutterMarkForRow(1));
+	ASSERT_EQ_INT(EDITOR_GIT_GUTTER_NONE, editorGitGutterMarkForRow(2));
+
+	git_ops_test_repo_destroy(repo);
+	return 0;
+}
+
 const struct editorTestCase g_git_ops_tests[] = {
         {"git_build_repo_command_args_terminates_last_argument",
          test_git_build_repo_command_args_terminates_last_argument},
@@ -622,6 +785,11 @@ const struct editorTestCase g_git_ops_tests[] = {
          test_git_ops_parse_status_preserves_added_deleted_for_tree},
         {"git_ops_dir_status_rolls_up_worst", test_git_ops_dir_status_rolls_up_worst},
         {"git_ops_without_repo_sets_statusmsg", test_git_ops_without_repo_sets_statusmsg},
+        {"git_gutter_parse_diff_marks_lines", test_git_gutter_parse_diff_marks_lines},
+        {"git_gutter_marks_worktree_changes", test_git_gutter_marks_worktree_changes},
+        {"git_gutter_renders_bar_in_separator_column",
+         test_git_gutter_renders_bar_in_separator_column},
+        {"git_gutter_marks_untracked_file_as_added", test_git_gutter_marks_untracked_file_as_added},
 };
 
 const int g_git_ops_test_count = (int)(sizeof(g_git_ops_tests) / sizeof(g_git_ops_tests[0]));

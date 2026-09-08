@@ -18,6 +18,17 @@ struct editorGitBlameLine {
 	int final_line;
 };
 
+/* How a line of the active file differs from its HEAD version, as shown in the
+ * editor gutter. Removals have no line of their own, so they are flagged on the
+ * line that closes the gap (or on the last line when the tail was cut). */
+enum editorGitGutterMark {
+	EDITOR_GIT_GUTTER_NONE = 0,
+	EDITOR_GIT_GUTTER_ADDED,
+	EDITOR_GIT_GUTTER_MODIFIED,
+	EDITOR_GIT_GUTTER_DELETED_ABOVE,
+	EDITOR_GIT_GUTTER_DELETED_BELOW
+};
+
 int editorGitInit(void);
 void editorGitRefresh(void);
 void editorGitFree(void);
@@ -34,6 +45,7 @@ int editorGitLoadBlameLine(const char *abs_path, int one_based_line,
 const struct editorGitBlameLine *editorGitBlameActiveLine(int one_based_line);
 int editorGitBlameActiveInlineLabel(int one_based_line, time_t now, char *buf, size_t buf_size);
 int editorGitFormatRelativeTime(time_t then, time_t now, char *buf, size_t buf_size);
+enum editorGitGutterMark editorGitGutterMarkForRow(int row_idx);
 int editorGitBuildRepoCommand(char *cmd, size_t cmd_size, const char *args_literal);
 int editorGitBuildRepoCommandArgs(char *cmd, size_t cmd_size, char *const args[]);
 

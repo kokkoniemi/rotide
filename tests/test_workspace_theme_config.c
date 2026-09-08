@@ -419,6 +419,7 @@ static int test_editor_theme_custom_tables_cover_every_theme_role(void) {
 	                                        "debug_stopped_line_bg = \"#201213\"\n"
 	                                        "diff_added_bg = \"#201314\"\n"
 	                                        "diff_removed_bg = \"#201415\"\n"
+	                                        "diff_modified_bg = \"#201516\"\n"
 	                                        "selection_fg = \"#300001\"\n"
 	                                        "selection_bg = \"#300102\"\n"
 	                                        "status_fg = \"#300203\"\n"

@@ -10,6 +10,7 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "text/document.h"
+#include "text/row.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/git.h"
@@ -1097,6 +1098,128 @@ static void gitViewStashOp(enum editorAction action) {
 	}
 }
 
+/* Rows of one kind that run consecutively from `row_idx` backwards. */
+static int gitViewDiffRunStart(int row_idx, unsigned char kind) {
+	int start = row_idx;
+	while (start > 0 && E.git_view_line_kinds[start - 1] == kind) {
+		start--;
+	}
+	return start;
+}
+
+static int gitViewDiffRunLength(int start, unsigned char kind) {
+	int end = start;
+	while (end < E.git_view_line_kind_count && E.git_view_line_kinds[end] == kind) {
+		end++;
+	}
+	return end - start;
+}
+
+/* A change block is a run of removed rows immediately followed by a run of
+ * added rows; row k of one side is the rewrite of row k of the other. Rows
+ * past the shorter side are pure insertions or deletions and pair with
+ * nothing. Returns the counterpart row, or -1. */
+static int gitViewDiffCounterpartRow(int row_idx) {
+	unsigned char kind = E.git_view_line_kinds[row_idx];
+	int removed_start = 0;
+	int added_start = 0;
+	if (kind == EDITOR_GIT_VIEW_LINE_REMOVED) {
+		removed_start = gitViewDiffRunStart(row_idx, EDITOR_GIT_VIEW_LINE_REMOVED);
+		added_start = removed_start +
+		              gitViewDiffRunLength(removed_start, EDITOR_GIT_VIEW_LINE_REMOVED);
+	} else if (kind == EDITOR_GIT_VIEW_LINE_ADDED) {
+		added_start = gitViewDiffRunStart(row_idx, EDITOR_GIT_VIEW_LINE_ADDED);
+		if (added_start == 0 ||
+		    E.git_view_line_kinds[added_start - 1] != EDITOR_GIT_VIEW_LINE_REMOVED) {
+			return -1;
+		}
+		removed_start = gitViewDiffRunStart(added_start - 1, EDITOR_GIT_VIEW_LINE_REMOVED);
+	} else {
+		return -1;
+	}
+
+	int removed_count = added_start - removed_start;
+	int added_count = gitViewDiffRunLength(added_start, EDITOR_GIT_VIEW_LINE_ADDED);
+	if (removed_count <= 0 || added_count <= 0) {
+		return -1;
+	}
+	int k = kind == EDITOR_GIT_VIEW_LINE_REMOVED ? row_idx - removed_start
+	                                             : row_idx - added_start;
+	if (k >= removed_count || k >= added_count) {
+		return -1;
+	}
+	return kind == EDITOR_GIT_VIEW_LINE_REMOVED ? added_start + k : removed_start + k;
+}
+
+/* Share of a line that must survive the trim before its differing characters
+ * are worth picking out. Below this the two lines are unrelated rather than
+ * edited, and a flat row tint reads better than lighting one up end to end. */
+enum { GIT_VIEW_INLINE_MIN_SHARED_PCT = 25 };
+
+/* Leading whitespace common to both rows. It says nothing about whether two
+ * lines are related -- in indented code almost every pair shares it -- so it
+ * does not count towards similarity. */
+static int gitViewSharedIndent(const struct editorRow *row, int prefix) {
+	int indent = 0;
+	while (indent < prefix && (row->render[indent] == ' ' || row->render[indent] == '\t')) {
+		indent++;
+	}
+	return indent;
+}
+
+/* Trims the prefix and suffix `row` shares with `other` and reports what is
+ * left as a render range. Both ends are clamped outwards to cluster boundaries
+ * so the highlight never cuts a glyph in half. Rows that survive the trim with
+ * too little in common are rewrites rather than edits, and keep the flat row
+ * tint. */
+static int gitViewInlineChangeRange(const struct editorRow *row, const struct editorRow *other,
+                                    int *start_out, int *end_out) {
+	int limit = row->rsize < other->rsize ? row->rsize : other->rsize;
+	int prefix = 0;
+	while (prefix < limit && row->render[prefix] == other->render[prefix]) {
+		prefix++;
+	}
+	int suffix = 0;
+	while (suffix < limit - prefix &&
+	       row->render[row->rsize - 1 - suffix] == other->render[other->rsize - 1 - suffix]) {
+		suffix++;
+	}
+
+	int shared = prefix - gitViewSharedIndent(row, prefix) + suffix;
+	int longer = row->rsize > other->rsize ? row->rsize : other->rsize;
+	if (shared * 100 < longer * GIT_VIEW_INLINE_MIN_SHARED_PCT) {
+		return 0;
+	}
+
+	int start = editorBytesClampCxToClusterBoundary(row->render, row->rsize, prefix);
+	int end = editorBytesClampCxToClusterBoundary(row->render, row->rsize, row->rsize - suffix);
+	if (end <= start) {
+		return 0;
+	}
+	*start_out = start;
+	*end_out = end;
+	return 1;
+}
+
+int editorGitViewRowInlineChange(int row_idx, int *start_out, int *end_out,
+                                 struct editorThemeColor *bg_out) {
+	if (start_out == NULL || end_out == NULL || bg_out == NULL ||
+	    E.tab_kind != EDITOR_TAB_GIT_DIFF || E.git_view_line_kinds == NULL || row_idx < 0 ||
+	    row_idx >= E.numrows || row_idx >= E.git_view_line_kind_count) {
+		return 0;
+	}
+	int other = gitViewDiffCounterpartRow(row_idx);
+	if (other < 0 || other >= E.numrows ||
+	    !gitViewInlineChangeRange(&E.rows[row_idx], &E.rows[other], start_out, end_out)) {
+		return 0;
+	}
+	*bg_out = editorThemeGitDiffEmphasisBgColor(
+	        &E.theme, E.git_view_line_kinds[row_idx] == EDITOR_GIT_VIEW_LINE_ADDED
+	                          ? EDITOR_THEME_DIFF_TINT_ADDED
+	                          : EDITOR_THEME_DIFF_TINT_REMOVED);
+	return 1;
+}
+
 int editorGitViewRowBgColor(int row_idx, struct editorThemeColor *color_out) {
 	if (color_out == NULL || row_idx < 0 || row_idx >= E.numrows) {
 		return 0;
@@ -1109,10 +1232,12 @@ int editorGitViewRowBgColor(int row_idx, struct editorThemeColor *color_out) {
 			}
 			switch (E.git_view_line_kinds[row_idx]) {
 				case EDITOR_GIT_VIEW_LINE_ADDED:
-					*color_out = editorThemeGitDiffBgColor(&E.theme, 1);
+					*color_out = editorThemeGitDiffBgColor(
+					        &E.theme, EDITOR_THEME_DIFF_TINT_ADDED);
 					return 1;
 				case EDITOR_GIT_VIEW_LINE_REMOVED:
-					*color_out = editorThemeGitDiffBgColor(&E.theme, 0);
+					*color_out = editorThemeGitDiffBgColor(
+					        &E.theme, EDITOR_THEME_DIFF_TINT_REMOVED);
 					return 1;
 				case EDITOR_GIT_VIEW_LINE_HEADER:
 					*color_out = E.theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG];

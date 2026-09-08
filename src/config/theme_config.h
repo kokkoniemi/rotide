@@ -66,7 +66,17 @@ enum editorThemeUiRole {
 	EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG,
 	EDITOR_THEME_UI_DIFF_ADDED_BG,
 	EDITOR_THEME_UI_DIFF_REMOVED_BG,
+	EDITOR_THEME_UI_DIFF_MODIFIED_BG,
 	EDITOR_THEME_UI_ROLE_COUNT
+};
+
+/* Which of the diff row tints to resolve. Modified has no counterpart in a
+ * unified diff (a change is a removal plus an addition); the gutter change bar
+ * needs it to tell an edited line from a purely new one. */
+enum editorThemeDiffTint {
+	EDITOR_THEME_DIFF_TINT_ADDED = 0,
+	EDITOR_THEME_DIFF_TINT_REMOVED,
+	EDITOR_THEME_DIFF_TINT_MODIFIED
 };
 
 enum editorThemeStyleRole {
@@ -101,7 +111,10 @@ struct editorThemeColor editorThemeDefaultColor(void);
 struct editorThemeColor editorThemeAnsiColor(enum editorThemeAnsiColor color);
 struct editorThemeColor editorTheme256Color(unsigned char color);
 struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, unsigned char b);
-struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme, int added);
+struct editorThemeColor editorThemeGitDiffBgColor(const struct editorTheme *theme,
+                                                  enum editorThemeDiffTint tint);
+struct editorThemeColor editorThemeGitDiffEmphasisBgColor(const struct editorTheme *theme,
+                                                          enum editorThemeDiffTint tint);
 
 void editorThemeInitDefault(struct editorTheme *theme_out);
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name);
