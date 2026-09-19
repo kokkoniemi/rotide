@@ -1,7 +1,9 @@
+#include "alloc_test_hooks.h"
 #include "input/actions_workspace.h"
 #include "input/mouse.h"
 #include "input/system_vim.h"
 #include "rotide.h"
+#include "support/terminal.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -10,11 +12,17 @@
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <termios.h>
 #include <time.h>
+#include <unistd.h>
 
 static int wait_for_text_in_screen(struct editorTerminalPane *t, const char *needle,
                                    int timeout_ms) {
@@ -1323,7 +1331,222 @@ static int test_terminal_input_modes_are_per_tab(void) {
 	return b->pending_ctrl_w != 0;
 }
 
+static struct editorTerminalPane *terminal_paste_open(int *slave_out) {
+	char path[256];
+	struct editorTerminalPane *terminal =
+	        editorTerminalPaneCreateDetached(80, 24, path, sizeof(path));
+	if (terminal == NULL) {
+		return NULL;
+	}
+	int slave = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+	struct termios attrs;
+	if (slave < 0 || tcgetattr(slave, &attrs) < 0) {
+		if (slave >= 0) {
+			close(slave);
+		}
+		editorTerminalPaneFree(terminal);
+		return NULL;
+	}
+	cfmakeraw(&attrs);
+	if (tcsetattr(slave, TCSANOW, &attrs) < 0) {
+		close(slave);
+		editorTerminalPaneFree(terminal);
+		return NULL;
+	}
+	*slave_out = slave;
+	return terminal;
+}
+
+static int terminal_paste_read(struct editorTerminalPane *terminal, int slave, char *bytes,
+                               size_t len) {
+	size_t received = 0;
+	for (int attempt = 0; received < len && attempt < 2000; attempt++) {
+		(void)editorTerminalPanePump(terminal);
+		ssize_t n = read(slave, bytes + received, len - received);
+		if (n > 0) {
+			received += (size_t)n;
+		} else if (n < 0 && errno != EAGAIN && errno != EINTR) {
+			return 0;
+		} else {
+			struct pollfd fd = {.fd = slave, .events = POLLIN};
+			(void)poll(&fd, 1, 1);
+		}
+	}
+	return received == len;
+}
+
+static int test_terminal_paste_bulk_delivery_under_backpressure(void) {
+	for (int bracketed = 0; bracketed <= 1; bracketed++) {
+		int slave = -1;
+		struct editorTerminalPane *terminal = terminal_paste_open(&slave);
+		ASSERT_TRUE(terminal != NULL);
+		ASSERT_TRUE(editorTabsInit());
+		ASSERT_TRUE(editorTabAdoptInPane(E.focused_leaf, EDITOR_PANE_KIND_TERMINAL,
+		                                 terminal, editorTerminalPaneFree) >= 0);
+		if (bracketed) {
+			vterm_input_write(terminal->vt, "\x1b[?2004h", 8);
+		}
+		size_t len = 256 * 1024;
+		char *payload = malloc(len);
+		char *received = malloc(len + 13);
+		ASSERT_TRUE(payload != NULL && received != NULL);
+		for (size_t i = 0; i < len; i++) {
+			payload[i] = (char)(i % 256);
+		}
+		terminal->sel_active = 1;
+		terminal->scroll_offset = 1;
+		ASSERT_TRUE(editorTerminalPaneSendPaste(terminal, payload, len));
+		ASSERT_EQ_INT(0, terminal->sel_active);
+		ASSERT_EQ_INT(0, terminal->scroll_offset);
+		ASSERT_TRUE(terminal->input_offset < terminal->input_len);
+		struct pollfd fd;
+		ASSERT_EQ_INT(1, editorTerminalPaneCollectPollFds(&fd, 1));
+		ASSERT_TRUE((fd.events & POLLOUT) != 0);
+		ASSERT_TRUE(editorTerminalPaneSendKey(terminal, '!'));
+		size_t expected_len = len + (bracketed ? 12 : 0) + 1;
+		ASSERT_TRUE(terminal_paste_read(terminal, slave, received, expected_len));
+		if (bracketed) {
+			ASSERT_MEM_EQ("\x1b[200~", received, 6);
+			ASSERT_MEM_EQ("\x1b[201~", received + 6 + len, 6);
+		}
+		ASSERT_MEM_EQ(payload, received + (bracketed ? 6 : 0), len);
+		ASSERT_EQ_INT('!', received[expected_len - 1]);
+		ASSERT_EQ_INT(0, terminal->input_len);
+		ASSERT_EQ_INT(1, editorTerminalPaneCollectPollFds(&fd, 1));
+		ASSERT_EQ_INT(0, fd.events & POLLOUT);
+		char extra;
+		ASSERT_TRUE(read(slave, &extra, 1) < 0 && errno == EAGAIN);
+		free(payload);
+		free(received);
+		close(slave);
+		ASSERT_TRUE(editorTabCloseActive());
+	}
+	return 0;
+}
+
+static int test_terminal_paste_dispatch_preserves_bytes_and_mode(void) {
+	int slave = -1;
+	struct editorTerminalPane *terminal = terminal_paste_open(&slave);
+	ASSERT_TRUE(terminal != NULL);
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabAdoptInPane(E.focused_leaf, EDITOR_PANE_KIND_TERMINAL, terminal,
+	                                 editorTerminalPaneFree) >= 0);
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	terminal->input_mode = EDITOR_TERMINAL_INPUT_NORMAL;
+	feed_keys("\x1b[200~i\x17N\x1b[201~");
+	ASSERT_EQ_INT(EDITOR_TERMINAL_INPUT_NORMAL, terminal->input_mode);
+	char received[64];
+	ASSERT_TRUE(read(slave, received, sizeof(received)) < 0 && errno == EAGAIN);
+	terminal->input_mode = EDITOR_TERMINAL_INPUT_INSERT;
+	terminal->pending_ctrl_w = 1;
+	const char payload[] = "\xc3\xa9\r\n\x17N\x1b[A";
+	feed_keys("\x1b[200~\xc3\xa9\r\n\x17N\x1b[A\x1b[201~");
+	ASSERT_TRUE(terminal_paste_read(terminal, slave, received, sizeof(payload) - 1));
+	ASSERT_MEM_EQ(payload, received, sizeof(payload) - 1);
+	ASSERT_EQ_INT(EDITOR_TERMINAL_INPUT_INSERT, terminal->input_mode);
+	ASSERT_EQ_INT(0, terminal->pending_ctrl_w);
+	close(slave);
+	return 0;
+}
+
+static int test_terminal_paste_poll_drains_without_keyboard_input(void) {
+	int slave = -1;
+	struct editorTerminalPane *terminal = terminal_paste_open(&slave);
+	ASSERT_TRUE(terminal != NULL);
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabAdoptInPane(E.focused_leaf, EDITOR_PANE_KIND_TERMINAL, terminal,
+	                                 editorTerminalPaneFree) >= 0);
+	size_t len = 256 * 1024;
+	char *payload = malloc(len);
+	ASSERT_TRUE(payload != NULL);
+	memset(payload, 'x', len);
+	ASSERT_TRUE(editorTerminalPaneSendPaste(terminal, payload, len));
+	free(payload);
+	int keys[2];
+	ASSERT_EQ_INT(0, pipe(keys));
+	pid_t child = fork();
+	ASSERT_TRUE(child >= 0);
+	if (child == 0) {
+		close(keys[0]);
+		close(terminal->child.master_fd);
+		size_t received = 0;
+		for (int attempt = 0; received < len && attempt < 2000; attempt++) {
+			char bytes[4096];
+			ssize_t n = read(slave, bytes, sizeof(bytes));
+			if (n > 0) {
+				received += (size_t)n;
+			} else {
+				struct pollfd fd = {.fd = slave, .events = POLLIN};
+				(void)poll(&fd, 1, 1);
+			}
+		}
+		char result = received == len ? 'Q' : 'F';
+		if (write(keys[1], &result, 1) != 1)
+			_exit(1);
+		_exit(received == len ? 0 : 1);
+	}
+	close(keys[1]);
+	int saved_stdin = dup(STDIN_FILENO);
+	ASSERT_TRUE(saved_stdin >= 0);
+	ASSERT_TRUE(dup2(keys[0], STDIN_FILENO) >= 0);
+	close(keys[0]);
+	int flags = fcntl(STDIN_FILENO, F_GETFL);
+	ASSERT_TRUE(flags >= 0 && fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == 0);
+	ASSERT_EQ_INT('Q', editorReadKey());
+	ASSERT_EQ_INT(0, restore_stdin(saved_stdin));
+	int status = 0;
+	ASSERT_EQ_INT(child, waitpid(child, &status, 0));
+	ASSERT_TRUE(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+	close(slave);
+	return 0;
+}
+
+static int test_terminal_paste_allocation_failure_emits_nothing(void) {
+	int slave = -1;
+	struct editorTerminalPane *terminal = terminal_paste_open(&slave);
+	ASSERT_TRUE(terminal != NULL);
+	vterm_input_write(terminal->vt, "\x1b[?2004h", 8);
+	editorTestAllocFailAfter(0);
+	ASSERT_EQ_INT(0, editorTerminalPaneSendPaste(terminal, "payload", 7));
+	editorTestAllocReset();
+	ASSERT_EQ_INT(0, terminal->input_len);
+	char received[32];
+	ASSERT_TRUE(read(slave, received, sizeof(received)) < 0 && errno == EAGAIN);
+	ASSERT_TRUE(editorTerminalPaneSendPaste(terminal, "ok", 2));
+	ASSERT_TRUE(terminal_paste_read(terminal, slave, received, 14));
+	ASSERT_MEM_EQ("\x1b[200~ok\x1b[201~", received, 14);
+	close(slave);
+	editorTerminalPaneFree(terminal);
+	return 0;
+}
+
+static int test_terminal_paste_pending_output_write_failure(void) {
+	int slave = -1;
+	struct editorTerminalPane *terminal = terminal_paste_open(&slave);
+	ASSERT_TRUE(terminal != NULL);
+	ASSERT_EQ_INT(7, editorTerminalPaneWrite(terminal, "pending", 7));
+	ASSERT_EQ_INT(0, close(terminal->child.master_fd));
+	(void)editorTerminalPanePump(terminal);
+	terminal->child.master_fd = -1;
+	ASSERT_EQ_INT(1, terminal->input_failed);
+	ASSERT_EQ_INT(0, terminal->input_len);
+	ASSERT_TRUE(strstr(E.statusmsg, "Terminal input failed") != NULL);
+	close(slave);
+	editorTerminalPaneFree(terminal);
+	return 0;
+}
+
 const struct editorTestCase g_terminal_pane_tests[] = {
+        {"terminal_paste_poll_drains_without_keyboard_input",
+         test_terminal_paste_poll_drains_without_keyboard_input},
+        {"terminal_paste_bulk_delivery_under_backpressure",
+         test_terminal_paste_bulk_delivery_under_backpressure},
+        {"terminal_paste_dispatch_preserves_bytes_and_mode",
+         test_terminal_paste_dispatch_preserves_bytes_and_mode},
+        {"terminal_paste_allocation_failure_emits_nothing",
+         test_terminal_paste_allocation_failure_emits_nothing},
+        {"terminal_paste_pending_output_write_failure",
+         test_terminal_paste_pending_output_write_failure},
         {"terminal_input_vim_insert_forwards_bytes", test_terminal_input_vim_insert_forwards_bytes},
         {"terminal_input_vim_esc_prefixed_stays_insert",
          test_terminal_input_vim_esc_prefixed_stays_insert},

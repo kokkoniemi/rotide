@@ -6,6 +6,7 @@
 #include "render/screen.h"
 #include "rotide.h"
 #include "support/alloc.h"
+#include "support/size_utils.h"
 #include "support/terminal.h"
 #include "text/utf8.h"
 #include "workspace/task.h"
@@ -87,7 +88,7 @@ static char *promptRunLoop(const char *prompt, const char *literal_label, int al
 			continue;
 		}
 		/* Prompt editing is keyboard-only; ignore mouse packets. */
-		if (c == MOUSE_EVENT) {
+		if (c == MOUSE_EVENT || c == BRACKETED_PASTE_START_EVENT) {
 			continue;
 		}
 		if (c == '\t' && complete_fn != NULL) {
@@ -129,7 +130,36 @@ static char *promptRunLoop(const char *prompt, const char *literal_label, int al
 		tab_iteration = 0;
 		free(tab_anchor);
 		tab_anchor = NULL;
-		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+		if (c == BRACKETED_PASTE_END_EVENT) {
+			size_t len = 0;
+			const char *text = editorInputPasteBytes(&len);
+			size_t needed = 0;
+			if (text == NULL || len == 0) {
+				continue;
+			}
+			if (!editorSizeAdd(buflen, len, &needed) ||
+			    needed >= ROTIDE_MAX_TEXT_BYTES) {
+				editorSetStatusMsg("Operation too large");
+				continue;
+			}
+			if (++needed > bufmax) {
+				char *grown = editorRealloc(buf, needed);
+				if (grown == NULL) {
+					free(buf);
+					editorSetStatusMsg("Out of memory");
+					return NULL;
+				}
+				buf = grown;
+				bufmax = needed;
+			}
+			for (size_t i = 0; i < len; i++) {
+				unsigned char byte = (unsigned char)text[i];
+				if (byte >= 0x80 || !iscntrl(byte)) {
+					buf[buflen++] = (char)byte;
+				}
+			}
+			buf[buflen] = '\0';
+		} else if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
 				buflen = promptPrevDeleteIdx(buf, buflen);
 				buf[buflen] = '\0';

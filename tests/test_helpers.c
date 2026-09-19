@@ -538,7 +538,8 @@ static int process_keypress_bytes(const char *input, size_t len, int suppress_st
 	do {
 		editorProcessKeypress();
 		int avail = 0;
-		if (ioctl(STDIN_FILENO, FIONREAD, &avail) == -1 || avail <= 0) {
+		if (editorInputBufferedBytes() == 0 &&
+		    (ioctl(STDIN_FILENO, FIONREAD, &avail) == -1 || avail <= 0)) {
 			break;
 		}
 	} while (1);

@@ -625,6 +625,7 @@ void editorEditPasteText(const char *text, size_t len, editorEditActionFn clear_
 		return;
 	}
 
+	editorHistoryBreakGroup();
 	if (E.column_select_active) {
 		editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 		int dirty_before = E.dirty;

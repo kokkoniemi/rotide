@@ -4,6 +4,7 @@
 #include "terminal/pty.h"
 #include "vterm.h"
 
+#include <poll.h>
 #include <stddef.h>
 
 /* Terminal pane state: PTY child + libvterm screen model. */
@@ -64,6 +65,11 @@ struct editorTerminalPane {
 	enum editorTerminalInputMode input_mode;
 	int pending_ctrl_w;
 	int pending_leader;
+	char *input_bytes;
+	size_t input_len;
+	size_t input_offset;
+	size_t input_capacity;
+	int input_failed;
 
 	char foreground_program[64];
 	long foreground_program_checked_ms;
@@ -87,7 +93,7 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal);
 /* Resize vterm grid and PTY (SIGWINCH to child). */
 int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int rows);
 
-/* Write raw bytes to PTY master. */
+/* Queue raw bytes for the PTY; returns bytes accepted, or zero on failure. */
 int editorTerminalPaneWrite(struct editorTerminalPane *terminal, const char *bytes, size_t len);
 
 /* Encode a rotide key and forward to PTY/vterm. */
@@ -99,9 +105,7 @@ int editorTerminalPaneSendMouseButton(struct editorTerminalPane *terminal, int b
 int editorTerminalPaneSendMouseMove(struct editorTerminalPane *terminal, int row, int col,
                                     int rotide_modifiers);
 
-/* Bracketed-paste wrappers for terminal input forwarding. */
-int editorTerminalPaneSendPasteStart(struct editorTerminalPane *terminal);
-int editorTerminalPaneSendPasteEnd(struct editorTerminalPane *terminal);
+int editorTerminalPaneSendPaste(struct editorTerminalPane *terminal, const char *bytes, size_t len);
 
 /* Scroll the pane viewport by `lines` (positive = back into scrollback,
  * negative = forward toward live). Clamped to [0, sb_size]. Returns 1 if
@@ -165,11 +169,11 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root);
 /* Close TERMINAL tabs whose child has exited. Returns the number closed. */
 int editorTerminalPaneCloseExitedTabs(void);
 
-/* Append every terminal pane's master_fd (only those >= 0) into fds_out[],
+/* Append every terminal pane's master_fd and pending I/O interests into fds_out[],
  * writing at most `capacity` entries. Returns the number of fds that would
  * exist regardless of capacity — caller can detect truncation by comparing
  * against `capacity`. */
-int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity);
+int editorTerminalPaneCollectPollFds(struct pollfd *fds_out, int capacity);
 
 /* Resize each pane's active TERMINAL tab to its current layout rect. */
 void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root);

@@ -1,5 +1,7 @@
+#include "alloc_test_hooks.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/history.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
@@ -10,6 +12,7 @@
 #include "render/popup.h"
 #include "render/screen.h"
 #include "rotide.h"
+#include "support/terminal.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -2397,6 +2400,164 @@ static int test_editor_bracketed_paste_preserves_multiline_text_in_insert_mode(v
 	return 0;
 }
 
+static int test_editor_bracketed_paste_has_separate_history(void) {
+	add_row("");
+	const char input[] = "ia\x1b[200~XY\x1b[201~\x1b[200~Z\x1b[201~b";
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input(input, sizeof(input) - 1));
+	ASSERT_ROW_TEXT_EQ(0, "aXYZb");
+	ASSERT_EQ_INT(4, E.undo_history.len);
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "aXYZ");
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "aXY");
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "a");
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "");
+	for (int i = 0; i < 4; i++) {
+		ASSERT_EQ_INT(1, editorRedo());
+	}
+	ASSERT_ROW_TEXT_EQ(0, "aXYZb");
+	return 0;
+}
+
+static int test_editor_bracketed_paste_keeps_raw_bytes_and_normalizes_newlines(void) {
+	const char input[] = "i\x1b[200~\xc3\xa9\r\n\tB\rC\x17\x1b[X\x1b[20\x1b[200~\x1b[201~Z";
+	const char expected[] = "\xc3\xa9\n\tB\nC\x17\x1b[X\x1b[20\x1b[200~Z\n";
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input(input, sizeof(input) - 1));
+	size_t len = 0;
+	char *text = dup_active_source_text(&len);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_INT(sizeof(expected) - 1, len);
+	ASSERT_MEM_EQ(expected, text, len);
+	free(text);
+	return 0;
+}
+
+static int test_editor_bracketed_paste_normal_mode_is_inert(void) {
+	add_row("keep");
+	int dirty = E.dirty;
+	const char input[] = "\x1b[200~idd:quit\r\x1b[201~";
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input(input, sizeof(input) - 1));
+	ASSERT_ROW_TEXT_EQ(0, "keep");
+	ASSERT_EQ_INT(dirty, E.dirty);
+	ASSERT_EQ_INT(0, E.undo_history.len);
+	return 0;
+}
+
+static int test_editor_bracketed_paste_failure_drains_payload(void) {
+	add_row("keep");
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("i\x1b[200~", 7));
+	editorTestAllocFailAfter(0);
+	const char input[] = "idd\r\x1b[201~";
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input(input, sizeof(input) - 1));
+	editorTestAllocReset();
+	ASSERT_ROW_TEXT_EQ(0, "keep");
+	ASSERT_EQ_INT(0, E.undo_history.len);
+	ASSERT_EQ_INT(0, E.paste_active);
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("Z", 1));
+	ASSERT_ROW_TEXT_EQ(0, "Zkeep");
+	return 0;
+}
+
+static int test_editor_bracketed_paste_empty_and_selection_history(void) {
+	add_row("abc");
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("i", 1));
+	E.cx = 1;
+	begin_selection();
+	E.cx = 2;
+	int dirty = E.dirty;
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("\x1b[200~\x1b[201~", 12));
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_EQ_INT(dirty, E.dirty);
+	ASSERT_EQ_INT(0, E.undo_history.len);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("\x1b[200~XY\x1b[201~", 14));
+	ASSERT_ROW_TEXT_EQ(0, "aXYc");
+	ASSERT_EQ_INT(1, E.undo_history.len);
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_EQ_INT(dirty, E.dirty);
+	ASSERT_EQ_INT(1, editorRedo());
+	ASSERT_ROW_TEXT_EQ(0, "aXYc");
+	return 0;
+}
+
+static int test_editor_bracketed_paste_eof_discards_partial_text(void) {
+	add_row("keep");
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("i\x1b[200~", 7));
+	int saved_stdin = -1;
+	ASSERT_EQ_INT(0, setup_stdin_bytes("partial\x1b[20", 11, &saved_stdin));
+	ASSERT_EQ_INT(INPUT_EOF_EVENT, editorReadKey());
+	ASSERT_EQ_INT(0, restore_stdin(saved_stdin));
+	ASSERT_EQ_INT(0, E.paste_active);
+	ASSERT_ROW_TEXT_EQ(0, "keep");
+	ASSERT_EQ_INT(0, E.undo_history.len);
+	return 0;
+}
+
+static int test_editor_bracketed_paste_does_not_follow_tab_switch(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("keep");
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("i\x1b[200~", 7));
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("payload\x1b[201~", 13));
+	ASSERT_EQ_INT(0, E.undo_history.len);
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_ROW_TEXT_EQ(0, "keep");
+	return 0;
+}
+
+static int test_editor_bracketed_paste_large_payload_is_one_edit(void) {
+	ASSERT_EQ_INT(0, editor_process_keypress_with_input("i", 1));
+	/* The end marker crosses a 16 KiB input chunk; a following key stays queued. */
+	size_t len = 128 * 1024 - 3;
+	char *payload = malloc(len);
+	ASSERT_TRUE(payload != NULL);
+	memset(payload, 'x', len);
+	for (size_t i = 79; i < len; i += 80) {
+		payload[i] = '\n';
+	}
+	FILE *input = tmpfile();
+	ASSERT_TRUE(input != NULL);
+	ASSERT_EQ_INT(6, fwrite("\x1b[200~", 1, 6, input));
+	ASSERT_EQ_INT(len, fwrite(payload, 1, len, input));
+	ASSERT_EQ_INT(7, fwrite("\x1b[201~!", 1, 7, input));
+	rewind(input);
+	int saved_stdin = dup(STDIN_FILENO);
+	ASSERT_TRUE(saved_stdin >= 0);
+	ASSERT_TRUE(dup2(fileno(input), STDIN_FILENO) >= 0);
+	editorDocumentTestResetStats();
+	editorProcessKeypress();
+	ASSERT_EQ_INT(1, E.paste_active);
+	editorProcessKeypress();
+	ASSERT_EQ_INT(0, E.paste_active);
+	ASSERT_EQ_INT(1, E.undo_history.len);
+	ASSERT_EQ_INT(1, editorDocumentTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(1, editorInputBufferedBytes());
+	size_t actual_len = 0;
+	char *actual = dup_active_source_text(&actual_len);
+	ASSERT_TRUE(actual != NULL);
+	ASSERT_EQ_INT(len, actual_len);
+	ASSERT_MEM_EQ(payload, actual, len);
+	free(actual);
+	free(payload);
+	editorProcessKeypress();
+	ASSERT_EQ_INT(2, E.undo_history.len);
+	ASSERT_EQ_INT(0, restore_stdin(saved_stdin));
+	ASSERT_EQ_INT(0, fclose(input));
+	return 0;
+}
+
+static int test_editor_prompt_bracketed_paste_is_text(void) {
+	const char input[] = "\x1b[200~hello\xc3\xa9\r\x7f\x17\x1b[201~!\r";
+	char *text = editor_prompt_with_input(input, sizeof(input) - 1, "Prompt: %s");
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_STR("hello\xc3\xa9!", text);
+	free(text);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_editor_right_click_opens_context_menu(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("abcdef");
@@ -3417,6 +3578,23 @@ const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_process_keypress_mouse_release_stops_drag_session",
          test_editor_process_keypress_mouse_release_stops_drag_session},
         {"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
+        {"editor_bracketed_paste_empty_and_selection_history",
+         test_editor_bracketed_paste_empty_and_selection_history},
+        {"editor_bracketed_paste_has_separate_history",
+         test_editor_bracketed_paste_has_separate_history},
+        {"editor_bracketed_paste_keeps_raw_bytes_and_normalizes_newlines",
+         test_editor_bracketed_paste_keeps_raw_bytes_and_normalizes_newlines},
+        {"editor_bracketed_paste_normal_mode_is_inert",
+         test_editor_bracketed_paste_normal_mode_is_inert},
+        {"editor_bracketed_paste_failure_drains_payload",
+         test_editor_bracketed_paste_failure_drains_payload},
+        {"editor_bracketed_paste_eof_discards_partial_text",
+         test_editor_bracketed_paste_eof_discards_partial_text},
+        {"editor_bracketed_paste_does_not_follow_tab_switch",
+         test_editor_bracketed_paste_does_not_follow_tab_switch},
+        {"editor_bracketed_paste_large_payload_is_one_edit",
+         test_editor_bracketed_paste_large_payload_is_one_edit},
+        {"editor_prompt_bracketed_paste_is_text", test_editor_prompt_bracketed_paste_is_text},
         {"editor_bracketed_paste_markers_toggle_paste_active",
          test_editor_bracketed_paste_markers_toggle_paste_active},
         {"editor_bracketed_paste_preserves_multiline_text_in_insert_mode",
