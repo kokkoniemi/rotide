@@ -1,10 +1,12 @@
 #include "support/terminal.h"
 
 #include "debug/dap.h"
+#include "editing/buffer_core.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
 #include "rotide.h"
+#include "support/alloc.h"
 #include "support/perf_trace.h"
 #include "support/size_utils.h"
 #include "terminal/terminal_pane.h"
@@ -55,6 +57,39 @@ static volatile sig_atomic_t g_terminal_atexit_registered = 0;
 static volatile sig_atomic_t g_terminal_resize_pending = 0;
 static struct editorMouseEvent g_terminal_pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0, 0};
 static int g_terminal_has_pending_mouse_event = 0;
+static char g_terminal_input[16 * 1024];
+static size_t g_terminal_input_pos = 0;
+static size_t g_terminal_input_len = 0;
+static char *g_terminal_paste_text = NULL;
+static size_t g_terminal_paste_len = 0;
+static size_t g_terminal_paste_cap = 0;
+static size_t g_terminal_paste_match = 0;
+static int g_terminal_paste_failed = 0;
+
+static void terminalDiscardPaste(void) {
+	free(g_terminal_paste_text);
+	g_terminal_paste_text = NULL;
+	g_terminal_paste_len = 0;
+	g_terminal_paste_cap = 0;
+	g_terminal_paste_match = 0;
+	g_terminal_paste_failed = 0;
+	E.paste_active = 0;
+}
+
+void editorInputReset(void) {
+	terminalDiscardPaste();
+	g_terminal_input_pos = 0;
+	g_terminal_input_len = 0;
+}
+
+size_t editorInputBufferedBytes(void) {
+	return g_terminal_input_len - g_terminal_input_pos;
+}
+
+char *editorInputPasteBytes(size_t *len_out) {
+	*len_out = g_terminal_paste_failed ? 0 : g_terminal_paste_len;
+	return g_terminal_paste_failed ? NULL : g_terminal_paste_text;
+}
 
 enum terminalOsc52Mode {
 	TERMINAL_OSC52_MODE_AUTO = 0,
@@ -110,8 +145,16 @@ static int terminalIsTtyInputClosed(void) {
 }
 
 static enum terminalReadByteResult terminalReadInputByte(char *out) {
-	ssize_t nread = read(STDIN_FILENO, out, 1);
-	if (nread == 1) {
+	if (editorInputBufferedBytes() > 0) {
+		*out = g_terminal_input[g_terminal_input_pos++];
+		return TERMINAL_READ_BYTE;
+	}
+	size_t capacity = E.paste_active ? sizeof(g_terminal_input) : 1;
+	ssize_t nread = read(STDIN_FILENO, g_terminal_input, capacity);
+	if (nread > 0) {
+		g_terminal_input_len = (size_t)nread;
+		g_terminal_input_pos = 1;
+		*out = g_terminal_input[0];
 		return TERMINAL_READ_BYTE;
 	}
 	if (nread == 0) {
@@ -128,6 +171,9 @@ static enum terminalReadByteResult terminalReadInputByte(char *out) {
 }
 
 int editorInputPending(void) {
+	if (editorInputBufferedBytes() > 0) {
+		return 1;
+	}
 	struct pollfd pfd = {.fd = STDIN_FILENO, .events = POLLIN, .revents = 0};
 	int polled;
 	do {
@@ -204,19 +250,11 @@ static void terminalWaitForInput(int timeout_ms) {
 	pfds[nfds].events = POLLIN;
 	pfds[nfds].revents = 0;
 	nfds++;
-	int pty_fds[TERMINAL_POLL_FDS_CAP];
-	int pty_count =
-	        editorTerminalPaneCollectMasterFds(E.layout_root, pty_fds, TERMINAL_POLL_FDS_CAP);
-	int pty_use = pty_count;
-	if (pty_use > TERMINAL_POLL_FDS_CAP - 1) {
-		pty_use = TERMINAL_POLL_FDS_CAP - 1;
+	int pty_count = editorTerminalPaneCollectPollFds(pfds + nfds, TERMINAL_POLL_FDS_CAP - 1);
+	if (pty_count > TERMINAL_POLL_FDS_CAP - 1) {
+		pty_count = TERMINAL_POLL_FDS_CAP - 1;
 	}
-	for (int i = 0; i < pty_use; i++) {
-		pfds[nfds].fd = pty_fds[i];
-		pfds[nfds].events = POLLIN;
-		pfds[nfds].revents = 0;
-		nfds++;
-	}
+	nfds += (nfds_t)pty_count;
 	int dap_fd = editorDapAdapterReadFd();
 	if (dap_fd >= 0 && nfds < TERMINAL_POLL_FDS_CAP) {
 		pfds[nfds].fd = dap_fd;
@@ -412,6 +450,10 @@ static int terminalReadBracketedPasteSequence(void) {
 			return INPUT_EOF_EVENT;
 		}
 		if (read_status == TERMINAL_READ_BYTE && fifth == '~') {
+			if (fourth == '0') {
+				terminalDiscardPaste();
+				E.paste_active = 1;
+			}
 			return fourth == '0' ? BRACKETED_PASTE_START_EVENT
 			                     : BRACKETED_PASTE_END_EVENT;
 		}
@@ -991,7 +1033,7 @@ static int terminalPollPendingEvent(void) {
 	if (terminalTakeResizeEvent()) {
 		return RESIZE_EVENT;
 	}
-	if (editorInputPending()) {
+	if (!E.paste_active && editorInputPending()) {
 		return 0;
 	}
 	if (editorSyntaxBackgroundPoll()) {
@@ -1123,7 +1165,91 @@ static int terminalReadEscapeSequence(void) {
 	return terminalAltKeyFromByte(first);
 }
 
+static void terminalAppendPaste(const char *bytes, size_t len) {
+	if (g_terminal_paste_failed || len == 0) {
+		return;
+	}
+	size_t needed = 0;
+	if (!editorSizeAdd(g_terminal_paste_len, len, &needed) || needed > ROTIDE_MAX_TEXT_BYTES) {
+		g_terminal_paste_failed = 1;
+		editorSetOperationTooLargeStatus();
+		return;
+	}
+	if (needed > g_terminal_paste_cap) {
+		size_t capacity = g_terminal_paste_cap == 0 ? sizeof(g_terminal_input)
+		                                            : g_terminal_paste_cap * 2;
+		if (capacity < needed) {
+			capacity = needed;
+		}
+		if (capacity > ROTIDE_MAX_TEXT_BYTES) {
+			capacity = ROTIDE_MAX_TEXT_BYTES;
+		}
+		char *grown = editorRealloc(g_terminal_paste_text, capacity);
+		if (grown == NULL) {
+			g_terminal_paste_failed = 1;
+			editorSetAllocFailureStatus();
+			return;
+		}
+		g_terminal_paste_text = grown;
+		g_terminal_paste_cap = capacity;
+	}
+	memcpy(g_terminal_paste_text + g_terminal_paste_len, bytes, len);
+	g_terminal_paste_len += len;
+}
+
+static int terminalReadPaste(void) {
+	static const char end[] = "\x1b[201~";
+	while (1) {
+		int event = terminalPollPendingEvent();
+		if (event != 0) {
+			return event;
+		}
+		char c;
+		event = terminalReadInputByteOrEvent(&c);
+		if (event != 0) {
+			if (event == INPUT_EOF_EVENT) {
+				terminalDiscardPaste();
+			}
+			return event;
+		}
+		/* Only the exact terminator is protocol; all other escapes are text. */
+		do {
+			if (c == end[g_terminal_paste_match]) {
+				if (++g_terminal_paste_match == sizeof(end) - 1) {
+					E.paste_active = 0;
+					return BRACKETED_PASTE_END_EVENT;
+				}
+			} else {
+				terminalAppendPaste(end, g_terminal_paste_match);
+				g_terminal_paste_match = 0;
+				if (c == end[0]) {
+					g_terminal_paste_match = 1;
+				} else {
+					terminalAppendPaste(&c, 1);
+				}
+			}
+			if (g_terminal_paste_match == 0 && editorInputBufferedBytes() > 0) {
+				const char *start = g_terminal_input + g_terminal_input_pos;
+				const char *escape =
+				        memchr(start, '\x1b', editorInputBufferedBytes());
+				size_t len = escape == NULL ? editorInputBufferedBytes()
+				                            : (size_t)(escape - start);
+				terminalAppendPaste(start, len);
+				g_terminal_input_pos += len;
+			}
+			if (editorInputBufferedBytes() == 0) {
+				break;
+			}
+			c = g_terminal_input[g_terminal_input_pos++];
+		} while (1);
+	}
+}
+
 int editorReadKey(void) {
+	if (E.paste_active) {
+		return terminalReadPaste();
+	}
+	terminalDiscardPaste();
 	while (1) {
 		int key = terminalPollPendingEvent();
 		if (key != 0) {

@@ -24,6 +24,18 @@ The tab family works in editor Normal, Insert, and Visual modes and in Terminal
 Normal mode. Terminal Job/Insert mode forwards every Alt/Meta key to the child
 PTY; use `Ctrl-W N` to enter Terminal Normal first.
 
+## Pasting text
+
+External terminal paste requires editor Insert mode or Terminal Job/Insert mode.
+Normal and Visual modes ignore external paste; Vim register paste commands keep
+their usual behavior. Each editor paste is one undo/redo step, separate from
+typing before or after it. Terminal paste is forwarded in chunks, with undo and
+command history controlled by the child application.
+
+Prompts accept pasted text but filter ASCII control characters; press Enter
+separately to submit a prompt. These rules use bracketed-paste markers supplied
+by the outer terminal. Input without markers is handled as ordinary typing.
+
 ## Vim leader bindings
 
 In the Vim system, Normal mode supports a leader key (Space by default) followed

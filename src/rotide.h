@@ -864,8 +864,8 @@ struct editorConfig {
 	/* --- Input transient: paste gate --- */
 	/*
 	 * Non-zero between BRACKETED_PASTE_START_EVENT and
-	 * BRACKETED_PASTE_END_EVENT. Editor insert mode buffers the payload
-	 * as one edit; terminal panes forward the matching paste markers.
+	 * BRACKETED_PASTE_END_EVENT. The input reader collects raw payload bytes;
+	 * dispatch applies or forwards the completed paste as one operation.
 	 */
 	int paste_active;
 

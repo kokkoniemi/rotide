@@ -1,7 +1,11 @@
 #include "terminal/terminal_pane.h"
 
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
 #include "editing/selection.h"
 #include "rotide.h"
+#include "support/alloc.h"
+#include "support/size_utils.h"
 #include "terminal/pty.h"
 #include "text/utf8.h"
 #include "vterm.h"
@@ -25,6 +29,74 @@
 #define TERMINAL_FOREGROUND_REFRESH_MS 250
 
 static int g_terminal_scrollback_lines = TERMINAL_SCROLLBACK_DEFAULT;
+
+static int terminalPaneReserveInput(struct editorTerminalPane *terminal, size_t extra) {
+	size_t pending = terminal->input_len - terminal->input_offset;
+	size_t needed = 0;
+	if (!editorSizeAdd(pending, extra, &needed) || needed > ROTIDE_MAX_TEXT_BYTES) {
+		editorSetOperationTooLargeStatus();
+		return 0;
+	}
+	if (extra <= terminal->input_capacity - terminal->input_len) {
+		return 1;
+	}
+	if (terminal->input_offset > 0) {
+		memmove(terminal->input_bytes, terminal->input_bytes + terminal->input_offset,
+		        pending);
+		terminal->input_offset = 0;
+		terminal->input_len = pending;
+	}
+	if (needed <= terminal->input_capacity) {
+		return 1;
+	}
+	size_t capacity = terminal->input_capacity == 0 ? 256 : terminal->input_capacity * 2;
+	if (capacity < needed) {
+		capacity = needed;
+	}
+	if (capacity > ROTIDE_MAX_TEXT_BYTES) {
+		capacity = ROTIDE_MAX_TEXT_BYTES;
+	}
+	char *grown = editorRealloc(terminal->input_bytes, capacity);
+	if (grown == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	terminal->input_bytes = grown;
+	terminal->input_capacity = capacity;
+	return 1;
+}
+
+static int terminalPaneFlushInput(struct editorTerminalPane *terminal) {
+	size_t sent = 0;
+	while (terminal->input_offset < terminal->input_len && sent < TERMINAL_PUMP_BYTE_CAP) {
+		size_t len = terminal->input_len - terminal->input_offset;
+		if (len > TERMINAL_PUMP_BYTE_CAP - sent) {
+			len = TERMINAL_PUMP_BYTE_CAP - sent;
+		}
+		ssize_t written = write(terminal->child.master_fd,
+		                        terminal->input_bytes + terminal->input_offset, len);
+		if (written > 0) {
+			terminal->input_offset += (size_t)written;
+			sent += (size_t)written;
+			continue;
+		}
+		if (written < 0 && errno == EINTR) {
+			continue;
+		}
+		if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+			return 1;
+		}
+		terminal->input_failed = 1;
+		terminal->input_offset = terminal->input_len = 0;
+		editorSetStatusMsg("Terminal input failed: %s",
+		                   written < 0 ? strerror(errno) : "closed PTY");
+		return 0;
+	}
+	if (terminal->input_offset == terminal->input_len) {
+		terminal->input_offset = terminal->input_len = 0;
+	}
+	return !terminal->input_failed;
+}
 
 void editorTerminalPaneSetDefaultScrollbackLines(int lines) {
 	if (lines < 0) {
@@ -66,8 +138,7 @@ static void terminalPaneOutputCallback(const char *s, size_t len, void *user) {
 	if (t == NULL || t->child.master_fd < 0 || s == NULL || len == 0) {
 		return;
 	}
-	ssize_t written = write(t->child.master_fd, s, len);
-	(void)written;
+	(void)editorTerminalPaneWrite(t, s, len);
 }
 
 static int terminalPaneSetTermProp(VTermProp prop, VTermValue *val, void *user) {
@@ -283,6 +354,7 @@ void editorTerminalPaneFree(void *pane) {
 	}
 	free(t->render_row_scratch);
 	t->render_row_scratch = NULL;
+	free(t->input_bytes);
 	free(t);
 }
 
@@ -337,6 +409,10 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 			break;
 		}
 		vterm_screen_flush_damage(terminal->screen);
+		if (terminal->input_offset < terminal->input_len &&
+		    !terminalPaneFlushInput(terminal)) {
+			total++;
+		}
 	}
 	if (!terminal->exited && terminal->child.pid > 0) {
 		int status = 0;
@@ -419,14 +495,13 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int 
 }
 
 int editorTerminalPaneWrite(struct editorTerminalPane *terminal, const char *bytes, size_t len) {
-	if (terminal == NULL || terminal->child.master_fd < 0 || bytes == NULL || len == 0) {
+	if (terminal == NULL || terminal->child.master_fd < 0 || terminal->input_failed ||
+	    bytes == NULL || len == 0 || !terminalPaneReserveInput(terminal, len)) {
 		return 0;
 	}
-	ssize_t n = write(terminal->child.master_fd, bytes, len);
-	if (n < 0) {
-		return 0;
-	}
-	return (int)n;
+	memcpy(terminal->input_bytes + terminal->input_len, bytes, len);
+	terminal->input_len += len;
+	return (int)len;
 }
 
 static VTermModifier terminalPaneModifiersToVterm(int rotide_modifiers) {
@@ -451,7 +526,7 @@ int editorTerminalPaneSendMouseButton(struct editorTerminalPane *terminal, int b
 	VTermModifier mod = terminalPaneModifiersToVterm(rotide_modifiers);
 	vterm_mouse_move(terminal->vt, row, col, mod);
 	vterm_mouse_button(terminal->vt, button, pressed != 0, mod);
-	return 1;
+	return terminalPaneFlushInput(terminal);
 }
 
 int editorTerminalPaneSendMouseMove(struct editorTerminalPane *terminal, int row, int col,
@@ -461,23 +536,28 @@ int editorTerminalPaneSendMouseMove(struct editorTerminalPane *terminal, int row
 	}
 	VTermModifier mod = terminalPaneModifiersToVterm(rotide_modifiers);
 	vterm_mouse_move(terminal->vt, row, col, mod);
-	return 1;
+	return terminalPaneFlushInput(terminal);
 }
 
-int editorTerminalPaneSendPasteStart(struct editorTerminalPane *terminal) {
-	if (terminal == NULL || terminal->vt == NULL) {
+int editorTerminalPaneSendPaste(struct editorTerminalPane *terminal, const char *bytes,
+                                size_t len) {
+	size_t reserved = 0;
+	if (terminal == NULL || terminal->vt == NULL || terminal->child.master_fd < 0 ||
+	    terminal->input_failed || bytes == NULL || len == 0) {
 		return 0;
 	}
+	/* Reserve both six-byte markers before libvterm invokes the output callback. */
+	if (!editorSizeAdd(len, 12, &reserved) || !terminalPaneReserveInput(terminal, reserved)) {
+		return 0;
+	}
+	terminal->sel_active = 0;
+	terminal->scroll_offset = 0;
+	terminal->pending_ctrl_w = 0;
+	terminal->pending_leader = 0;
 	vterm_keyboard_start_paste(terminal->vt);
-	return 1;
-}
-
-int editorTerminalPaneSendPasteEnd(struct editorTerminalPane *terminal) {
-	if (terminal == NULL || terminal->vt == NULL) {
-		return 0;
-	}
+	(void)editorTerminalPaneWrite(terminal, bytes, len);
 	vterm_keyboard_end_paste(terminal->vt);
-	return 1;
+	return terminalPaneFlushInput(terminal);
 }
 
 int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_key) {
@@ -493,7 +573,7 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_ke
 	/* Route printables through vterm. */
 	if (rotide_key >= 0x20 && rotide_key < 0x7f) {
 		vterm_keyboard_unichar(terminal->vt, (uint32_t)rotide_key, VTERM_MOD_NONE);
-		return 1;
+		return terminalPaneFlushInput(terminal);
 	}
 	VTermKey vk = VTERM_KEY_NONE;
 	VTermModifier mod = VTERM_MOD_NONE;
@@ -542,14 +622,12 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_ke
 	}
 	if (vk != VTERM_KEY_NONE) {
 		vterm_keyboard_key(terminal->vt, vk, mod);
-		return 1;
+		return terminalPaneFlushInput(terminal);
 	}
 	/* Forward control bytes directly. */
 	if (rotide_key > 0 && rotide_key < 0x20) {
 		char b = (char)rotide_key;
-		ssize_t written = write(terminal->child.master_fd, &b, 1);
-		(void)written;
-		return 1;
+		return editorTerminalPaneWrite(terminal, &b, 1) && terminalPaneFlushInput(terminal);
 	}
 	return 0;
 }
@@ -844,32 +922,24 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root) {
 	return n;
 }
 
-/* Append one fd if valid; returns 1 if the fd exists (regardless of capacity). */
-static int terminalPaneAppendFd(struct editorTerminalPane *t, int *fds_out, int capacity) {
-	if (t == NULL || t->child.master_fd < 0) {
-		return 0;
-	}
-	if (fds_out != NULL && capacity > 0) {
-		fds_out[0] = t->child.master_fd;
-	}
-	return 1;
-}
-
-int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity) {
-	(void)root;
+int editorTerminalPaneCollectPollFds(struct pollfd *fds_out, int capacity) {
 	int count = 0;
 	for (int i = 0; i < E.tab_count; i++) {
 		if (editorTabKindAt(i) != EDITOR_PANE_KIND_TERMINAL) {
 			continue;
 		}
-		int *next_out = NULL;
-		int next_cap = 0;
-		if (count < capacity && fds_out != NULL) {
-			next_out = fds_out + count;
-			next_cap = capacity - count;
+		struct editorTerminalPane *terminal = editorTabPayloadAt(i);
+		if (terminal == NULL || terminal->child.master_fd < 0) {
+			continue;
 		}
-		count += terminalPaneAppendFd((struct editorTerminalPane *)editorTabPayloadAt(i),
-		                              next_out, next_cap);
+		if (fds_out != NULL && count < capacity) {
+			fds_out[count] =
+			        (struct pollfd){.fd = terminal->child.master_fd, .events = POLLIN};
+			if (terminal->input_offset < terminal->input_len) {
+				fds_out[count].events |= POLLOUT;
+			}
+		}
+		count++;
 	}
 	return count;
 }

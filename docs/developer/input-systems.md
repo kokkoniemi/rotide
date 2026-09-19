@@ -24,6 +24,14 @@ Search fields are deliberately small plain-text contexts. They accept text,
 Backspace/Delete, arrows, Enter, and Esc without pretending to be another
 editing system or changing the active document.
 
+Bracketed paste uses the existing start/end input events. The terminal reader
+collects raw payload bytes in chunks; the end event exposes the complete payload
+through `editorInputPasteBytes()`. Dispatch applies editor paste through
+`editorEditPasteText()` once, with history boundaries before and after it.
+External paste requires editor Insert or Terminal Job/Insert mode; other modes
+consume it without executing its contents as commands. Prompts append pasted
+text while filtering ASCII controls, so a pasted newline does not submit them.
+
 ## Vim state and commands
 
 `src/input/system_vim.c` owns Normal, Insert, Visual, Visual-Line, and
@@ -146,6 +154,12 @@ Terminal Normal mode resolves the live leader, shared Alt tab actions, and
 window maps against RotIDE and does not forward ordinary keys. `i`, `a`, `I`,
 and `A` return to Job/Insert. Pending terminal sequences are stored per terminal
 tab and reset on focus changes.
+
+Terminal paste bypasses keybindings and preserves payload bytes. Libvterm emits
+the surrounding markers only when the child has enabled bracketed paste. Paste,
+later keys, and terminal replies share a pane-owned output buffer; the existing
+poll/pump loop retains partial writes and requests `POLLOUT` while output is
+pending. The child application owns terminal undo and command history.
 
 ## File layout
 
