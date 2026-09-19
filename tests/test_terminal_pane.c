@@ -1481,7 +1481,8 @@ static int test_terminal_paste_poll_drains_without_keyboard_input(void) {
 			}
 		}
 		char result = received == len ? 'Q' : 'F';
-		(void)write(keys[1], &result, 1);
+		if (write(keys[1], &result, 1) != 1)
+			_exit(1);
 		_exit(received == len ? 0 : 1);
 	}
 	close(keys[1]);
