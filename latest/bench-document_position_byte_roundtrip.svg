@@ -3,34 +3,34 @@
 <rect width="720" height="320" fill="#ffffff"/>
 <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">document_position_byte_roundtrip — min / p50 / p95</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">5.7k</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">4.8k</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">3.4k</text>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">3.0k</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">1.0k</text>
+<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">1.1k</text>
 <text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">ns</text>
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-08-23</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-08-24</text>
 <line x1="179.6" y1="268" x2="179.6" y2="272" stroke="#444" stroke-width="1"/>
-<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-08-28</text>
+<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-08-29</text>
 <line x1="287.2" y1="268" x2="287.2" y2="272" stroke="#444" stroke-width="1"/>
-<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-09-02</text>
+<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-09-03</text>
 <line x1="394.8" y1="268" x2="394.8" y2="272" stroke="#444" stroke-width="1"/>
-<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-09-07</text>
+<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-09-08</text>
 <line x1="502.3" y1="268" x2="502.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-09-12</text>
+<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-09-13</text>
 <line x1="609.9" y1="268" x2="609.9" y2="272" stroke="#444" stroke-width="1"/>
-<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-09-17</text>
+<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-09-18</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-09-21</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,65.9 93.5,162.9 115.0,145.6 136.6,179.0 158.1,130.0 179.6,162.9 201.1,163.3 222.6,179.5 244.1,179.7 265.7,162.9 287.2,111.3 308.7,111.5 330.2,110.1 351.7,178.7 373.2,178.3 394.8,140.6 416.3,179.6 437.8,248.5 459.3,162.9 480.8,179.1 502.3,178.6 523.9,162.9 545.4,179.8 566.9,178.9 588.4,178.6 609.9,178.9 631.4,178.6 653.0,179.0 674.5,179.2 696.0,179.2"/>
-<circle cx="696.0" cy="179.2" r="3" fill="#1f77b4"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,62.7 93.5,153.2 115.0,140.5 136.6,176.3 158.1,122.7 179.6,160.9 201.1,160.2 222.6,177.2 244.1,178.3 265.7,160.7 287.2,105.2 308.7,103.7 330.2,103.5 351.7,109.0 373.2,176.4 394.8,136.2 416.3,177.5 437.8,247.5 459.3,161.0 480.8,177.2 502.3,174.3 523.9,160.9 545.4,177.3 566.9,177.4 588.4,176.0 609.9,177.7 631.4,177.3 653.0,177.2 674.5,177.2 696.0,176.6"/>
-<circle cx="696.0" cy="176.6" r="3" fill="#ff7f0e"/>
-<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,70.6 93.5,165.8 115.0,149.8 136.6,181.5 158.1,147.3 179.6,165.2 201.1,165.4 222.6,181.0 244.1,181.0 265.7,165.5 287.2,124.8 308.7,119.2 330.2,123.4 351.7,181.7 373.2,181.6 394.8,150.1 416.3,181.5 437.8,249.3 459.3,165.9 480.8,181.0 502.3,180.7 523.9,165.8 545.4,181.5 566.9,181.4 588.4,180.8 609.9,181.4 631.4,180.7 653.0,180.7 674.5,181.4 696.0,181.4"/>
-<circle cx="696.0" cy="181.4" r="3" fill="#2ca02c"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-09-22</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,138.7 93.5,116.5 115.0,159.3 136.6,96.5 158.1,138.6 179.6,139.2 201.1,159.9 222.6,160.2 244.1,138.7 265.7,72.6 287.2,72.8 308.7,71.1 330.2,158.8 351.7,158.4 373.2,110.1 394.8,160.1 416.3,248.2 437.8,138.6 459.3,159.4 480.8,158.8 502.3,138.6 523.9,160.3 545.4,159.1 566.9,158.7 588.4,159.1 609.9,158.8 631.4,159.3 653.0,159.6 674.5,159.6 696.0,182.5"/>
+<circle cx="696.0" cy="182.5" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,126.2 93.5,110.0 115.0,155.9 136.6,87.3 158.1,136.2 179.6,135.2 201.1,157.0 222.6,158.4 244.1,135.9 265.7,64.8 287.2,62.9 308.7,62.7 330.2,69.7 351.7,156.0 373.2,104.4 394.8,157.3 416.3,247.0 437.8,136.3 459.3,157.0 480.8,153.3 502.3,136.2 523.9,157.1 545.4,157.2 566.9,155.4 588.4,157.6 609.9,157.2 631.4,157.0 653.0,156.9 674.5,156.2 696.0,180.3"/>
+<circle cx="696.0" cy="180.3" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,142.4 93.5,122.0 115.0,162.5 136.6,118.7 158.1,141.6 179.6,141.9 201.1,161.8 222.6,161.9 244.1,142.0 265.7,89.8 287.2,82.8 308.7,88.1 330.2,162.7 351.7,162.6 373.2,122.2 394.8,162.4 416.3,249.3 437.8,142.5 459.3,161.8 480.8,161.5 502.3,142.4 523.9,162.5 545.4,162.4 566.9,161.6 588.4,162.3 609.9,161.5 631.4,161.4 653.0,162.3 674.5,162.4 696.0,184.6"/>
+<circle cx="696.0" cy="184.6" r="3" fill="#2ca02c"/>
 <line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
 <text x="610" y="50" dominant-baseline="middle" fill="#222">p50</text>
 <line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
