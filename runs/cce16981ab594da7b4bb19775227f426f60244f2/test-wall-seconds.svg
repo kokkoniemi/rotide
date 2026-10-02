@@ -12,23 +12,23 @@
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-09-05</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-09-06</text>
 <line x1="179.6" y1="268" x2="179.6" y2="272" stroke="#444" stroke-width="1"/>
-<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-09-09</text>
+<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-09-10</text>
 <line x1="287.2" y1="268" x2="287.2" y2="272" stroke="#444" stroke-width="1"/>
-<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-09-14</text>
+<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-09-15</text>
 <line x1="394.8" y1="268" x2="394.8" y2="272" stroke="#444" stroke-width="1"/>
-<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-09-19</text>
+<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-09-19#2</text>
 <line x1="502.3" y1="268" x2="502.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-09-22</text>
+<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-09-23</text>
 <line x1="609.9" y1="268" x2="609.9" y2="272" stroke="#444" stroke-width="1"/>
-<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-09-27</text>
+<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-09-28</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-10-01</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,79.4 93.5,77.4 115.0,79.4 136.6,75.5 158.1,75.5 179.6,120.5 201.1,171.2 222.6,136.1 244.1,136.1 265.7,171.2 287.2,136.1 308.7,74.7 330.2,65.9 351.7,65.9 373.2,65.9 394.8,65.9 416.3,77.2 437.8,115.5 459.3,175.9 480.8,130.1 502.3,115.5 523.9,116.4 545.4,116.4 566.9,80.9 588.4,80.9 609.9,116.4 631.4,62.7 653.0,118.6 674.5,130.2 696.0,118.6"/>
-<circle cx="696.0" cy="118.6" r="3" fill="#1f77b4"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,221.0 93.5,220.6 115.0,221.0 136.6,220.3 158.1,220.3 179.6,232.5 201.1,246.9 222.6,238.9 244.1,238.9 265.7,246.9 287.2,238.9 308.7,222.6 330.2,219.0 351.7,219.7 373.2,219.7 394.8,219.7 416.3,220.1 437.8,232.3 459.3,249.3 480.8,237.2 502.3,232.3 523.9,232.3 545.4,231.7 566.9,222.3 588.4,222.3 609.9,231.5 631.4,220.7 653.0,231.5 674.5,234.7 696.0,231.5"/>
-<circle cx="696.0" cy="231.5" r="3" fill="#ff7f0e"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-10-02</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,75.5 93.5,96.4 115.0,75.5 136.6,75.5 158.1,120.5 179.6,171.2 201.1,136.1 222.6,136.1 244.1,171.2 265.7,136.1 287.2,74.7 308.7,65.9 330.2,65.9 351.7,65.9 373.2,65.9 394.8,77.2 416.3,115.5 437.8,175.9 459.3,130.1 480.8,115.5 502.3,116.4 523.9,116.4 545.4,80.9 566.9,80.9 588.4,116.4 609.9,62.7 631.4,118.6 653.0,118.6 674.5,99.0 696.0,79.4"/>
+<circle cx="696.0" cy="79.4" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,220.3 93.5,227.8 115.0,220.3 136.6,220.3 158.1,232.5 179.6,246.9 201.1,238.9 222.6,238.9 244.1,246.9 265.7,238.9 287.2,222.6 308.7,219.0 330.2,219.7 351.7,219.7 373.2,219.7 394.8,220.1 416.3,232.3 437.8,249.3 459.3,237.2 480.8,232.3 502.3,232.3 523.9,231.7 545.4,222.3 566.9,222.3 588.4,231.5 609.9,220.7 631.4,231.5 653.0,231.5 674.5,227.4 696.0,223.2"/>
+<circle cx="696.0" cy="223.2" r="3" fill="#ff7f0e"/>
 <line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
 <text x="610" y="50" dominant-baseline="middle" fill="#222">exec total</text>
 <line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
