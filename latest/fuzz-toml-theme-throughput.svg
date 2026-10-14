@@ -12,19 +12,19 @@
 <line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-09-16</text>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-09-17</text>
 <line x1="179.6" y1="268" x2="179.6" y2="272" stroke="#444" stroke-width="1"/>
-<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-09-19#3</text>
+<text x="179.6" y="286" text-anchor="middle" fill="#222">2026-09-20</text>
 <line x1="287.2" y1="268" x2="287.2" y2="272" stroke="#444" stroke-width="1"/>
-<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-09-24</text>
+<text x="287.2" y="286" text-anchor="middle" fill="#222">2026-09-25</text>
 <line x1="394.8" y1="268" x2="394.8" y2="272" stroke="#444" stroke-width="1"/>
-<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-09-29</text>
+<text x="394.8" y="286" text-anchor="middle" fill="#222">2026-09-30</text>
 <line x1="502.3" y1="268" x2="502.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-10-04</text>
+<text x="502.3" y="286" text-anchor="middle" fill="#222">2026-10-05</text>
 <line x1="609.9" y1="268" x2="609.9" y2="272" stroke="#444" stroke-width="1"/>
-<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-10-09</text>
+<text x="609.9" y="286" text-anchor="middle" fill="#222">2026-10-10</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-10-13</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,173.4 93.5,140.8 115.0,165.5 136.6,174.9 158.1,268.0 179.6,268.0 201.1,160.4 222.6,175.4 244.1,134.2 265.7,71.0 287.2,175.5 308.7,170.7 330.2,66.8 351.7,175.4 373.2,152.3 394.8,136.8 416.3,174.0 437.8,64.4 459.3,163.1 480.8,133.0 502.3,172.8 523.9,163.4 545.4,172.2 566.9,80.1 588.4,173.3 609.9,127.1 631.4,160.5 653.0,175.9 674.5,154.7 696.0,173.1"/>
-<circle cx="696.0" cy="173.1" r="3" fill="#1f77b4"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-10-14</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,140.8 93.5,165.5 115.0,174.9 136.6,268.0 158.1,268.0 179.6,160.4 201.1,175.4 222.6,134.2 244.1,71.0 265.7,175.5 287.2,170.7 308.7,66.8 330.2,175.4 351.7,152.3 373.2,136.8 394.8,174.0 416.3,64.4 437.8,163.1 459.3,133.0 480.8,172.8 502.3,163.4 523.9,172.2 545.4,80.1 566.9,173.3 588.4,127.1 609.9,160.5 631.4,175.9 653.0,154.7 674.5,173.1 696.0,172.6"/>
+<circle cx="696.0" cy="172.6" r="3" fill="#1f77b4"/>
 </svg>
